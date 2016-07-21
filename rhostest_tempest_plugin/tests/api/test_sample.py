@@ -12,16 +12,32 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+from rhostest_tempest_plugin.tests.api import base
 from tempest import test
-
-from tempest.api.compute import base
 from tempest import config
 
 
 CONF = config.CONF
 
 
-class SampleTest(base.BaseV2ComputeTest):
+class SampleRHOSTest(base.BaseRHOSTest):
+
+    @classmethod
+    def setup_clients(cls):
+        super(SampleRHOSTest, cls).setup_clients()
+        cls.client = cls.servers_client
+
+    def tearDown(self):
+        self.clear_servers()
+        super(SampleRHOSTest, self).tearDown()
+
+    @test.attr(type="smoke")
+    def test_hello_world(self):
+        self.assertEqual('Hello world!', 'Hello world!')
+
+    @classmethod
+    def resource_cleanup(cls):
+        super(SampleRHOSTest, cls).resource_cleanup()
 
     @test.attr(type="smoke")
     def test_neutron_is_enabled(self):

@@ -33,20 +33,20 @@ it:
 
 6  cd RHOS-Tempest-Plugin
 
-4. Install the plugin inside the same virtualenv as above:
+7. Install the plugin inside the same virtualenv as above:
 
    python setup.py install
 
-5. cd ..
+8. cd ..
 
-5. Generate the tempest.conf file, using the wonderful downstream
+9. Generate the tempest.conf file, using the wonderful downstream
    `config_tempest.py` tool:
 
    source overcloudrc
    cd tempest
    python tools/config_tempest.py --image http://download.cirros-cloud.net/0.3.4/cirros-0.3.4-x86_64-disk.img --out etc/tempest.conf --debug --create identity.uri $OS_AUTH_URL compute.allow_tenant_isolation true object-storage.operator_role swiftoperator identity.admin_password $OS_PASSWORD
 
-6. Run Tempest, you'll see the plugin tests executed (answer `n` when it asks to
+10. Run Tempest, you'll see the plugin tests executed (answer `n` when it asks to
    create a new virtualenv):
 
    ./run_tempest.sh

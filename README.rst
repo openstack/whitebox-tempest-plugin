@@ -16,20 +16,28 @@ it:
 
    git clone https://github.com/redhat-openstack/tempest
 
-2. Install Tempest in a virtualenv. If you have `tox` installed, you can use
+2. cd tempest
+
+3. Install Tempest in a virtualenv. If you have `tox` installed, you can use
    this nifty trick from inside the Tempest directory. Don't forget to source
    the virtualenv after installation:
 
    tox -e py27 --notest
    source .tox/py27/bin/activate
 
-3. Clone the plugin repo.
+4. cd ..
+
+5. Clone the plugin repo.
 
    git clone https://github.com/joehakimrahme/RHOS-Tempest-Plugin
+
+6  cd RHOS-Tempest-Plugin
 
 4. Install the plugin inside the same virtualenv as above:
 
    python setup.py install
+
+5. cd ..
 
 5. Generate the tempest.conf file, using the wonderful downstream
    `config_tempest.py` tool:

@@ -13,10 +13,13 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 from oslo_log import log as logging
+
 from tempest import config
 from tempest import test
+
 from tempest.common import compute
 from tempest.common import waiters
+
 from tempest.lib.common.utils import test_utils
 
 CONF = config.CONF
@@ -156,6 +159,7 @@ class BaseRHOSTest(test.BaseTestCase):
     def create_test_server(cls, validatable=False, volume_backed=False,
                            **kwargs):
         """Wrapper utility that returns a test server.
+
         This wrapper utility calls the common create test server and
         returns a test server. The purpose of this wrapper is to minimize
         the impact on the code of the tests already using this

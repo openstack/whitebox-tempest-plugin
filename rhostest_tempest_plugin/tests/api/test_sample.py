@@ -13,8 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 from rhostest_tempest_plugin.tests.api import base
-from tempest import test
 from tempest import config
+from tempest import test
 
 
 CONF = config.CONF

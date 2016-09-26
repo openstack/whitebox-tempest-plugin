@@ -16,7 +16,10 @@
 
 import os
 
+from tempest import config
 from tempest.test_discover import plugins
+
+from rhostest_tempest_plugin import config as project_config
 
 
 class RHOSTempestPlugin(plugins.TempestPlugin):
@@ -28,7 +31,8 @@ class RHOSTempestPlugin(plugins.TempestPlugin):
         return full_test_dir, base_path
 
     def register_opts(self, conf):
-        pass
+        config.register_opt_group(conf, project_config.whitebox_plugin_group,
+                                  project_config.WhiteboxPluginGroup)
 
     def get_opt_lists(self):
         pass

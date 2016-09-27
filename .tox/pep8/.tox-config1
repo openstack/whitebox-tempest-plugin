@@ -1,4 +1,0 @@
-00000000000000000000000000000000 /usr/bin/python
-2.3.1 0 1
-00000000000000000000000000000000 -r/home/jhakimra/code/openstack/RHOS-Tempest-Plugin/requirements.txt
-00000000000000000000000000000000 -r/home/jhakimra/code/openstack/RHOS-Tempest-Plugin/test-requirements.txt

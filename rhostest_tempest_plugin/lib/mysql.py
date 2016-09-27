@@ -12,7 +12,7 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-import MySQLdb
+import pymysql
 
 from tempest import config
 
@@ -31,7 +31,7 @@ class Client(object):
         }
 
     def connect(self):
-        return MySQLdb.connect(
+        return pymysql.connect(
             self.db_config['host'],
             self.db_config['username'],
             self.db_config['password'],

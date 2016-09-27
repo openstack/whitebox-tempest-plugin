@@ -12,9 +12,11 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-from rhostest_tempest_plugin.tests.api import base
 from tempest import config
 from tempest import test
+
+from rhostest_tempest_plugin.lib.mysql import default_client as dbclient
+from rhostest_tempest_plugin.tests.api import base
 
 
 CONF = config.CONF
@@ -48,3 +50,15 @@ class SampleRHOSTest(base.BaseRHOSTest):
         # This test shows how to use the tempest clients
         server = self.create_test_server(adminPass='testpassword')
         self.assertEqual('testpassword', server['adminPass'])
+
+    def test_mysql_client(self):
+        # This test shows how to use the mysql dbclient
+        connection = dbclient.connect()
+        try:
+            with connection.cursor() as cursor:
+                result = cursor.execute("SELECT * FROM nova.services;")
+
+                self.assertGreater(result, 0)
+
+        finally:
+            connection.close()

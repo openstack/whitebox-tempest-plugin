@@ -27,8 +27,10 @@ WhiteboxPluginGroup = [
                help="Password for the database connection."),
     cfg.StrOpt("nova_db_database",
                help="The database name for the nova database connection."),
+    cfg.StrOpt("target_controller",
+               help="Address of a controller node."),
     cfg.StrOpt("ssh_user",
-               help="Username of the ssh connection"),
+               help="Username of the ssh connection."),
     cfg.StrOpt("private_key_path",
-               help="Path to the private key"),
+               help="Path to the private key."),
 ]

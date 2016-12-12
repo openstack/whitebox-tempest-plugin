@@ -12,30 +12,38 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-import pymysql
-
 from tempest import config
+from tempest.lib.common import ssh
 
 
 CONF = config.CONF
 
 
-class Client(object):
+class MySQLClient(object):
+    """A client that executes MySQL commands over SSH.
+
+    This client allows us to query databases bound to localhost only.
+    It doesn't handle large outputs well due to the limitations of
+    tempest.lib.common.ssh
+
+    """
 
     def __init__(self, dbconf=CONF):
-        self.db_config = {
-            "username": dbconf.whitebox_plugin.nova_db_username,
-            "password": dbconf.whitebox_plugin.nova_db_password,
-            "host": dbconf.whitebox_plugin.nova_db_hostname,
-            "database": dbconf.whitebox_plugin.nova_db_database,
-        }
+        self.username = dbconf.whitebox_plugin.nova_db_username
+        self.password = dbconf.whitebox_plugin.nova_db_password
+        self.host = dbconf.whitebox_plugin.nova_db_hostname
+        self.database = dbconf.whitebox_plugin.nova_db_database
+        self.ssh_key = dbconf.whitebox_plugin.private_key_path
+        self.ssh_user = dbconf.whitebox_plugin.ssh_user
 
-    def connect(self):
-        return pymysql.connect(
-            self.db_config['host'],
-            self.db_config['username'],
-            self.db_config['password'],
-            self.db_config['database'],
-        )
+    def execute_command(self, command):
+        ssh_client = ssh.Client(self.host, self.ssh_user,
+                                key_filename=self.ssh_key)
+        sql_cmd = "mysql -u{} -p{} -e '{}' {}".format(
+            self.username,
+            self.password,
+            command,
+            self.database)
+        return ssh_client.exec_command(sql_cmd)
 
-default_client = Client()
+default_client = MySQLClient()

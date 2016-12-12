@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 from tempest import config
+from tempest.lib.common import ssh
 from tempest import test
 
 from rhostest_tempest_plugin.lib.mysql import default_client as dbclient
@@ -23,6 +24,11 @@ CONF = config.CONF
 
 
 class SampleRHOSTest(base.BaseRHOSTest):
+    """Sample tests for documentation purposes.
+
+    These simple tests are presented as reference on how to use
+    the libs provided by this plugin.
+    """
 
     @classmethod
     def setup_clients(cls):
@@ -51,14 +57,18 @@ class SampleRHOSTest(base.BaseRHOSTest):
         server = self.create_test_server(adminPass='testpassword')
         self.assertEqual('testpassword', server['adminPass'])
 
+    def test_ssh_client(self):
+        host = CONF.whitebox_plugin.nova_db_hostname
+        ssh_user = CONF.whitebox_plugin.target_ssh_user
+        ssh_key = CONF.whitebox_plugin.target_private_key_path
+
+        command = "mysql -uroot -p -h 127.0.0.1 -e 'show tables;' mysql"
+        ssh_client = ssh.Client(host, ssh_user, key_filename=ssh_key)
+
+        output = ssh_client.exec_command(command)
+
+        self.assertGreater(len(output), 0)
+
     def test_mysql_client(self):
-        # This test shows how to use the mysql dbclient
-        connection = dbclient.connect()
-        try:
-            with connection.cursor() as cursor:
-                result = cursor.execute("SELECT * FROM nova.services;")
-
-                self.assertGreater(result, 0)
-
-        finally:
-            connection.close()
+        output = dbclient.execute_command("show tables;")
+        self.assertGreater(len(output), 0)

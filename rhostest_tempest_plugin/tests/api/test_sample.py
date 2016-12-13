@@ -58,15 +58,13 @@ class SampleRHOSTest(base.BaseRHOSTest):
         self.assertEqual('testpassword', server['adminPass'])
 
     def test_ssh_client(self):
+        """Connect to the db hostname and execute `uname -a`"""
         host = CONF.whitebox_plugin.nova_db_hostname
-        ssh_user = CONF.whitebox_plugin.target_ssh_user
-        ssh_key = CONF.whitebox_plugin.target_private_key_path
-
-        command = "mysql -uroot -p -h 127.0.0.1 -e 'show tables;' mysql"
+        ssh_user = CONF.whitebox_plugin.ssh_user
+        ssh_key = CONF.whitebox_plugin.private_key_path
+        command = "uname -a"
         ssh_client = ssh.Client(host, ssh_user, key_filename=ssh_key)
-
         output = ssh_client.exec_command(command)
-
         self.assertGreater(len(output), 0)
 
     def test_mysql_client(self):

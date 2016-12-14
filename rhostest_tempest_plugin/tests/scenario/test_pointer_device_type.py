@@ -20,12 +20,10 @@
 #
 # Parameters required in /etc/nova/nova.conf
 #    pointer_model=ps2mouse
-#
 from oslo_log import log as logging
-from rhostest_tempest_plugin.lib import virshxml
-from tempest.api.compute import base
+from rhostest_tempest_plugin import base
+from rhostest_tempest_plugin.services import virshxml
 from tempest.common.utils import data_utils
-from tempest.common import waiters
 from tempest import config
 from tempest import test
 
@@ -33,7 +31,7 @@ CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
 
-class PointerDeviceTypeFromImages(base.BaseV2ComputeAdminTest):
+class PointerDeviceTypeFromImages(base.BaseRHOSTest):
 
     @classmethod
     def setup_clients(cls):
@@ -52,30 +50,6 @@ class PointerDeviceTypeFromImages(base.BaseV2ComputeAdminTest):
         resp_metadata = (self.image_client.list_image_metadata(image)
                          ['metadata'])
         self.assertEqual(req_metadata, resp_metadata)
-
-    def _create_nova_flavor(self, name, ram, vcpus, disk, fid):
-        # This function creates a flavor with provided parameters
-        flavor = self.flvclient.create_flavor(name=name,
-                                              ram=ram,
-                                              vcpus=vcpus,
-                                              disk=disk,
-                                              id=fid)['flavor']
-        return flavor
-
-    def _create_nova_instance(self, flavor, image):
-        name = data_utils.rand_name("instance")
-        net_id = CONF.network.public_network_id
-        networks = [{'uuid': net_id}]
-        server = self.servers_client.create_server(name=name,
-                                                   imageRef=image,
-                                                   flavorRef=flavor,
-                                                   networks=networks)['server']
-
-        server_id = server['id']
-        self.addCleanup(self.servers_client.delete_server, server_id)
-        waiters.wait_for_server_status(self.servers_client, server_id,
-                                       'ACTIVE')
-        return server_id
 
     def _verify_pointer_device_type_from_images(self, server_id):
         # Retrieve the server's hypervizor hostname

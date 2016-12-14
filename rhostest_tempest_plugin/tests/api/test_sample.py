@@ -16,7 +16,7 @@ from tempest import config
 from tempest.lib.common import ssh
 from tempest import test
 
-from rhostest_tempest_plugin.lib.mysql import default_client as dbclient
+from rhostest_tempest_plugin.services.mysql import default_client as dbclient
 from rhostest_tempest_plugin.tests.api import base
 
 

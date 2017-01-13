@@ -22,7 +22,7 @@
 #    pointer_model=ps2mouse
 from oslo_log import log as logging
 from rhostest_tempest_plugin import base
-from rhostest_tempest_plugin.services import virshxml
+from rhostest_tempest_plugin.services import clients
 from tempest.common.utils import data_utils
 from tempest import config
 from tempest import test
@@ -65,7 +65,7 @@ class PointerDeviceTypeFromImages(base.BaseRHOSTest):
         self.assertIsNotNone(compute_node_address)
 
         # Retrieve input device from virsh dumpxml
-        virshxml_client = virshxml.VirshXMLClient(compute_node_address)
+        virshxml_client = clients.VirshXMLClient(compute_node_address)
         output = virshxml_client.dumpxml(server_id)
         # Verify that input device contains tablet and mouse
         tablet = "input type='tablet' bus='usb'"

@@ -24,10 +24,9 @@
 #
 from oslo_log import log as logging
 from rhostest_tempest_plugin import base
-from rhostest_tempest_plugin.services.mysql import default_client as dbclient
+from rhostest_tempest_plugin.services import clients
 from tempest.common.utils import data_utils
 from tempest import config
-from tempest.lib.common import ssh
 from tempest import test
 
 CONF = config.CONF
@@ -45,11 +44,7 @@ class RefreshQuotaUsages(base.BaseRHOSTest):
     @classmethod
     def resource_setup(cls):
         super(RefreshQuotaUsages, cls).resource_setup()
-
-    def _execute_ssh(self, host, ssh_user, ssh_key, command):
-        ssh_client = ssh.Client(host, ssh_user, key_filename=ssh_key)
-        output = ssh_client.exec_command(command)
-        return output
+        cls.dbclient = clients.MySQLClient()
 
     def _compare_resource_count(self, source1, source2):
         for quota in source1.split("\n"):
@@ -64,7 +59,7 @@ class RefreshQuotaUsages(base.BaseRHOSTest):
         FROM instances
         WHERE uuid = "{}"
         """.format(server_id)
-        data = dbclient.execute_command(dbcommand)
+        data = self.dbclient.execute_command(dbcommand)
 
         # Parsing the output of the mysql cli. Not pretty.
         user_id, project_id = data.split('\n')[1].split("\t")
@@ -75,7 +70,7 @@ class RefreshQuotaUsages(base.BaseRHOSTest):
         FROM quota_usages
         WHERE project_id = "{}"
         """.format(project_id)
-        data_orig = dbclient.execute_command(dbcommand_select)
+        data_orig = self.dbclient.execute_command(dbcommand_select)
         # Update quota usage table to fake values to mimic out of
         # sync scenario
         dbcommand_update = """
@@ -83,23 +78,20 @@ class RefreshQuotaUsages(base.BaseRHOSTest):
         SET in_use=99
         WHERE project_id = "{}"
         """.format(project_id)
-        data = dbclient.execute_command(dbcommand_update)
-        data_fake = dbclient.execute_command(dbcommand_select)
+        data = self.dbclient.execute_command(dbcommand_update)
+        data_fake = self.dbclient.execute_command(dbcommand_select)
         # Verify that update work and quota usage table is different
         # from original state
         compare = self._compare_resource_count(data_orig, data_fake)
         if compare:
             return False
         # Trigger quota refresh using nova-manage command.
-        # TODO(jhakimra) make a nova-manage client
-        cmd = ('sudo nova-manage project quota_usage_refresh '
-               '--project %s --user %s' % (project_id, user_id))
-        ssh_controller = CONF.whitebox_plugin.target_controller
-        ssh_username = CONF.whitebox_plugin.ssh_user
-        ssh_key = CONF.whitebox_plugin.private_key_path
-        self._execute_ssh(ssh_controller, ssh_username, ssh_key, cmd)
+        cmd = ('project quota_usage_refresh --project %s --user %s' %
+               (project_id, user_id))
+        nova_mg_client = clients.NovaManageClient()
+        nova_mg_client.execute_command(cmd)
         # Retrieve resource usage count from quota usage table
-        data_synced = dbclient.execute_command(dbcommand_select)
+        data_synced = self.dbclient.execute_command(dbcommand_select)
         # Verify that resource usage is in sync now
         compare = self._compare_resource_count(data_orig, data_synced)
         if not compare:

@@ -13,10 +13,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 from tempest import config
-from tempest.lib.common import ssh
 from tempest import test
 
-from rhostest_tempest_plugin.services.mysql import default_client as dbclient
+from rhostest_tempest_plugin.services.clients import MySQLClient
+from rhostest_tempest_plugin.services.clients import SSHClient
 from rhostest_tempest_plugin.tests.api import base
 
 
@@ -34,6 +34,7 @@ class SampleRHOSTest(base.BaseRHOSTest):
     def setup_clients(cls):
         super(SampleRHOSTest, cls).setup_clients()
         cls.client = cls.servers_client
+        cls.dbclient = MySQLClient()
 
     def tearDown(self):
         self.clear_servers()
@@ -60,13 +61,11 @@ class SampleRHOSTest(base.BaseRHOSTest):
     def test_ssh_client(self):
         """Connect to the db hostname and execute `uname -a`"""
         host = CONF.whitebox_plugin.nova_db_hostname
-        ssh_user = CONF.whitebox_plugin.ssh_user
-        ssh_key = CONF.whitebox_plugin.private_key_path
+        ssh_client = SSHClient()
         command = "uname -a"
-        ssh_client = ssh.Client(host, ssh_user, key_filename=ssh_key)
-        output = ssh_client.exec_command(command)
+        output = ssh_client.execute(host, command)
         self.assertGreater(len(output), 0)
 
     def test_mysql_client(self):
-        output = dbclient.execute_command("show tables;")
+        output = self.dbclient.execute_command("show tables;")
         self.assertGreater(len(output), 0)

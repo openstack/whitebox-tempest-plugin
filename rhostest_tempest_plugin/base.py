@@ -35,7 +35,9 @@ class BaseRHOSTest(base.BaseV2ComputeAdminTest):
                                               id=fid)['flavor']
         return flavor
 
-    def _create_nova_instance(self, flavor, image=None):
+    def _create_nova_instance(self, flavor=None, image=None, cleanup=True):
+        if flavor is None:
+            flavor = CONF.compute.flavor_ref
         if image is None:
             image = CONF.compute.image_ref
 
@@ -47,7 +49,10 @@ class BaseRHOSTest(base.BaseV2ComputeAdminTest):
                                                    flavorRef=flavor,
                                                    networks=networks)['server']
         server_id = server['id']
-        self.addCleanup(self.servers_client.delete_server, server_id)
+
+        if cleanup:
+            self.addCleanup(self.servers_client.delete_server, server_id)
+
         waiters.wait_for_server_status(self.servers_client, server_id,
                                        'ACTIVE')
         return server_id

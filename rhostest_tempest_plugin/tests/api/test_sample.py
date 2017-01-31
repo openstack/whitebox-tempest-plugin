@@ -60,7 +60,7 @@ class SampleRHOSTest(base.BaseRHOSTest):
 
     def test_ssh_client(self):
         """Connect to the db hostname and execute `uname -a`"""
-        host = CONF.whitebox_plugin.nova_db_hostname
+        host = CONF.compute_private_config.target_controller
         ssh_client = SSHClient()
         command = "uname -a"
         output = ssh_client.execute(host, command)

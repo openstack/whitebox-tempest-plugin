@@ -14,18 +14,14 @@
 #    under the License.
 #
 # Parameters required in etc/tempest.conf
-#    [whitebox_plugin]
-#    nova_db_hostname=
-#    nova_db_username=
-#    nova_db_password=
-#    nova_db_database=
+#    [compute_private_config]
+#    target_controller=
 #    target_ssh_user=
 #    target_private_key_path=
-#
+
 from oslo_log import log as logging
 from rhostest_tempest_plugin import base
 from rhostest_tempest_plugin.services import clients
-from tempest.common.utils import data_utils
 from tempest import config
 from tempest import test
 

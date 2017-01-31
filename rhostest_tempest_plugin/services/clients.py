@@ -12,6 +12,8 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+import urlparse
+
 from tempest import config
 from tempest.lib.common import ssh
 
@@ -23,8 +25,8 @@ class SSHClient(object):
     """A client to execute remote commands, based on tempest.lib.common.ssh."""
 
     def __init__(self):
-        self.ssh_key = CONF.whitebox_plugin.private_key_path
-        self.ssh_user = CONF.whitebox_plugin.ssh_user
+        self.ssh_key = CONF.compute_private_config.target_private_key_path
+        self.ssh_user = CONF.compute_private_config.target_ssh_user
 
     def execute(self, hostname=None, cmd=None):
         ssh_client = ssh.Client(hostname, self.ssh_user,
@@ -45,10 +47,20 @@ class VirshXMLClient(SSHClient):
 class MySQLClient(SSHClient):
     def __init__(self):
         super(MySQLClient, self).__init__()
-        self.username = CONF.whitebox_plugin.nova_db_username
-        self.password = CONF.whitebox_plugin.nova_db_password
-        self.host = CONF.whitebox_plugin.nova_db_hostname
-        self.database = CONF.whitebox_plugin.nova_db_database
+        # the nova conf file may contain a private IP.
+        # let's just assume the db is available on the same node.
+        self.host = CONF.compute_private_config.target_controller
+
+        # discover db connection params by accessing nova.conf remotely
+        ssh_client = SSHClient()
+        cmd = 'grep "connection=mysql+pymysql://nova:" /etc/nova/nova.conf'
+        connection = ssh_client.execute(self.host, "sudo {}".format(cmd))
+        connection_url = "=".join(connection.split("=")[1:])
+        p = urlparse.urlparse(connection_url)
+
+        self.username = p.username
+        self.password = p.password
+        self.database = p.path[1:]
 
     def execute_command(self, command):
         sql_cmd = "mysql -u{} -p{} -e '{}' {}".format(
@@ -62,7 +74,7 @@ class MySQLClient(SSHClient):
 class NovaManageClient(SSHClient):
     def __init__(self):
         super(NovaManageClient, self).__init__()
-        self.hostname = CONF.whitebox_plugin.target_controller
+        self.hostname = CONF.compute_private_config.target_controller
 
     def execute_command(self, command):
         nova_cmd = "sudo nova-manage {}".format(command)

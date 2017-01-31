@@ -14,12 +14,14 @@
 #    under the License.
 #
 # Parameters required in etc/tempest.conf
-#    [whitebox]
-#    ssh_user
-#    private_key_path
+#    [compute_private_config]
+#    target_controller=
+#    target_ssh_user=
+#    target_private_key_path=
 #
 # Parameters required in /etc/nova/nova.conf
 #    pointer_model=ps2mouse
+
 from oslo_log import log as logging
 from rhostest_tempest_plugin import base
 from rhostest_tempest_plugin.services import clients

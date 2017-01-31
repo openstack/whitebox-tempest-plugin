@@ -15,22 +15,14 @@
 
 from oslo_config import cfg
 
-whitebox_plugin_group = cfg.OptGroup(name="whitebox_plugin",
-                                     title="Whitebox config options")
+compute_private_group = cfg.OptGroup(name="compute_private_config",
+                                     title="Compute private config options")
 
-WhiteboxPluginGroup = [
-    cfg.StrOpt("nova_db_hostname",
-               help="Hostname or address of the nova db host."),
-    cfg.StrOpt("nova_db_username",
-               help="Username for the database connection."),
-    cfg.StrOpt("nova_db_password",
-               help="Password for the database connection."),
-    cfg.StrOpt("nova_db_database",
-               help="The database name for the nova database connection."),
+ComputePrivateGroup = [
     cfg.StrOpt("target_controller",
                help="Address of a controller node."),
-    cfg.StrOpt("ssh_user",
+    cfg.StrOpt("target_ssh_user",
                help="Username of the ssh connection."),
-    cfg.StrOpt("private_key_path",
+    cfg.StrOpt("target_private_key_path",
                help="Path to the private key."),
 ]

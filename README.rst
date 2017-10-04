@@ -11,7 +11,7 @@ Install, configure and and run
 These steps should be executed after Tempest has been installed and
 configured. It's assumed that the Unix user running the tests has SSH
 access to all the nova nodes. In most cases the plugin is executed as
-the `slack` user on the undercloud node.
+the `stack` user on the undercloud node.
 
 1. Install from source
 
@@ -32,6 +32,7 @@ the `slack` user on the undercloud node.
    target_controller = <address of the nova controller>
    target_ssh_user = heat-admin
    target_private_key_path = /home/stack/.ssh/id_rsa
+   containers = <true/false>
 
 3. Execute the tests
 

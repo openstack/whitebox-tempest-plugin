@@ -25,4 +25,7 @@ ComputePrivateGroup = [
                help="Username of the ssh connection."),
     cfg.StrOpt("target_private_key_path",
                help="Path to the private key."),
+    cfg.BoolOpt("containers",
+                default=False,
+                help="True if controller is containerized"),
 ]

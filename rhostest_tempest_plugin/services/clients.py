@@ -12,6 +12,11 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+from contextlib import contextmanager
+try:
+    from shlex import quote
+except ImportError:
+    from pipes import quote
 import urlparse
 
 from tempest import config
@@ -23,6 +28,7 @@ CONF = config.CONF
 
 class SSHClient(object):
     """A client to execute remote commands, based on tempest.lib.common.ssh."""
+    _prefix_command = '/bin/bash -c'
 
     def __init__(self):
         self.ssh_key = CONF.compute_private_config.target_private_key_path
@@ -31,7 +37,36 @@ class SSHClient(object):
     def execute(self, hostname=None, cmd=None):
         ssh_client = ssh.Client(hostname, self.ssh_user,
                                 key_filename=self.ssh_key)
+        cmd = self._prefix_command + ' ' + quote(cmd)
         return ssh_client.exec_command(cmd)
+
+    @contextmanager
+    def prefix_command(self, prefix_command=None):
+        saved_prefix = self._prefix_command
+        self._prefix_command = prefix_command
+        yield self
+        self._prefix_command = saved_prefix
+
+    @contextmanager
+    def sudo_command(self, user=None):
+        if user is not None:
+            user_arg = '-u {}'.format(user)
+        else:
+            user_arg = ''
+        cmd = 'sudo {} /bin/bash -c'.format(user_arg)
+        with self.prefix_command(cmd) as p:
+            yield p
+
+    @contextmanager
+    def container_command(self, container_name, user=None):
+        if user is not None:
+            user_arg = '-u {}'.format(user)
+        else:
+            user_arg = ''
+        cmd = 'sudo docker exec {} -i {} /bin/bash -c'.format(
+              user_arg, container_name)
+        with self.prefix_command(cmd) as p:
+            yield p
 
 
 class VirshXMLClient(SSHClient):
@@ -40,8 +75,13 @@ class VirshXMLClient(SSHClient):
         self.host = hostname
 
     def dumpxml(self, domain):
-        command = "sudo virsh dumpxml {}".format(domain)
-        return self.execute(self.host, command)
+        if CONF.compute_private_config.containers:
+            ctx = self.container_command('nova_api')
+        else:
+            ctx = self.sudo_command()
+        with ctx:
+            command = "virsh dumpxml {}".format(domain)
+            return self.execute(self.host, command)
 
 
 class MySQLClient(SSHClient):
@@ -53,22 +93,34 @@ class MySQLClient(SSHClient):
 
         # discover db connection params by accessing nova.conf remotely
         ssh_client = SSHClient()
-        cmd = 'grep "connection=mysql+pymysql://nova:" /etc/nova/nova.conf'
-        connection = ssh_client.execute(self.host, "sudo {}".format(cmd))
+        if CONF.compute_private_config.containers:
+            ctx = ssh_client.container_command('nova_api')
+        else:
+            ctx = ssh_client.sudo_command()
+        with ctx:
+            cmd = 'grep "connection=mysql+pymysql://nova:" /etc/nova/nova.conf'
+            connection = ssh_client.execute(self.host, cmd)
         connection_url = "=".join(connection.split("=")[1:])
         p = urlparse.urlparse(connection_url)
 
         self.username = p.username
         self.password = p.password
         self.database = p.path[1:]
+        self.database_host = p.hostname
 
     def execute_command(self, command):
-        sql_cmd = "mysql -u{} -p{} -e '{}' {}".format(
+        sql_cmd = "mysql -u{} -p{} -h{} -e '{}' {}".format(
             self.username,
             self.password,
+            self.database_host,
             command,
             self.database)
-        return self.execute(self.host, sql_cmd)
+        if CONF.compute_private_config.containers:
+            ctx = self.container_command('mysql')
+        else:
+            ctx = self.prefix_command()
+        with ctx:
+            return self.execute(self.host, sql_cmd)
 
 
 class NovaManageClient(SSHClient):
@@ -77,5 +129,10 @@ class NovaManageClient(SSHClient):
         self.hostname = CONF.compute_private_config.target_controller
 
     def execute_command(self, command):
-        nova_cmd = "sudo nova-manage {}".format(command)
-        return self.execute(self.hostname, nova_cmd)
+        if CONF.compute_private_config.containers:
+            ctx = self.container_command('nova_api')
+        else:
+            ctx = self.sudo_command()
+        with ctx:
+            nova_cmd = "nova-manage {}".format(command)
+            return self.execute(self.hostname, nova_cmd)

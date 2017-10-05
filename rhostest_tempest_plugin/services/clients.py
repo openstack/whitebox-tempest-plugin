@@ -76,7 +76,7 @@ class VirshXMLClient(SSHClient):
 
     def dumpxml(self, domain):
         if CONF.compute_private_config.containers:
-            ctx = self.container_command('nova_api')
+            ctx = self.container_command('nova_compute', user='root')
         else:
             ctx = self.sudo_command()
         with ctx:
@@ -115,12 +115,7 @@ class MySQLClient(SSHClient):
             self.database_host,
             command,
             self.database)
-        if CONF.compute_private_config.containers:
-            ctx = self.container_command('mysql')
-        else:
-            ctx = self.prefix_command()
-        with ctx:
-            return self.execute(self.host, sql_cmd)
+        return self.execute(self.host, sql_cmd)
 
 
 class NovaManageClient(SSHClient):

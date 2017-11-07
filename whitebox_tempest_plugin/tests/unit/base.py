@@ -13,7 +13,15 @@
 #    under the License.
 
 from oslotest import base
+from tempest import config
+
+CONF = config.CONF
 
 
 class WhiteboxPluginTestCase(base.BaseTestCase):
-    pass
+
+    def flags(self, **kw):
+        """Override flag variables for a test."""
+        group = kw.pop('group', None)
+        for k, v in kw.items():
+            CONF.set_override(k, v, group)

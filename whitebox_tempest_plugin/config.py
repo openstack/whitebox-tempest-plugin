@@ -37,4 +37,11 @@ opts = [
         'containers',
         default=False,
         help='Deployment is containerized.'),
+    cfg.DictOpt(
+        'hypervisors',
+        help="Dictionary of hypervisor IP addresses, in the "
+             "id => IP format. Should be used when the IP returned "
+             "by 'nova hypervisor-show' isn't reachable from the "
+             "node running tempest. Starting with microversion "
+             "2.53, the id is a UUID."),
 ]

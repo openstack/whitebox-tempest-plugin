@@ -26,6 +26,7 @@ from oslo_log import log as logging
 from tempest.common import utils
 from tempest import config
 
+from whitebox_tempest_plugin.common import utils as whitebox_utils
 from whitebox_tempest_plugin.services import clients
 from whitebox_tempest_plugin.tests.scenario import base
 
@@ -52,13 +53,8 @@ class PointerDeviceTypeFromImages(base.BaseTest):
         # Retrieve the server's hypervizor hostname
         server = self.servers_client.show_server(server_id)['server']
         hostname = server['OS-EXT-SRV-ATTR:host']
-        hypers = self.hypervisor_client.list_hypervisors(
-            detail=True)['hypervisors']
-
-        compute_node_address = None
-        for hypervisor in hypers:
-            if hypervisor['service']['host'] == hostname:
-                compute_node_address = hypervisor['host_ip']
+        compute_node_address = whitebox_utils.get_hypervisor_ip(
+            self.hypervisor_client, hostname)
         self.assertIsNotNone(compute_node_address)
 
         # Retrieve input device from virsh dumpxml

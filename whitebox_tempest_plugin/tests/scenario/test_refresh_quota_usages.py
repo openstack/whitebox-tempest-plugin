@@ -20,9 +20,9 @@
 #    target_private_key_path=
 
 from oslo_log import log as logging
+from tempest.common import utils
 from tempest.common.utils import data_utils
 from tempest import config
-from tempest import test
 
 from whitebox_tempest_plugin.services import clients
 from whitebox_tempest_plugin.tests.scenario import base
@@ -97,7 +97,7 @@ class RefreshQuotaUsages(base.BaseTest):
             return False
         return True
 
-    @test.services('compute')
+    @utils.services('compute')
     def test_refresh_quota_usages(self):
         flavor_name = data_utils.rand_name("test_flavor_")
         flavor_id = data_utils.rand_int_id(start=1000)

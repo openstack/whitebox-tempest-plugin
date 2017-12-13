@@ -23,9 +23,9 @@
 #    pointer_model=ps2mouse
 
 from oslo_log import log as logging
+from tempest.common import utils
 from tempest.common.utils import data_utils
 from tempest import config
-from tempest import test
 
 from whitebox_tempest_plugin.services import clients
 from whitebox_tempest_plugin.tests.scenario import base
@@ -76,7 +76,7 @@ class PointerDeviceTypeFromImages(base.BaseTest):
         self.assertTrue(tablet in output)
         self.assertTrue(mouse in output)
 
-    @test.services('compute')
+    @utils.services('compute')
     def test_pointer_device_type_from_images(self):
         image = CONF.compute.image_ref
         self._set_image_metadata_item(image)

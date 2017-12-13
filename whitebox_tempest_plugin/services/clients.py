@@ -98,15 +98,24 @@ class MySQLClient(SSHClient):
         else:
             ctx = ssh_client.sudo_command()
         with ctx:
-            cmd = 'grep "connection=mysql+pymysql://nova:" /etc/nova/nova.conf'
-            connection = ssh_client.execute(self.host, cmd)
-        connection_url = "=".join(connection.split("=")[1:])
-        p = urlparse.urlparse(connection_url)
+            cmd = """python -c "import nova.conf;
+nova.conf.CONF(['--config-file', '/etc/nova/nova.conf']);
+print(nova.conf.CONF.database.connection)"
+"""
+            connection = ssh_client.execute(self.host, cmd).strip()
+        p = urlparse.urlparse(connection)
 
         self.username = p.username
         self.password = p.password
-        self.database = p.path[1:]
         self.database_host = p.hostname
+        self.database = p.path.lstrip('/')
+        # if using a deployment with cells, we can safely assume that there's
+        # only a single cell. nova_cell0 is a special "cell" database used by
+        # the super-conductor so we select the first real cell
+        # Refer to https://docs.openstack.org/nova/latest/user/cells.html for
+        # more information.
+        if self.database == 'nova_cell0':
+            self.database = 'nova_cell1'
 
     def execute_command(self, command):
         sql_cmd = "mysql -u{} -p{} -h{} -e '{}' {}".format(

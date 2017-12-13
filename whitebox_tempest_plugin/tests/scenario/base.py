@@ -18,7 +18,6 @@ from tempest.api.compute import base
 from tempest.common.utils import data_utils
 from tempest.common import waiters
 from tempest import config
-from tempest.lib import exceptions as lib_exc
 
 
 CONF = config.CONF
@@ -26,21 +25,6 @@ LOG = logging.getLogger(__name__)
 
 
 class BaseTest(base.BaseV2ComputeAdminTest):
-
-    @classmethod
-    def setUpClass(cls):
-        super(BaseTest, cls).setUpClass()
-
-        # TODO(stephenfin): Workaround for oslo.config bug #1735790. Remove
-        # when oslo.config properly validates required opts registered after
-        # basic initialization
-        for opt in ['target_private_key_path', 'target_ssh_user',
-                    'target_controller']:
-            if getattr(CONF.whitebox, opt) is not None:
-                continue
-
-            msg = 'You must configure whitebox.%s' % opt
-            raise lib_exc.InvalidConfiguration(msg)
 
     @classmethod
     def setup_clients(cls):

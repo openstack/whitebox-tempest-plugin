@@ -21,6 +21,7 @@ import urlparse
 
 from tempest import config
 from tempest.lib.common import ssh
+from tempest.lib import exceptions as lib_exc
 
 
 CONF = config.CONF
@@ -31,6 +32,15 @@ class SSHClient(object):
     _prefix_command = '/bin/bash -c'
 
     def __init__(self):
+        # TODO(stephenfin): Workaround for oslo.config bug #1735790. Remove
+        # when oslo.config properly validates required opts registered after
+        # basic initialization
+        for opt in ['target_private_key_path', 'target_ssh_user',
+                    'target_controller']:
+            if getattr(CONF.whitebox, opt) is None:
+                msg = 'You must configure whitebox.%s' % opt
+                raise lib_exc.InvalidConfiguration(msg)
+
         self.ssh_key = CONF.whitebox.target_private_key_path
         self.ssh_user = CONF.whitebox.target_ssh_user
 

@@ -15,17 +15,23 @@
 
 from oslo_config import cfg
 
-compute_private_group = cfg.OptGroup(name="compute_private_config",
-                                     title="Compute private config options")
 
-ComputePrivateGroup = [
-    cfg.StrOpt("target_controller",
-               help="Address of a controller node."),
-    cfg.StrOpt("target_ssh_user",
-               help="Username of the ssh connection."),
-    cfg.StrOpt("target_private_key_path",
-               help="Path to the private key."),
-    cfg.BoolOpt("containers",
-                default=False,
-                help="True if controller is containerized"),
+group = cfg.OptGroup(
+    name='compute_private_config',
+    title='Compute private config options')
+
+opts = [
+    cfg.StrOpt(
+        'target_controller',
+        help='Address of a controller node.'),
+    cfg.StrOpt(
+        'target_ssh_user',
+        help='Username of the SSH connection.'),
+    cfg.StrOpt(
+        'target_private_key_path',
+        help='Path to the private key.'),
+    cfg.BoolOpt(
+        'containers',
+        default=False,
+        help='Deployment is containerized.'),
 ]

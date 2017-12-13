@@ -19,7 +19,7 @@ import os
 from tempest import config
 from tempest.test_discover import plugins
 
-from whitebox_tempest_plugin import config as project_config
+from whitebox_tempest_plugin import config as plugin_config
 
 
 class WhiteboxTempestPlugin(plugins.TempestPlugin):
@@ -32,8 +32,8 @@ class WhiteboxTempestPlugin(plugins.TempestPlugin):
         return full_test_dir, base_path
 
     def register_opts(self, conf):
-        config.register_opt_group(conf, project_config.compute_private_group,
-                                  project_config.ComputePrivateGroup)
+        config.register_opt_group(conf, plugin_config.group,
+                                  plugin_config.opts)
 
     def get_opt_lists(self):
-        pass
+        return [(plugin_config.group.name, plugin_config.opts)]

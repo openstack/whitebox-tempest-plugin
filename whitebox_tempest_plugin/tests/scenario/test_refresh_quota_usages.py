@@ -41,6 +41,7 @@ class RefreshQuotaUsages(base.BaseTest):
     def _compare_resource_count(self, source1, source2):
         for quota in source1.split("\n"):
             if quota not in source2:
+                LOG.info('Quota %r not found in %r' % quota, source2)
                 return False
         return True
 
@@ -63,6 +64,7 @@ class RefreshQuotaUsages(base.BaseTest):
         WHERE project_id = "{}"
         """.format(project_id)
         data_orig = self.dbclient.execute_command(dbcommand_select)
+
         # Update quota usage table to fake values to mimic out of
         # sync scenario
         dbcommand_update = """
@@ -71,25 +73,26 @@ class RefreshQuotaUsages(base.BaseTest):
         WHERE project_id = "{}"
         """.format(project_id)
         data = self.dbclient.execute_command(dbcommand_update)
-        data_fake = self.dbclient.execute_command(dbcommand_select)
+
         # Verify that update work and quota usage table is different
         # from original state
+        data_fake = self.dbclient.execute_command(dbcommand_select)
+
         compare = self._compare_resource_count(data_orig, data_fake)
-        if compare:
-            return False
+        self.assertFalse(compare, 'Quota usage table was not updated')
+
         # Trigger quota refresh using nova-manage command.
         cmd = ('project quota_usage_refresh --project %s --user %s' %
                (project_id, user_id))
         nova_mg_client = clients.NovaManageClient()
         nova_mg_client.execute_command(cmd)
+
         # Retrieve resource usage count from quota usage table
         data_synced = self.dbclient.execute_command(dbcommand_select)
+
         # Verify that resource usage is in sync now
         compare = self._compare_resource_count(data_orig, data_synced)
-        if not compare:
-            LOG.error('Error in refreshing nova quota_usages')
-            return False
-        return True
+        self.assertTrue(compare, 'Error in refreshing via nova quota_usages')
 
     @utils.services('compute')
     def test_refresh_quota_usages(self):
@@ -101,5 +104,5 @@ class RefreshQuotaUsages(base.BaseTest):
                                  fid=flavor_id)
         for _ in range(2):
             server = self._create_nova_instance(flavor_id)
-        result = self._verify_refresh_quota_usages(server)
-        self.assertTrue(result)
+
+        self._verify_refresh_quota_usages(server)

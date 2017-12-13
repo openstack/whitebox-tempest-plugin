@@ -21,6 +21,9 @@ group = cfg.OptGroup(
     title='Whitebox Tempest plugin config options')
 
 opts = [
+    # NOTE(stephenfin): The below options are all required, but because of
+    # oslo.config bug #1735790 simply adding the 'required' option won't work.
+    # When that bug is resolved, however, we should use this option.
     cfg.StrOpt(
         'target_controller',
         help='Address of a controller node.'),

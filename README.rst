@@ -46,7 +46,7 @@ Install, configure and run
    determine how your undercloud node, which is running Tempest, should connect
    to the compute nodes in the overcloud and vice versa. For example::
 
-     [compute_private_config]
+     [whitebox]
      target_controller = <address of the nova controller>
      target_ssh_user = heat-admin
      target_private_key_path = /home/stack/.ssh/id_rsa

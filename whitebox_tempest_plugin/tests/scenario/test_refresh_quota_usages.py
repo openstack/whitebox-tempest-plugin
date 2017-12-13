@@ -14,7 +14,7 @@
 #    under the License.
 #
 # Parameters required in etc/tempest.conf
-#    [compute_private_config]
+#    [whitebox]
 #    target_controller=
 #    target_ssh_user=
 #    target_private_key_path=

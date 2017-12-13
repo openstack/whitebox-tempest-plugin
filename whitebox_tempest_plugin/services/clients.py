@@ -31,8 +31,8 @@ class SSHClient(object):
     _prefix_command = '/bin/bash -c'
 
     def __init__(self):
-        self.ssh_key = CONF.compute_private_config.target_private_key_path
-        self.ssh_user = CONF.compute_private_config.target_ssh_user
+        self.ssh_key = CONF.whitebox.target_private_key_path
+        self.ssh_user = CONF.whitebox.target_ssh_user
 
     def execute(self, hostname=None, cmd=None):
         ssh_client = ssh.Client(hostname, self.ssh_user,
@@ -75,7 +75,7 @@ class VirshXMLClient(SSHClient):
         self.host = hostname
 
     def dumpxml(self, domain):
-        if CONF.compute_private_config.containers:
+        if CONF.whitebox.containers:
             ctx = self.container_command('nova_compute', user='root')
         else:
             ctx = self.sudo_command()
@@ -89,11 +89,11 @@ class MySQLClient(SSHClient):
         super(MySQLClient, self).__init__()
         # the nova conf file may contain a private IP.
         # let's just assume the db is available on the same node.
-        self.host = CONF.compute_private_config.target_controller
+        self.host = CONF.whitebox.target_controller
 
         # discover db connection params by accessing nova.conf remotely
         ssh_client = SSHClient()
-        if CONF.compute_private_config.containers:
+        if CONF.whitebox.containers:
             ctx = ssh_client.container_command('nova_api')
         else:
             ctx = ssh_client.sudo_command()
@@ -121,10 +121,10 @@ class MySQLClient(SSHClient):
 class NovaManageClient(SSHClient):
     def __init__(self):
         super(NovaManageClient, self).__init__()
-        self.hostname = CONF.compute_private_config.target_controller
+        self.hostname = CONF.whitebox.target_controller
 
     def execute_command(self, command):
-        if CONF.compute_private_config.containers:
+        if CONF.whitebox.containers:
             ctx = self.container_command('nova_api')
         else:
             ctx = self.sudo_command()

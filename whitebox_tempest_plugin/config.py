@@ -17,8 +17,8 @@ from oslo_config import cfg
 
 
 group = cfg.OptGroup(
-    name='compute_private_config',
-    title='Compute private config options')
+    name='whitebox',
+    title='Whitebox Tempest plugin config options')
 
 opts = [
     cfg.StrOpt(

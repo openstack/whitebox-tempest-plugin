@@ -39,9 +39,8 @@ class PointerDeviceTypeFromImages(base.BaseTest):
     @classmethod
     def setup_clients(cls):
         super(PointerDeviceTypeFromImages, cls).setup_clients()
-        cls.servers_client = cls.os_adm.servers_client
-        cls.flvclient = cls.os_adm.flavors_client
-        cls.image_client = cls.os_adm.compute_images_client
+        cls.compute_images_client = cls.os_admin.compute_images_client
+        cls.hypervisor_client = cls.os_admin.hypervisor_client
 
     @classmethod
     def resource_setup(cls):
@@ -49,8 +48,8 @@ class PointerDeviceTypeFromImages(base.BaseTest):
 
     def _set_image_metadata_item(self, image):
         req_metadata = {'hw_pointer_model': 'usbtablet'}
-        self.image_client.set_image_metadata(image, req_metadata)
-        resp_metadata = (self.image_client.list_image_metadata(image)
+        self.compute_images_client.set_image_metadata(image, req_metadata)
+        resp_metadata = (self.compute_images_client.list_image_metadata(image)
                          ['metadata'])
         self.assertEqual(req_metadata, resp_metadata)
 
@@ -58,7 +57,7 @@ class PointerDeviceTypeFromImages(base.BaseTest):
         # Retrieve the server's hypervizor hostname
         server = self.servers_client.show_server(server_id)['server']
         hostname = server['OS-EXT-SRV-ATTR:host']
-        hypers = self.os_adm.hypervisor_client.list_hypervisors(
+        hypers = self.hypervisor_client.list_hypervisors(
             detail=True)['hypervisors']
 
         compute_node_address = None

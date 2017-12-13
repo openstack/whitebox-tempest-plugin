@@ -34,12 +34,6 @@ LOG = logging.getLogger(__name__)
 class RefreshQuotaUsages(base.BaseTest):
 
     @classmethod
-    def setup_clients(cls):
-        super(RefreshQuotaUsages, cls).setup_clients()
-        cls.servers_client = cls.os_adm.servers_client
-        cls.flvclient = cls.os_adm.flavors_client
-
-    @classmethod
     def resource_setup(cls):
         super(RefreshQuotaUsages, cls).resource_setup()
         cls.dbclient = clients.MySQLClient()

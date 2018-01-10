@@ -54,12 +54,12 @@ Install, configure and run
 
 3. Execute the tests. ::
 
-     tempest run --regex rhostest_tempest_plugin.
+     tempest run --regex whitebox_tempest_plugin.
 
 How to add a new test
 ---------------------
 
-New tests should be added to the ``rhostest_tempest_plugin/tests`` directory.
+New tests should be added to the ``whitebox_tempest_plugin/tests`` directory.
 
 According to the plugin interface doc__, you should mainly import "stable" APIs
 which usually are:

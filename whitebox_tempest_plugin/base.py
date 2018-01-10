@@ -24,7 +24,7 @@ CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
 
-class BaseRHOSTest(base.BaseV2ComputeAdminTest):
+class BaseTest(base.BaseV2ComputeAdminTest):
 
     def _create_nova_flavor(self, name, ram, vcpus, disk, fid):
         # This function creates a flavor with provided parameters

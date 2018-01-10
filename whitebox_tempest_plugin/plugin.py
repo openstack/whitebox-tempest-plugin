@@ -19,14 +19,15 @@ import os
 from tempest import config
 from tempest.test_discover import plugins
 
-from rhostest_tempest_plugin import config as project_config
+from whitebox_tempest_plugin import config as project_config
 
 
-class RHOSTempestPlugin(plugins.TempestPlugin):
+class WhiteboxTempestPlugin(plugins.TempestPlugin):
+
     def load_tests(self):
         base_path = os.path.split(os.path.dirname(
             os.path.abspath(__file__)))[0]
-        test_dir = "rhostest_tempest_plugin/tests"
+        test_dir = 'whitebox_tempest_plugin/tests'
         full_test_dir = os.path.join(base_path, test_dir)
         return full_test_dir, base_path
 

@@ -23,17 +23,18 @@
 #    pointer_model=ps2mouse
 
 from oslo_log import log as logging
-from rhostest_tempest_plugin import base
-from rhostest_tempest_plugin.services import clients
 from tempest.common.utils import data_utils
 from tempest import config
 from tempest import test
+
+from whitebox_tempest_plugin import base
+from whitebox_tempest_plugin.services import clients
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
 
-class PointerDeviceTypeFromImages(base.BaseRHOSTest):
+class PointerDeviceTypeFromImages(base.BaseTest):
 
     @classmethod
     def setup_clients(cls):

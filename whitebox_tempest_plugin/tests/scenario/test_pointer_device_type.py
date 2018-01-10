@@ -41,10 +41,6 @@ class PointerDeviceTypeFromImages(base.BaseTest):
         cls.compute_images_client = cls.os_admin.compute_images_client
         cls.hypervisor_client = cls.os_admin.hypervisor_client
 
-    @classmethod
-    def resource_setup(cls):
-        super(PointerDeviceTypeFromImages, cls).resource_setup()
-
     def _set_image_metadata_item(self, image):
         req_metadata = {'hw_pointer_model': 'usbtablet'}
         self.compute_images_client.set_image_metadata(image, req_metadata)
@@ -76,7 +72,10 @@ class PointerDeviceTypeFromImages(base.BaseTest):
 
     @utils.services('compute')
     def test_pointer_device_type_from_images(self):
-        image = CONF.compute.image_ref
-        self._set_image_metadata_item(image)
-        server = self._create_nova_instance(image=image)
-        self._verify_pointer_device_type_from_images(server)
+        # TODO(stephenfin): I'm pretty sure this modifying the main image. We
+        # shouldn't be doing that.
+        image_id = CONF.compute.image_ref
+        self._set_image_metadata_item(image_id)
+        server = self.create_server(image_id=image_id)
+
+        self._verify_pointer_device_type_from_images(server['id'])

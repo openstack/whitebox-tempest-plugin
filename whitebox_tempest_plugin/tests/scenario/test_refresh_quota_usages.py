@@ -36,6 +36,7 @@ class RefreshQuotaUsages(base.BaseTest):
     def resource_setup(cls):
         super(RefreshQuotaUsages, cls).resource_setup()
         cls.dbclient = clients.MySQLClient()
+        cls.nova_manage_client = clients.NovaManageClient()
 
     def _compare_resource_count(self, source1, source2):
         for quota in source1.split("\n"):
@@ -83,8 +84,7 @@ class RefreshQuotaUsages(base.BaseTest):
         # Trigger quota refresh using nova-manage command.
         cmd = ('project quota_usage_refresh --project %s --user %s' %
                (project_id, user_id))
-        nova_mg_client = clients.NovaManageClient()
-        nova_mg_client.execute_command(cmd)
+        self.nova_manage_client.execute_command(cmd)
 
         # Retrieve resource usage count from quota usage table
         data_synced = self.dbclient.execute_command(dbcommand_select)
@@ -96,6 +96,6 @@ class RefreshQuotaUsages(base.BaseTest):
     @utils.services('compute')
     def test_refresh_quota_usages(self):
         for _ in range(2):
-            server = self._create_nova_instance()
+            server = self.create_server()
 
-        self._verify_refresh_quota_usages(server)
+        self._verify_refresh_quota_usages(server['id'])

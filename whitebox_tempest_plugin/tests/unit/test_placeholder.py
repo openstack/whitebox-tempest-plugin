@@ -12,7 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from whitebox_tempest_plugin.tests import base
+from whitebox_tempest_plugin.tests.unit import base
 
 
 class PlaceholderTestCase(base.WhiteboxPluginTestCase):

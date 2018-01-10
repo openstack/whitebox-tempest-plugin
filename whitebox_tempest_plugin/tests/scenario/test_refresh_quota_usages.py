@@ -24,8 +24,8 @@ from tempest.common.utils import data_utils
 from tempest import config
 from tempest import test
 
-from whitebox_tempest_plugin import base
 from whitebox_tempest_plugin.services import clients
+from whitebox_tempest_plugin.tests.scenario import base
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)

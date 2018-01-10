@@ -41,7 +41,7 @@ class RefreshQuotaUsages(base.BaseTest):
     def _compare_resource_count(self, source1, source2):
         for quota in source1.split("\n"):
             if quota not in source2:
-                LOG.info('Quota %r not found in %r' % quota, source2)
+                LOG.info('Quota %r not found in %r', quota, source2)
                 return False
         return True
 

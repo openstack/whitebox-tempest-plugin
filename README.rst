@@ -60,8 +60,6 @@ How to add a new test
 ---------------------
 
 New tests should be added to the ``rhostest_tempest_plugin/tests`` directory.
-The file ``rhostest_tempest_plugin/tests/api/test_sample.py`` should serve as
-an example of how to write a test.
 
 According to the plugin interface doc__, you should mainly import "stable" APIs
 which usually are:

@@ -21,7 +21,6 @@
 
 from oslo_log import log as logging
 from tempest.common import utils
-from tempest.common.utils import data_utils
 from tempest import config
 
 from whitebox_tempest_plugin.services import clients
@@ -96,13 +95,7 @@ class RefreshQuotaUsages(base.BaseTest):
 
     @utils.services('compute')
     def test_refresh_quota_usages(self):
-        flavor_name = data_utils.rand_name("test_flavor_")
-        flavor_id = data_utils.rand_int_id(start=1000)
-        # TODO(jhakimra): these values should be available for configuration
-        # from CONF.
-        self._create_nova_flavor(name=flavor_name, ram=512, vcpus=2, disk=5,
-                                 fid=flavor_id)
         for _ in range(2):
-            server = self._create_nova_instance(flavor_id)
+            server = self._create_nova_instance()
 
         self._verify_refresh_quota_usages(server)

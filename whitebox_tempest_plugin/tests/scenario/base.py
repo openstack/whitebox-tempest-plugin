@@ -30,13 +30,6 @@ class BaseTest(base.BaseV2ComputeAdminTest):
     def setup_clients(cls):
         super(BaseTest, cls).setup_clients()
         cls.servers_client = cls.os_admin.servers_client
-        cls.flavors_client = cls.os_admin.flavors_client
-
-    def _create_nova_flavor(self, name, ram, vcpus, disk, fid):
-        # This function creates a flavor with provided parameters
-        body = self.flavors_client.create_flavor(
-            name=name, ram=ram, vcpus=vcpus, disk=disk, id=fid)
-        return body['flavor']
 
     def _create_nova_instance(self, flavor=None, image=None, cleanup=True):
         if flavor is None:

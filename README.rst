@@ -8,6 +8,11 @@ TripleO/Director-based deployments.
 
    This is still a work in progress.
 
+* Free software: Apache license
+* Documentation: n/a
+* Source: https://review.rdoproject.org/r/gitweb?p=openstack/whitebox-tempest-plugin.git
+* Bugs: n/a
+
 Requirements
 ------------
 

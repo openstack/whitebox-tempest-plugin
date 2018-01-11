@@ -67,11 +67,14 @@ which usually are:
 * ``tempest.lib.*``
 * ``tempest.config``
 * ``tempest.test_discover.plugins``
+* ``tempest.common.credentials_factory``
+* ``tempest.clients``
+* ``tempest.test``
 
 Importing classes from ``tempest.api.*`` could be dangerous since future
 version of Tempest could break.
 
-__ http://docs.openstack.org/developer/tempest/plugin.html
+__ http://docs.openstack.org/tempest/latest/plugin.html
 
 .. _roadmap:
 

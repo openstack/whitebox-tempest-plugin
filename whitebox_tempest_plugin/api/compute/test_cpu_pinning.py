@@ -162,3 +162,135 @@ class CPUPolicyTest(BaseTest):
         self.assertEqual(
             len(cpu_pinnings), self.vcpus,
             "Rebooted instance has lost its pinning information")
+
+
+class CPUThreadPolicyTest(BaseTest):
+    """Validate CPU thread policy support."""
+
+    def create_flavor(self, cpu_thread_policy):
+        flavor = super(CPUThreadPolicyTest, self).create_flavor(
+            vcpus=self.vcpus)
+
+        specs = {
+            'hw:cpu_policy': 'dedicated',
+            'hw:cpu_thread_policy': cpu_thread_policy
+        }
+        self.flavors_client.set_flavor_extra_spec(flavor['id'], **specs)
+
+        return flavor
+
+    @staticmethod
+    def get_siblings_list(sib):
+        """Parse a list of siblings as used by libvirt.
+
+        List of siblings can consist of comma-separated lists (0,5,6)
+        or hyphen-separated ranges (0-3) or both.
+
+        >>> get_siblings_list('0-2,3,4,5-6,9')
+        [0, 1, 2, 3, 4, 5, 6, 9]
+        """
+        siblings = []
+        for sub_sib in sib.split(','):
+            if '-' in sub_sib:
+                start_sib, end_sib = sub_sib.split('-')
+                siblings.extend(range(int(start_sib),
+                                      int(end_sib) + 1))
+            else:
+                siblings.append(int(sub_sib))
+
+        return siblings
+
+    def get_host_cpu_siblings(self, host):
+        """Return core to sibling mapping of the host CPUs.
+
+            {core_0: [sibling_a, sibling_b, ...],
+             core_1: [sibling_a, sibling_b, ...],
+             ...}
+
+        libvirt's getCapabilities() is called to get details about the host
+        then a list of siblings per CPU is extracted and formatted to single
+        level list.
+        """
+        siblings = {}
+
+        with self.get_libvirt_conn(host) as conn:
+            capxml = ET.fromstring(conn.getCapabilities())
+
+        cpu_cells = capxml.findall('./host/topology/cells/cell/cpus')
+        for cell in cpu_cells:
+            cpus = cell.findall('cpu')
+            for cpu in cpus:
+                cpu_id = int(cpu.get('id'))
+                sib = cpu.get('siblings')
+                siblings.update({cpu_id: self.get_siblings_list(sib)})
+
+        return siblings
+
+    def test_threads_isolate(self):
+        """Ensure vCPUs *are not* placed on thread siblings."""
+        flavor = self.create_flavor(cpu_thread_policy='isolate')
+        server = self.create_test_server(flavor=flavor['id'])
+        host = server['OS-EXT-SRV-ATTR:host']
+
+        cpu_pinnings = self.get_server_cpu_pinning(server)
+        pcpu_siblings = self.get_host_cpu_siblings(host)
+
+        self.assertEqual(len(cpu_pinnings), self.vcpus)
+
+        # if the 'isolate' policy is used, then when one thread is used
+        # the other should never be used.
+        for vcpu in set(cpu_pinnings):
+            pcpu = cpu_pinnings[vcpu]
+            sib = pcpu_siblings[pcpu]
+            sib.remove(pcpu)
+            self.assertTrue(
+                set(sib).isdisjoint(cpu_pinnings.values()),
+                "vCPUs siblings should not have been used")
+
+    def test_threads_prefer(self):
+        """Ensure vCPUs *are* placed on thread siblings.
+
+        For this to work, we require a host with HyperThreads. Scheduling will
+        pass without this, but the test will not.
+        """
+        flavor = self.create_flavor(cpu_thread_policy='prefer')
+        server = self.create_test_server(flavor=flavor['id'])
+        host = server['OS-EXT-SRV-ATTR:host']
+
+        cpu_pinnings = self.get_server_cpu_pinning(server)
+        pcpu_siblings = self.get_host_cpu_siblings(host)
+
+        self.assertEqual(len(cpu_pinnings), self.vcpus)
+
+        for vcpu in set(cpu_pinnings):
+            pcpu = cpu_pinnings[vcpu]
+            sib = pcpu_siblings[pcpu]
+            sib.remove(pcpu)
+            self.assertFalse(
+                set(sib).isdisjoint(cpu_pinnings.values()),
+                "vCPUs siblings were required by not used. Does this host "
+                "have HyperThreading enabled?")
+
+    def test_threads_require(self):
+        """Ensure thread siblings are required and used.
+
+        For this to work, we require a host with HyperThreads. Scheduling will
+        fail without this.
+        """
+        flavor = self.create_flavor(cpu_thread_policy='require')
+        server = self.create_test_server(flavor=flavor['id'])
+        host = server['OS-EXT-SRV-ATTR:host']
+
+        cpu_pinnings = self.get_server_cpu_pinning(server)
+        pcpu_siblings = self.get_host_cpu_siblings(host)
+
+        self.assertEqual(len(cpu_pinnings), self.vcpus)
+
+        for vcpu in set(cpu_pinnings):
+            pcpu = cpu_pinnings[vcpu]
+            sib = pcpu_siblings[pcpu]
+            sib.remove(pcpu)
+            self.assertFalse(
+                set(sib).isdisjoint(cpu_pinnings.values()),
+                "vCPUs siblings were required and were not used. Does this "
+                "host have HyperThreading enabled?")

@@ -38,15 +38,19 @@ class UtilsTestCase(base.WhiteboxPluginTestCase):
         }
         self.client.list_hypervisors = mock.Mock(return_value=fake_hvs)
 
-    def test_get_hypervisor_ip_hv_in_config(self):
+    @mock.patch.object(utils.LOG, 'info')
+    def test_get_hypervisor_ip_hv_in_config(self, mock_log):
         self.flags(hypervisors={'1': '10.0.0.1'}, group='whitebox')
         self.assertEqual('10.0.0.1',
                          utils.get_hypervisor_ip(self.client, 'host1'))
+        self.assertIn('from config file', mock_log.call_args_list[0][0][0])
 
-    def test_get_hypervisor_ip_hv_not_in_config(self):
+    @mock.patch.object(utils.LOG, 'info')
+    def test_get_hypervisor_ip_hv_not_in_config(self, mock_log):
         self.flags(hypervisors={'1': '10.0.0.1'}, group='whitebox')
         self.assertEqual('192.168.0.2',
                          utils.get_hypervisor_ip(self.client, 'host2'))
+        self.assertIn('not in config file', mock_log.call_args_list[0][0][0])
 
     def test_get_hypervisor_ip_no_hvs_in_config(self):
         self.assertEqual('192.168.0.3',

@@ -1,4 +1,4 @@
-# Copyright 2017 Red Hat
+# Copyright 2018 Red Hat
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -13,20 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from oslo_log import log as logging
-from tempest import config
-from whitebox_tempest_plugin import exceptions
+from tempest.lib import exceptions
 
 
-CONF = config.CONF
-LOG = logging.getLogger(__name__)
-
-
-def get_hypervisor_ip(admin_servers_client, server_id):
-    server = admin_servers_client.show_server(server_id)
-    host = server['server']['OS-EXT-SRV-ATTR:host']
-    try:
-        return CONF.whitebox.hypervisors[host]
-    except KeyError:
-        raise exceptions.MissingHypervisorException(server=server_id,
-                                                    host=host)
+class MissingHypervisorException(exceptions.TempestException):
+    message = "Unable to find IP in conf. Server: %(sever)s, host: %(host)s."

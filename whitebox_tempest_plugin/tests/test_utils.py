@@ -15,6 +15,7 @@
 import mock
 
 from whitebox_tempest_plugin.common import utils
+from whitebox_tempest_plugin import exceptions
 from whitebox_tempest_plugin.tests import base
 
 
@@ -39,5 +40,5 @@ class UtilsTestCase(base.WhiteboxPluginTestCase):
 
     @mock.patch.object(utils.LOG, 'error')
     def test_get_hypervisor_ip_keyerror(self, mock_log):
-        self.assertIsNone(utils.get_hypervisor_ip(self.client, 'missing-id'))
-        self.assertIn('Unable', mock_log.call_args_list[0][0][0])
+        self.assertRaises(exceptions.MissingHypervisorException,
+                          utils.get_hypervisor_ip, self.client, 'missing-id')

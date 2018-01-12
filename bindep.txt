@@ -1,0 +1,2 @@
+python-libvirt [platform:dpkg]
+libvirt-python [platform:rpm]

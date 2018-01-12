@@ -39,7 +39,6 @@ class PointerDeviceTypeFromImages(base.BaseTest):
     def setup_clients(cls):
         super(PointerDeviceTypeFromImages, cls).setup_clients()
         cls.compute_images_client = cls.os_admin.compute_images_client
-        cls.hypervisor_client = cls.os_admin.hypervisor_client
 
     def _set_image_metadata_item(self, image):
         req_metadata = {'hw_pointer_model': 'usbtablet'}
@@ -52,7 +51,6 @@ class PointerDeviceTypeFromImages(base.BaseTest):
         # Retrieve the server's hypervizor hostname
         compute_node_address = whitebox_utils.get_hypervisor_ip(
             self.servers_client, server_id)
-        self.assertIsNotNone(compute_node_address)
 
         # Retrieve input device from virsh dumpxml
         virshxml_client = clients.VirshXMLClient(compute_node_address)

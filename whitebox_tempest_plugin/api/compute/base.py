@@ -14,15 +14,15 @@
 #    under the License.
 
 from oslo_log import log as logging
+from tempest.api.compute import base
 from tempest import config
-from tempest.scenario import manager
 
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
 
-class BaseTest(manager.ScenarioTest):
+class BaseTest(base.BaseV2ComputeTest):
 
     credentials = ['primary', 'admin']
 

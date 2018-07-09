@@ -15,7 +15,7 @@
 import mock
 
 from whitebox_tempest_plugin.common import utils
-from whitebox_tempest_plugin.tests.unit import base
+from whitebox_tempest_plugin.tests import base
 
 
 class UtilsTestCase(base.WhiteboxPluginTestCase):

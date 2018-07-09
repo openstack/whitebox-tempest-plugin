@@ -23,12 +23,11 @@
 #    pointer_model=ps2mouse
 
 from oslo_log import log as logging
-from tempest.common import utils
 from tempest import config
 
+from whitebox_tempest_plugin.api.compute import base
 from whitebox_tempest_plugin.common import utils as whitebox_utils
 from whitebox_tempest_plugin.services import clients
-from whitebox_tempest_plugin.tests.scenario import base
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
@@ -66,12 +65,12 @@ class PointerDeviceTypeFromImages(base.BaseTest):
         self.assertTrue(tablet in output)
         self.assertTrue(mouse in output)
 
-    @utils.services('compute')
     def test_pointer_device_type_from_images(self):
         # TODO(stephenfin): I'm pretty sure this modifying the main image. We
         # shouldn't be doing that.
         image_id = CONF.compute.image_ref
         self._set_image_metadata_item(image_id)
-        server = self.create_server(image_id=image_id)
+        server = self.create_test_server(image_id=image_id,
+                                         wait_until='ACTIVE')
 
         self._verify_pointer_device_type_from_images(server['id'])

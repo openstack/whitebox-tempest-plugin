@@ -18,40 +18,26 @@ from whitebox_tempest_plugin.common import utils
 from whitebox_tempest_plugin.tests import base
 
 
+def fake_show_server(server_id):
+    if server_id == 'fake-id':
+        return {'server': {'OS-EXT-SRV-ATTR:host': 'fake-host'}}
+    else:
+        return {'server': {'OS-EXT-SRV-ATTR:host': 'missing-host'}}
+
+
 class UtilsTestCase(base.WhiteboxPluginTestCase):
 
     def setUp(self):
         super(UtilsTestCase, self).setUp()
         self.client = mock.Mock()
-        fake_hvs = {
-            'hypervisors': [
-                {'service': {'host': 'host1'},
-                 'host_ip': '192.168.0.1',
-                 'id': 1},
-                {'service': {'host': 'host2'},
-                 'host_ip': '192.168.0.2',
-                 'id': 2},
-                {'service': {'host': 'host3'},
-                 'host_ip': '192.168.0.3',
-                 'id': 3}
-            ]
-        }
-        self.client.list_hypervisors = mock.Mock(return_value=fake_hvs)
+        self.client.show_server = fake_show_server
+        self.flags(hypervisors={'fake-host': 'fake-ip'}, group='whitebox')
 
-    @mock.patch.object(utils.LOG, 'info')
-    def test_get_hypervisor_ip_hv_in_config(self, mock_log):
-        self.flags(hypervisors={'1': '10.0.0.1'}, group='whitebox')
-        self.assertEqual('10.0.0.1',
-                         utils.get_hypervisor_ip(self.client, 'host1'))
-        self.assertIn('from config file', mock_log.call_args_list[0][0][0])
+    def test_get_hypervisor_ip(self):
+        self.assertEqual('fake-ip',
+                         utils.get_hypervisor_ip(self.client, 'fake-id'))
 
-    @mock.patch.object(utils.LOG, 'info')
-    def test_get_hypervisor_ip_hv_not_in_config(self, mock_log):
-        self.flags(hypervisors={'1': '10.0.0.1'}, group='whitebox')
-        self.assertEqual('192.168.0.2',
-                         utils.get_hypervisor_ip(self.client, 'host2'))
-        self.assertIn('not in config file', mock_log.call_args_list[0][0][0])
-
-    def test_get_hypervisor_ip_no_hvs_in_config(self):
-        self.assertEqual('192.168.0.3',
-                         utils.get_hypervisor_ip(self.client, 'host3'))
+    @mock.patch.object(utils.LOG, 'error')
+    def test_get_hypervisor_ip_keyerror(self, mock_log):
+        self.assertIsNone(utils.get_hypervisor_ip(self.client, 'missing-id'))
+        self.assertIn('Unable', mock_log.call_args_list[0][0][0])

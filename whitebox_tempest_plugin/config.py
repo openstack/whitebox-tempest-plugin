@@ -39,9 +39,11 @@ opts = [
         help='Deployment is containerized.'),
     cfg.DictOpt(
         'hypervisors',
-        help="Dictionary of hypervisor IP addresses, in the "
-             "id => IP format. Should be used when the IP returned "
-             "by 'nova hypervisor-show' isn't reachable from the "
-             "node running tempest. Starting with microversion "
-             "2.53, the id is a UUID."),
+        help="Dictionary of hypervisor IP addresses. The keys are the "
+             "hostnames as they appear in the OS-EXT-SRV-ATTR:host field of "
+             "Nova's show server details API. The values are the ctlplane IP "
+             "addresses. For example:"
+             ""
+             "  hypervisors = compute-0.localdomain:172.16.42.11,"
+             "                controller-0.localdomain:172.16.42.10"),
 ]

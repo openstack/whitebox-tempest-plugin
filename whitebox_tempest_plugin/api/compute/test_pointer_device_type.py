@@ -50,10 +50,8 @@ class PointerDeviceTypeFromImages(base.BaseTest):
 
     def _verify_pointer_device_type_from_images(self, server_id):
         # Retrieve the server's hypervizor hostname
-        server = self.servers_client.show_server(server_id)['server']
-        hostname = server['OS-EXT-SRV-ATTR:host']
         compute_node_address = whitebox_utils.get_hypervisor_ip(
-            self.hypervisor_client, hostname)
+            self.servers_client, server_id)
         self.assertIsNotNone(compute_node_address)
 
         # Retrieve input device from virsh dumpxml

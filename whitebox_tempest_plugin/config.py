@@ -45,5 +45,9 @@ opts = [
              "addresses. For example:"
              ""
              "  hypervisors = compute-0.localdomain:172.16.42.11,"
-             "                controller-0.localdomain:172.16.42.10"),
+             "                controller-0.localdomain:172.16.42.10"
+             ""
+             "While this looks like a poor man's DNS, this is needed "
+             "because the environment running the test does not necessarily "
+             "have the ctlplane DNS accessible."),
 ]

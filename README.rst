@@ -52,7 +52,7 @@ Install, configure and run
    to the compute nodes in the overcloud and vice versa. For example::
 
      [whitebox]
-     hypervisors = compute-0.localdomain:192.168.24.6,compute-1.lcoaldomain:192.168.24.12
+     hypervisors = compute-0.localdomain:192.168.24.6,compute-1.localdomain:192.168.24.12
      target_controller = controller-0.localdomain
      target_ssh_user = heat-admin
      target_private_key_path = /home/stack/.ssh/id_rsa

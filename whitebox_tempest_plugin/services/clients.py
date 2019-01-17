@@ -93,3 +93,12 @@ class VirshXMLClient(SSHClient):
         with ctx:
             command = "virsh dumpxml {}".format(domain)
             return self.execute(self.host, command)
+
+    def capabilities(self):
+        if CONF.whitebox.containers:
+            ctx = self.container_command('nova_compute', user='root')
+        else:
+            ctx = self.sudo_command()
+        with ctx:
+            command = "virsh capabilities"
+            return self.execute(self.host, command)

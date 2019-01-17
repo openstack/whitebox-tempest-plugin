@@ -24,6 +24,7 @@ For more information, refer to:
 - https://github.com/openstack/intel-nfv-ci-tests
 """
 
+import exceptions
 import testtools
 import xml.etree.ElementTree as ET
 
@@ -31,6 +32,8 @@ from tempest.common import utils
 from tempest import config
 
 from whitebox_tempest_plugin.api.compute import base
+from whitebox_tempest_plugin.common import utils as whitebox_utils
+from whitebox_tempest_plugin.services import clients
 
 CONF = config.CONF
 
@@ -40,11 +43,12 @@ class BaseTest(base.BaseTest):
     vcpus = 2
 
     def get_server_cpu_pinning(self, server):
-        instance_name = server['OS-EXT-SRV-ATTR:instance_name']
+        compute_node_address = whitebox_utils.get_hypervisor_ip(
+            self.servers_client, server['id'])
 
-        with self.get_libvirt_conn(server['OS-EXT-SRV-ATTR:host']) as conn:
-            dom0 = conn.lookupByName(instance_name)
-            root = ET.fromstring(dom0.XMLDesc())
+        virshxml = clients.VirshXMLClient(compute_node_address)
+        xml = virshxml.dumpxml(server['id'])
+        root = ET.fromstring(xml)
 
         vcpupin_nodes = root.findall('./cputune/vcpupin')
         cpu_pinnings = {int(x.get('vcpu')): int(x.get('cpuset'))
@@ -207,16 +211,21 @@ class CPUThreadPolicyTest(BaseTest):
              core_1: [sibling_a, sibling_b, ...],
              ...}
 
-        libvirt's getCapabilities() is called to get details about the host
+        `virsh capabilities` is called to get details about the host
         then a list of siblings per CPU is extracted and formatted to single
         level list.
         """
         siblings = {}
 
-        with self.get_libvirt_conn(host) as conn:
-            capxml = ET.fromstring(conn.getCapabilities())
-
-        cpu_cells = capxml.findall('./host/topology/cells/cell/cpus')
+        try:
+            host_address = CONF.whitebox.hypervisors[host]
+        except KeyError:
+            raise exceptions.MissingHypervisorException(server="",
+                                                        host=host)
+        virshxml = clients.VirshXMLClient(host_address)
+        capxml = virshxml.capabilities()
+        root = ET.fromstring(capxml)
+        cpu_cells = root.findall('./host/topology/cells/cell/cpus')
         for cell in cpu_cells:
             cpus = cell.findall('cpu')
             for cpu in cpus:

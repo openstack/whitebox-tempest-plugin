@@ -13,15 +13,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from contextlib import contextmanager
-
-import libvirt
 from oslo_log import log as logging
 from tempest.api.compute import base
 from tempest.common import waiters
 from tempest import config
 
-from whitebox_tempest_plugin.common import utils as whitebox_utils
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
@@ -64,18 +60,3 @@ class BaseTest(base.BaseV2ComputeAdminTest):
                                        'ACTIVE')
 
         return self.servers_client.show_server(server_id)['server']
-
-    @contextmanager
-    def get_libvirt_conn(self, hostname):
-        """Get a read-only connection to a remote libvirt instance.
-
-        :param hostname: The hostname for the remote libvirt instance.
-        """
-        # Assume we're using QEMU-KVM and that network conectivity is available
-        libvirt_url = 'qemu+ssh://{}@{}/system'.format(
-            CONF.whitebox.target_ssh_user,
-            whitebox_utils.get_hypervisor_ip(self.servers_client, hostname))
-
-        conn = libvirt.openReadOnly(libvirt_url)
-        yield conn
-        conn.close()

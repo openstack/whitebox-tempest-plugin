@@ -13,7 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-import xml.etree.ElementTree as ET
 
 from oslo_log import log as logging
 from tempest.common import waiters
@@ -21,7 +20,6 @@ from tempest import config
 from tempest.lib.common.utils import data_utils
 
 from whitebox_tempest_plugin.api.compute import base
-from whitebox_tempest_plugin.services import clients
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
@@ -72,12 +70,7 @@ class RxTxQueueSizeTest(base.BaseWhiteboxComputeTest):
     #    [libvirt]
     #    rx_queue_size = 1024
     def test_rx_queue_size(self):
-        compute_node_address = self.get_hypervisor_ip(self.server_id)
-        LOG.debug("Connecting to hypervisor %s for server %s",
-                  compute_node_address, self.server_id)
-        virshxml = clients.VirshXMLClient(compute_node_address)
-        xml = virshxml.dumpxml(self.server_id)
-        domain = ET.fromstring(xml)
+        domain = self.get_server_xml(self.server_id)
         driver = domain.find(
             "devices/interface[@type='bridge']/driver[@name='vhost']")
         self.assertEqual(

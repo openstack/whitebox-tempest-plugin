@@ -12,13 +12,11 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-import xml.etree.ElementTree as ET
 
 from oslo_log import log as logging
 from tempest import config
 
 from whitebox_tempest_plugin.api.compute import base
-from whitebox_tempest_plugin.services import clients
 
 
 CONF = config.CONF
@@ -35,11 +33,7 @@ class CpuModelExtraFlagsTest(base.BaseWhiteboxComputeTest):
     #    virt_type = kvm
     def test_cpu_model_extra_flags(self):
         server = self.create_test_server(wait_until="ACTIVE")
-        server_id = server['id']
-        compute_node_address = self.get_hypervisor_ip(server_id)
-        virshxml_client = clients.VirshXMLClient(compute_node_address)
-        dump = virshxml_client.dumpxml(server_id)
-        root = ET.fromstring(dump)
+        root = self.get_server_xml(server['id'])
 
         # Assert that the correct CPU model as well as the proper flags
         # are correctly defined in the instance XML

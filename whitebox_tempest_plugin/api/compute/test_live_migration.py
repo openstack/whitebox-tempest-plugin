@@ -16,7 +16,6 @@
 
 from oslo_log import log as logging
 import testtools
-import xml.etree.ElementTree as ET
 
 from tempest.common import utils
 from tempest.common import waiters
@@ -24,7 +23,6 @@ from tempest import config
 from tempest.lib import decorators
 
 from whitebox_tempest_plugin.api.compute import base
-from whitebox_tempest_plugin.services import clients
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
@@ -82,16 +80,6 @@ class LiveMigrationTest(base.BaseWhiteboxComputeTest):
         self.assertEqual(target_host, self.get_host_for_server(server_id),
                          msg)
 
-    def _get_server_libvirt_domain(self, server_id):
-        compute_node_address = self.get_hypervisor_ip(server_id)
-
-        LOG.debug("Connecting to hypervisor %s for server %s",
-                  compute_node_address, server_id)
-
-        virshxml = clients.VirshXMLClient(compute_node_address)
-        xml = virshxml.dumpxml(server_id)
-        return ET.fromstring(xml)
-
     @testtools.skipUnless(CONF.compute_feature_enabled.
                           volume_backed_live_migration,
                           'Volume-backed live migration not available')
@@ -103,7 +91,7 @@ class LiveMigrationTest(base.BaseWhiteboxComputeTest):
                                             volume_backed=True)['id']
 
         def root_disk_cache():
-            domain = self._get_server_libvirt_domain(server_id)
+            domain = self.get_server_xml(server_id)
             return domain.find(
                 "devices/disk/target[@dev='vda']/../driver").attrib['cache']
 

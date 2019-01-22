@@ -42,11 +42,7 @@ class BasePinningTest(base.BaseWhiteboxComputeTest):
     vcpus = 2
 
     def get_server_cpu_pinning(self, server):
-        compute_node_address = self.get_hypervisor_ip(server['id'])
-
-        virshxml = clients.VirshXMLClient(compute_node_address)
-        xml = virshxml.dumpxml(server['id'])
-        root = ET.fromstring(xml)
+        root = self.get_server_xml(server['id'])
 
         vcpupin_nodes = root.findall('./cputune/vcpupin')
         cpu_pinnings = {int(x.get('vcpu')): int(x.get('cpuset'))

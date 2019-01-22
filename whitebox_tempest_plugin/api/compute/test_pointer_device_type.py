@@ -20,7 +20,6 @@ from oslo_log import log as logging
 from tempest import config
 
 from whitebox_tempest_plugin.api.compute import base
-from whitebox_tempest_plugin.services import clients
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
@@ -41,17 +40,11 @@ class PointerDeviceTypeFromImages(base.BaseWhiteboxComputeTest):
         self.assertEqual(req_metadata, resp_metadata)
 
     def _verify_pointer_device_type_from_images(self, server_id):
-        # Retrieve the server's hypervizor hostname
-        compute_node_address = self.get_hypervisor_ip(server_id)
-
-        # Retrieve input device from virsh dumpxml
-        virshxml_client = clients.VirshXMLClient(compute_node_address)
-        output = virshxml_client.dumpxml(server_id)
-        # Verify that input device contains tablet and mouse
-        tablet = "input type='tablet' bus='usb'"
-        mouse = "input type='mouse' bus='ps2'"
-        self.assertTrue(tablet in output)
-        self.assertTrue(mouse in output)
+        domain = self.get_server_xml(server_id).text
+        tablet = domain.find('./input[@type="tablet"][@bus="usb"]')
+        mouse = domain.find('./input[@type="mouse"][@bus="ps2"]')
+        self.assertTrue(tablet)
+        self.assertTrue(mouse)
 
     def test_pointer_device_type_from_images(self):
         # TODO(stephenfin): I'm pretty sure this modifying the main image. We

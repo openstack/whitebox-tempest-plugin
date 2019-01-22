@@ -52,4 +52,9 @@ opts = [
              "While this looks like a poor man's DNS, this is needed "
              "because the environment running the test does not necessarily "
              "have the ctlplane DNS accessible."),
+    cfg.IntOpt(
+        'max_compute_nodes',
+        default=31337,
+        help="Number of compute hosts in the deployment. Some tests depend "
+             "on there being a single compute host."),
 ]

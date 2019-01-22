@@ -57,6 +57,8 @@ Install, configure and run
      # ctlplane_ssh_username = heat-admin
      # ctlplane_ssh_private_key_path = /home/stack/.ssh/id_rsa
      containers = true
+     max_compute_nodes = 2 # Some tests depend on there being a single
+                           # (available) compute node
 
 3. Execute the tests. ::
 

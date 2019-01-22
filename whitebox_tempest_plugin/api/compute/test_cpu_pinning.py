@@ -80,6 +80,8 @@ class CPUPolicyTest(BaseTest):
         flavor = self.create_flavor(cpu_policy='shared')
         self.create_test_server(flavor=flavor['id'])
 
+    @testtools.skipUnless(CONF.whitebox.max_compute_nodes < 2,
+                          'Single compute node required.')
     def test_cpu_dedicated(self):
         """Ensure an instance with 'dedicated' pinning policy work.
 

@@ -13,12 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-# Parameters required in etc/tempest.conf
-#    [whitebox]
-#    target_controller=
-#    target_ssh_user=
-#    target_private_key_path=
-#
 # Parameters required in /etc/nova/nova.conf
 #    pointer_model=ps2mouse
 

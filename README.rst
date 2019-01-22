@@ -53,9 +53,9 @@ Install, configure and run
 
      [whitebox]
      hypervisors = compute-0.localdomain:192.168.24.6,compute-1.localdomain:192.168.24.12
-     target_controller = controller-0.localdomain
-     target_ssh_user = heat-admin
-     target_private_key_path = /home/stack/.ssh/id_rsa
+     # Only set the following if different from the defaults listed
+     # ctlplane_ssh_username = heat-admin
+     # ctlplane_ssh_private_key_path = /home/stack/.ssh/id_rsa
      containers = true
 
 3. Execute the tests. ::

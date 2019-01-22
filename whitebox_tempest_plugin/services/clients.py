@@ -13,6 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import six.moves.configparser as configparser
+from six import StringIO
+
 from oslo_log import log as logging
 from tempest import config
 from tempest.lib.common import ssh
@@ -57,3 +60,17 @@ class VirshXMLClient(SSHClient):
     def capabilities(self):
         command = sudo(in_container('nova_libvirt', 'virsh capabilities'))
         return self.execute(command)
+
+
+class NovaConfigClient(SSHClient):
+    """A client to obtain config values from nova.conf."""
+
+    def _read_nova_conf(self):
+        command = sudo(in_container('nova_libvirt',
+                                    'cat /etc/nova/nova.conf'))
+        return self.execute(command)
+
+    def getopt(self, section, option):
+        config = configparser.ConfigParser()
+        config.readfp(StringIO(self._read_nova_conf()))
+        return config.get(section, option)

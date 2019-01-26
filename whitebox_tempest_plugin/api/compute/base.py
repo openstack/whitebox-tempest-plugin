@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import six
 import xml.etree.ElementTree as ET
 
 from oslo_log import log as logging
@@ -36,6 +37,7 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
         cls.servers_client = cls.os_admin.servers_client
         cls.flavors_client = cls.os_admin.flavors_client
         cls.hypervisor_client = cls.os_admin.hypervisor_client
+        cls.image_client = cls.os_admin.image_client_v2
 
     def create_test_server(self, *args, **kwargs):
         # override the function to return the admin view of the created server
@@ -66,6 +68,32 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
                                        'ACTIVE')
 
         return self.servers_client.show_server(server_id)['server']
+
+    def copy_default_image(self, **kwargs):
+        """Creates a new image by downloading the default image's bits and
+        uploading them to a new image. Any kwargs are set as image properties
+        on the new image.
+
+        :return image_id: The UUID of the newly created image.
+        """
+        image = self.image_client.show_image(CONF.compute.image_ref)
+        image_data = self.image_client.show_image_file(
+            CONF.compute.image_ref).data
+        image_file = six.BytesIO(image_data)
+
+        create_dict = {
+            'container_format': image['container_format'],
+            'disk_format': image['disk_format'],
+            'min_disk': image['min_disk'],
+            'min_ram': image['min_ram'],
+            'visibility': 'public',
+        }
+        create_dict.update(kwargs)
+        new_image = self.image_client.create_image(**create_dict)
+        self.addCleanup(self.image_client.delete_image, new_image['id'])
+        self.image_client.store_image_file(new_image['id'], image_file)
+
+        return new_image['id']
 
     def get_hypervisor_ip(self, server_id):
         server = self.servers_client.show_server(server_id)

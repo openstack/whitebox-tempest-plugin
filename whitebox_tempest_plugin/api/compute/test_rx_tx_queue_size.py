@@ -21,7 +21,6 @@ from tempest import config
 from tempest.lib.common.utils import data_utils
 
 from whitebox_tempest_plugin.api.compute import base
-from whitebox_tempest_plugin.common import utils as whitebox_utils
 from whitebox_tempest_plugin.services import clients
 
 CONF = config.CONF
@@ -73,8 +72,7 @@ class RxTxQueueSizeTest(base.BaseWhiteboxComputeTest):
     #    [libvirt]
     #    rx_queue_size = 1024
     def test_rx_queue_size(self):
-        compute_node_address = whitebox_utils.get_hypervisor_ip(
-            self.servers_client, self.server_id)
+        compute_node_address = self.get_hypervisor_ip(self.server_id)
         LOG.debug("Connecting to hypervisor %s for server %s",
                   compute_node_address, self.server_id)
         virshxml = clients.VirshXMLClient(compute_node_address)

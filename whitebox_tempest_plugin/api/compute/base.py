@@ -18,6 +18,8 @@ from tempest.api.compute import base
 from tempest.common import waiters
 from tempest import config
 
+from whitebox_tempest_plugin import exceptions
+
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
@@ -62,3 +64,12 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
                                        'ACTIVE')
 
         return self.servers_client.show_server(server_id)['server']
+
+    def get_hypervisor_ip(self, server_id):
+        server = self.servers_client.show_server(server_id)
+        host = server['server']['OS-EXT-SRV-ATTR:host']
+        try:
+            return CONF.whitebox.hypervisors[host]
+        except KeyError:
+            raise exceptions.MissingHypervisorException(server=server_id,
+                                                        host=host)

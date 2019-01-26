@@ -24,7 +24,6 @@ from tempest import config
 from tempest.lib import decorators
 
 from whitebox_tempest_plugin.api.compute import base
-from whitebox_tempest_plugin.common import utils as whitebox_utils
 from whitebox_tempest_plugin.services import clients
 
 CONF = config.CONF
@@ -84,8 +83,7 @@ class LiveMigrationTest(base.BaseWhiteboxComputeTest):
                          msg)
 
     def _get_server_libvirt_domain(self, server_id):
-        compute_node_address = whitebox_utils.get_hypervisor_ip(
-            self.servers_client, server_id)
+        compute_node_address = self.get_hypervisor_ip(server_id)
 
         LOG.debug("Connecting to hypervisor %s for server %s",
                   compute_node_address, server_id)

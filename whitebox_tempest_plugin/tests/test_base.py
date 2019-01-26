@@ -14,7 +14,7 @@
 
 import mock
 
-from whitebox_tempest_plugin.common import utils
+from whitebox_tempest_plugin.api.compute import base as compute_base
 from whitebox_tempest_plugin import exceptions
 from whitebox_tempest_plugin.tests import base
 
@@ -30,15 +30,20 @@ class UtilsTestCase(base.WhiteboxPluginTestCase):
 
     def setUp(self):
         super(UtilsTestCase, self).setUp()
-        self.client = mock.Mock()
-        self.client.show_server = fake_show_server
+        # NOTE(artom) We need to mock __init__ for the class to instantiate
+        # correctly.
+        compute_base.BaseWhiteboxComputeTest.__init__ = mock.Mock(
+            return_value=None)
+        self.test_class = compute_base.BaseWhiteboxComputeTest()
+        self.test_class.servers_client = mock.Mock()
+        self.test_class.servers_client.show_server = fake_show_server
         self.flags(hypervisors={'fake-host': 'fake-ip'}, group='whitebox')
 
     def test_get_hypervisor_ip(self):
         self.assertEqual('fake-ip',
-                         utils.get_hypervisor_ip(self.client, 'fake-id'))
+                         self.test_class.get_hypervisor_ip('fake-id'))
 
-    @mock.patch.object(utils.LOG, 'error')
+    @mock.patch.object(compute_base.LOG, 'error')
     def test_get_hypervisor_ip_keyerror(self, mock_log):
         self.assertRaises(exceptions.MissingHypervisorException,
-                          utils.get_hypervisor_ip, self.client, 'missing-id')
+                          self.test_class.get_hypervisor_ip, 'missing-id')

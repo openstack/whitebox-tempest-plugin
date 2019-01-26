@@ -18,7 +18,6 @@ from oslo_log import log as logging
 from tempest import config
 
 from whitebox_tempest_plugin.api.compute import base
-from whitebox_tempest_plugin.common import utils as whitebox_utils
 from whitebox_tempest_plugin.services import clients
 
 
@@ -37,8 +36,7 @@ class CpuModelExtraFlagsTest(base.BaseWhiteboxComputeTest):
     def test_cpu_model_extra_flags(self):
         server = self.create_test_server(wait_until="ACTIVE")
         server_id = server['id']
-        compute_node_address = whitebox_utils.get_hypervisor_ip(
-            self.servers_client, server_id)
+        compute_node_address = self.get_hypervisor_ip(server_id)
         virshxml_client = clients.VirshXMLClient(compute_node_address)
         dump = virshxml_client.dumpxml(server_id)
         root = ET.fromstring(dump)

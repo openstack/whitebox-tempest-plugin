@@ -31,7 +31,6 @@ from tempest.common import utils
 from tempest import config
 
 from whitebox_tempest_plugin.api.compute import base
-from whitebox_tempest_plugin.common import utils as whitebox_utils
 from whitebox_tempest_plugin import exceptions
 from whitebox_tempest_plugin.services import clients
 
@@ -43,8 +42,7 @@ class BasePinningTest(base.BaseWhiteboxComputeTest):
     vcpus = 2
 
     def get_server_cpu_pinning(self, server):
-        compute_node_address = whitebox_utils.get_hypervisor_ip(
-            self.servers_client, server['id'])
+        compute_node_address = self.get_hypervisor_ip(server['id'])
 
         virshxml = clients.VirshXMLClient(compute_node_address)
         xml = virshxml.dumpxml(server['id'])

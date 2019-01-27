@@ -28,7 +28,7 @@ CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
 
-class RxTxQueueSizeTest(base.BaseTest):
+class RxTxQueueSizeTest(base.BaseWhiteboxComputeTest):
 
     @classmethod
     def setup_clients(cls):

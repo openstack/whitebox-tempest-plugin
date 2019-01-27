@@ -38,7 +38,7 @@ from whitebox_tempest_plugin.services import clients
 CONF = config.CONF
 
 
-class BaseTest(base.BaseTest):
+class BasePinningTest(base.BaseWhiteboxComputeTest):
 
     vcpus = 2
 
@@ -57,7 +57,7 @@ class BaseTest(base.BaseTest):
         return cpu_pinnings
 
 
-class CPUPolicyTest(BaseTest):
+class CPUPolicyTest(BasePinningTest):
     """Validate CPU policy support."""
 
     @classmethod
@@ -170,7 +170,7 @@ class CPUPolicyTest(BaseTest):
             "Rebooted instance has lost its pinning information")
 
 
-class CPUThreadPolicyTest(BaseTest):
+class CPUThreadPolicyTest(BasePinningTest):
     """Validate CPU thread policy support."""
 
     def create_flavor(self, cpu_thread_policy):

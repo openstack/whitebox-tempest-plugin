@@ -27,7 +27,7 @@ CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
 
-class PointerDeviceTypeFromImages(base.BaseTest):
+class PointerDeviceTypeFromImages(base.BaseWhiteboxComputeTest):
 
     @classmethod
     def setup_clients(cls):

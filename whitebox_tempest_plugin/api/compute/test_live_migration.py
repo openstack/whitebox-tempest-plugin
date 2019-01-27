@@ -34,7 +34,7 @@ LOG = logging.getLogger(__name__)
 #   tempest.api.compute.admin.test_live_migration
 
 
-class LiveMigrationTest(base.BaseTest):
+class LiveMigrationTest(base.BaseWhiteboxComputeTest):
     # First support for block_migration='auto': since Mitaka (OSP9)
     min_microversion = '2.25'
 

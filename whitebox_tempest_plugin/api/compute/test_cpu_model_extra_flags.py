@@ -26,7 +26,7 @@ CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
 
-class CpuModelExtraFlagsTest(base.BaseTest):
+class CpuModelExtraFlagsTest(base.BaseWhiteboxComputeTest):
 
     # Required in /etc/nova/nova.conf
     #    [libvirt]

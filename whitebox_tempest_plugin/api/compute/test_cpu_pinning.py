@@ -24,7 +24,6 @@ For more information, refer to:
 - https://github.com/openstack/intel-nfv-ci-tests
 """
 
-import exceptions
 import testtools
 import xml.etree.ElementTree as ET
 
@@ -33,6 +32,7 @@ from tempest import config
 
 from whitebox_tempest_plugin.api.compute import base
 from whitebox_tempest_plugin.common import utils as whitebox_utils
+from whitebox_tempest_plugin import exceptions
 from whitebox_tempest_plugin.services import clients
 
 CONF = config.CONF

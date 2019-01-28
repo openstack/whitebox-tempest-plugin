@@ -24,19 +24,6 @@ CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
 
-def sudo(command):
-    return 'sudo %s' % command
-
-
-def in_container(container_name, command):
-    if CONF.whitebox.containers:
-        executable = CONF.whitebox.container_runtime
-        return '%s exec -u root %s %s' % (executable,
-                                          container_name,
-                                          command)
-    return command
-
-
 class SSHClient(object):
     """A client to execute remote commands, based on tempest.lib.common.ssh."""
 
@@ -45,9 +32,15 @@ class SSHClient(object):
         self.ssh_user = CONF.whitebox.ctlplane_ssh_username
         self.host = hostname
 
-    def execute(self, command):
+    def execute(self, command, container_name=None, sudo=False):
         ssh_client = ssh.Client(self.host, self.ssh_user,
                                 key_filename=self.ssh_key)
+        if (CONF.whitebox.containers and container_name):
+            executable = CONF.whitebox.container_runtime
+            command = 'sudo %s exec -u root %s %s' % (executable,
+                                                      container_name, command)
+        elif sudo:
+            command = 'sudo %s' % command
         LOG.debug("Executing %s", command)
         return ssh_client.exec_command(command)
 
@@ -56,22 +49,20 @@ class VirshXMLClient(SSHClient):
     """A client to obtain libvirt XML from a remote host."""
 
     def dumpxml(self, domain):
-        command = sudo(in_container('nova_libvirt',
-                                    'virsh dumpxml %s' % domain))
-        return self.execute(command)
+        command = 'virsh dumpxml %s' % domain
+        return self.execute(command, container_name='nova_libvirt', sudo=True)
 
     def capabilities(self):
-        command = sudo(in_container('nova_libvirt', 'virsh capabilities'))
-        return self.execute(command)
+        command = 'virsh capabilities'
+        return self.execute(command, container_name='nova_libvirt', sudo=True)
 
 
 class NovaConfigClient(SSHClient):
     """A client to obtain config values from nova.conf."""
 
     def _read_nova_conf(self):
-        command = sudo(in_container('nova_libvirt',
-                                    'cat /etc/nova/nova.conf'))
-        return self.execute(command)
+        command = 'cat /etc/nova/nova.conf'
+        return self.execute(command, container_name='nova_libvirt', sudo=True)
 
     def getopt(self, section, option):
         config = configparser.ConfigParser()

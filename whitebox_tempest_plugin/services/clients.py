@@ -68,3 +68,54 @@ class NovaConfigClient(SSHClient):
         config = configparser.ConfigParser()
         config.readfp(StringIO(self._read_nova_conf()))
         return config.get(section, option)
+
+
+class NUMAClient(SSHClient):
+    """A client to get host NUMA information. `numactl` needs to be installed
+    in the environment or container(s).
+    """
+
+    def get_host_topology(self):
+        """Returns the host topology as a dict.
+
+        :return nodes: A dict of CPUs in each host NUMA node, keyed by host
+                       node number, for example: {0: [1, 2],
+                                                  1: [3, 4]}
+        """
+        nodes = {}
+        numactl = self.execute('numactl -H', sudo=True)
+        for line in StringIO(numactl).readlines():
+            if 'node' in line and 'cpus' in line:
+                cpus = [int(cpu) for cpu in line.split(':')[1].split()]
+                node = int(line.split()[1])
+                nodes[node] = cpus
+        return nodes
+
+    def get_num_cpus(self):
+        nodes = self.get_host_topology()
+        return sum([len(cpus) for cpus in nodes.values()])
+
+    def get_pagesize(self):
+        proc_meminfo = self.execute('cat /proc/meminfo')
+        for line in StringIO(proc_meminfo).readlines():
+            if line.startswith('Hugepagesize'):
+                return int(line.split(':')[1].split()[0])
+
+    def get_hugepages(self):
+        """Returns a nested dict of number of total and free pages, keyed by
+        NUMA node. For example:
+
+        {0: {'total': 2000, 'free': 2000},
+         1: {'total': 2000, 'free': 0}}
+        """
+        pages = {}
+        for node in self.get_host_topology():
+            meminfo = self.execute(
+                'cat /sys/devices/system/node/node%d/meminfo' % node)
+            for line in StringIO(meminfo).readlines():
+                if 'HugePages_Total' in line:
+                    total = int(line.split(':')[1].lstrip())
+                if 'HugePages_Free' in line:
+                    free = int(line.split(':')[1].lstrip())
+            pages[node] = {'total': total, 'free': free}
+        return pages

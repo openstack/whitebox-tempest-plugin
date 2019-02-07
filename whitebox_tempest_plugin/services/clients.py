@@ -13,12 +13,15 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import six.moves.configparser as configparser
+import contextlib
 from six import StringIO
 
 from oslo_log import log as logging
 from tempest import config
 from tempest.lib.common import ssh
+from tempest.lib import exceptions as tempest_libexc
+
+from whitebox_tempest_plugin import exceptions
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
@@ -57,17 +60,77 @@ class VirshXMLClient(SSHClient):
         return self.execute(command, container_name='nova_libvirt', sudo=True)
 
 
-class NovaConfigClient(SSHClient):
-    """A client to obtain config values from nova.conf."""
+class ServiceManager(SSHClient):
+    """A client to manipulate services. Currently supported operations are:
+    - configuration changes
+    - restarting
+    `crudini` is required in the environment.
+    """
 
-    def _read_nova_conf(self):
-        command = 'cat /etc/nova/nova.conf'
-        return self.execute(command, container_name='nova_libvirt', sudo=True)
+    def __init__(self, hostname, service):
+        """Init the client.
 
-    def getopt(self, section, option):
-        config = configparser.ConfigParser()
-        config.readfp(StringIO(self._read_nova_conf()))
-        return config.get(section, option)
+        :param service: The service this manager is managing. Must exist as a
+                        whitebox-<service> config section.
+        """
+        super(ServiceManager, self).__init__(hostname)
+        try:
+            conf = getattr(CONF, 'whitebox-%s' % service)
+        except AttributeError:
+            raise exceptions.MissingServiceSectionException(service=service)
+        self.config_path = conf.config_path
+        self.restart_command = conf.restart_command
+
+    @contextlib.contextmanager
+    def config_option(self, section, option, value):
+        initial_value = self.get_conf_opt(section, option)
+        self.set_conf_opt(section, option, value)
+        self.restart()
+        try:
+            yield
+        finally:
+            self.set_conf_opt(section, option, initial_value)
+            self.restart()
+
+    def get_conf_opt(self, section, option):
+        command = 'crudini --get %s %s %s' % (self.config_path, section,
+                                              option)
+        # NOTE(artom) `crudini` will return 1 when attempting to get an
+        # inexisting option or section. This becomes an SSHExecCommandFailed
+        # exception (see exec_command() docstring in
+        # tempest/lib/common/ssh.py).
+        try:
+            value = self.execute(command, container_name=None, sudo=True)
+            return value.strip()
+        except tempest_libexc.SSHExecCommandFailed as e:
+            # NOTE(artom) We could also get an SSHExecCommandFailed exception
+            # for reasons other than the option or section not existing. Only
+            # return None when we're sure `crudini` told us "Parameter not
+            # found", otherwise re-raise e.
+            if 'not found' in str(e):
+                return None
+            else:
+                raise e
+
+    def set_conf_opt(self, section, option, value):
+        """Sets option=value in [section]. If value is None, the effect is the
+        same as del_conf_opt(option).
+        """
+        if value is None:
+            command = 'crudini --del %s %s %s' % (self.config_path, section,
+                                                  option)
+        else:
+            command = 'crudini --set %s %s %s %s' % (self.config_path, section,
+                                                     option, value)
+        return self.execute(command, container_name=None, sudo=True)
+
+    def del_conf_opt(self, section, option):
+        command = 'crudini --del %s %s %s' % (self.config_path, section,
+                                              option)
+        return self.execute(command, container_name=None, sudo=True)
+
+    def restart(self):
+        return self.execute(self.restart_command, sudo=True)
 
 
 class NUMAClient(SSHClient):

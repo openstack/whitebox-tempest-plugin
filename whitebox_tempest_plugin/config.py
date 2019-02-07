@@ -16,11 +16,11 @@
 from oslo_config import cfg
 
 
-group = cfg.OptGroup(
+general_group = cfg.OptGroup(
     name='whitebox',
-    title='Whitebox Tempest plugin config options')
+    title='General Whitebox Tempest plugin config options')
 
-opts = [
+general_opts = [
     cfg.StrOpt(
         'ctlplane_ssh_username',
         help='Username to use when accessing controllers and/or compute hosts '
@@ -63,4 +63,18 @@ opts = [
         choices=["docker", "podman"],
         help="Name of the executable running containers. Correct values are"
         " 'docker' (default) for osp 12 to 14, and 'podman' starting 15")
+]
+
+nova_compute_group = cfg.OptGroup(
+    name='whitebox-nova-compute',
+    title='Config options to manage the nova-compute service')
+
+nova_compute_opts = [
+    cfg.StrOpt(
+        'config_path',
+        help='Path to the configration file for the nova-compute service.'),
+    cfg.StrOpt(
+        'restart_command',
+        help='Command to restart the nova-compute service, without any '
+             'privilege management (ie, no sudo).'),
 ]

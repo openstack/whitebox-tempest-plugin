@@ -13,8 +13,13 @@
 #    under the License.
 
 import mock
+import tempfile
 import textwrap
 
+from oslo_concurrency import processutils
+from tempest.lib import exceptions as tempest_libexc
+
+from whitebox_tempest_plugin import exceptions
 from whitebox_tempest_plugin.services import clients
 from whitebox_tempest_plugin.tests import base
 
@@ -63,17 +68,85 @@ class SSHClientTestCase(base.WhiteboxPluginTestCase):
         mock_exec.reset_mock()
 
 
-class ConfigClientTestCase(base.WhiteboxPluginTestCase):
+class ServiceManagerTestCase(base.WhiteboxPluginTestCase):
 
-    def test_getopt(self):
-        config_client = clients.NovaConfigClient('fake-host')
-        fake_config = textwrap.dedent("""
-            [default]
-            fake-key = fake-value""").strip()
-        with mock.patch.object(config_client, '_read_nova_conf',
-                               return_value=fake_config):
-            self.assertEqual(config_client.getopt('default', 'fake-key'),
-                             'fake-value')
+    def test_supported_services(self):
+        """As more services becomes supported, add them here to make sure their
+        config_path has been properly added to CONF.
+        """
+        clients.ServiceManager('fake-host', 'nova-compute')
+
+    def test_missing_service(self):
+        self.assertRaises(
+            exceptions.MissingServiceSectionException,
+            clients.ServiceManager, 'fake-host', 'missing-service')
+
+    def test_crudini(self):
+        """This attempts a full end-to-end test by actually executing crudini
+        against a real file were possible, and by faking its output where not
+        possible. Because SSHClient needs a real host to SSH to,
+        we stub out its execute() method with 3 different variants.
+        """
+        def local_exec(command, **kwargs):
+            """Execute the command locally instead of remotely"""
+            out, err = processutils.execute(*command.split())
+            return out
+
+        def fake_exec_not_found(command, **kwargs):
+            """Don't execute anything and immitate what would happen if crudini was
+            executed on a remote host with an option or section that doesn't
+            exist in the INI file.
+            """
+            raise tempest_libexc.SSHExecCommandFailed(
+                command=command, exit_status=1, stderr='not found',
+                stdout='')
+
+        def fake_exec_other_failure(command, **kwargs):
+            """Don't execute anything and immitate what would happen if crudini was
+            executed on a remote host with some other failure, for example an
+            inexesting INI file.
+            """
+            raise tempest_libexc.SSHExecCommandFailed(
+                command=command, exit_status=1,
+                stderr='No such file or directory', stdout='')
+
+        with tempfile.NamedTemporaryFile(mode='r+') as f:
+            f.write(textwrap.dedent("""
+                [section]
+                option = value"""))
+            f.flush()
+            self.flags(config_path=f.name, group='whitebox-nova-compute')
+            service = clients.ServiceManager('fake-host', 'nova-compute')
+            service.execute = local_exec
+            # Test the config_option context manager
+            with mock.patch.object(service, 'restart') as mock_restart:
+                with service.config_option('section', 'option', 'new-value'):
+                    self.assertEqual('new-value',
+                                     service.get_conf_opt('section', 'option'))
+                self.assertEqual(2, mock_restart.call_count)
+            self.assertEqual('value',
+                             service.get_conf_opt('section', 'option'))
+            # Test setting an option then getting it
+            service.set_conf_opt('section', 'foo', 'bar')
+            self.assertEqual('bar', service.get_conf_opt('section', 'foo'))
+            # Test deleting an option by setting it to None
+            service.set_conf_opt('section', 'option', None)
+            self.assertNotIn('option', f.read())
+            # Test deleting an option
+            service.execute = fake_exec_not_found
+            self.assertIsNone(service.get_conf_opt('section', 'option'))
+            # Test handling other failures
+            service.execute = fake_exec_other_failure
+            self.assertRaises(tempest_libexc.SSHExecCommandFailed,
+                              service.get_conf_opt, 'section', 'foo')
+
+    def test_restart(self):
+        self.flags(restart_command='fake restart command',
+                   group='whitebox-nova-compute')
+        service = clients.ServiceManager('fake-host', 'nova-compute')
+        with mock.patch.object(service, 'execute') as mock_exec:
+            service.restart()
+            mock_exec.assert_called_with('fake restart command', sudo=True)
 
 
 class NUMAClientTestCase(base.WhiteboxPluginTestCase):

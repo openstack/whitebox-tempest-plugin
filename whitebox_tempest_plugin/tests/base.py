@@ -12,6 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from oslo_config import fixture as config_fixture
 from oslotest import base
 from tempest import config
 
@@ -19,6 +20,10 @@ CONF = config.CONF
 
 
 class WhiteboxPluginTestCase(base.BaseTestCase):
+
+    def setUp(self):
+        super(WhiteboxPluginTestCase, self).setUp()
+        self.useFixture(config_fixture.Config(CONF))
 
     def flags(self, **kw):
         """Override flag variables for a test."""

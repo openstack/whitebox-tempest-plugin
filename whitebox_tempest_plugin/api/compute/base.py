@@ -104,6 +104,12 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
             raise exceptions.MissingHypervisorException(server=server_id,
                                                         host=host)
 
+    def get_all_hypervisors(self):
+        """Returns a list of all hypervisor IPs in the deployment. Assumes all
+        are up and running.
+        """
+        return CONF.whitebox.hypervisors.values()
+
     def get_server_xml(self, server_id):
         hv_ip = self.get_hypervisor_ip(server_id)
         server_instance_name = self.servers_client.show_server(

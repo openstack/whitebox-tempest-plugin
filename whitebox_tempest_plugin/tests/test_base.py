@@ -37,7 +37,8 @@ class UtilsTestCase(base.WhiteboxPluginTestCase):
         self.test_class = compute_base.BaseWhiteboxComputeTest()
         self.test_class.servers_client = mock.Mock()
         self.test_class.servers_client.show_server = fake_show_server
-        self.flags(hypervisors={'fake-host': 'fake-ip'}, group='whitebox')
+        self.flags(hypervisors={'fake-host': 'fake-ip',
+                                'fake-host2': 'fake-ip2'}, group='whitebox')
 
     def test_get_hypervisor_ip(self):
         self.assertEqual('fake-ip',
@@ -47,3 +48,7 @@ class UtilsTestCase(base.WhiteboxPluginTestCase):
     def test_get_hypervisor_ip_keyerror(self, mock_log):
         self.assertRaises(exceptions.MissingHypervisorException,
                           self.test_class.get_hypervisor_ip, 'missing-id')
+
+    def test_get_all_hypervisors(self):
+        self.assertItemsEqual(['fake-ip', 'fake-ip2'],
+                              self.test_class.get_all_hypervisors())

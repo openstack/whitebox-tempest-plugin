@@ -18,7 +18,6 @@ from oslo_log import log as logging
 import testtools
 
 from tempest.common import utils
-from tempest.common import waiters
 from tempest import config
 from tempest.lib import decorators
 
@@ -59,27 +58,6 @@ class LiveMigrationTest(base.BaseWhiteboxComputeTest):
         cls.set_network_resources(network=True, subnet=True)
         super(LiveMigrationTest, cls).setup_credentials()
 
-    @classmethod
-    def setup_clients(cls):
-        super(LiveMigrationTest, cls).setup_clients()
-        cls.admin_migration_client = cls.os_admin.migrations_client
-
-    def _live_migrate(self, server_id, target_host, state):
-        self.admin_servers_client.live_migrate_server(
-            server_id, host=target_host, block_migration='auto')
-        waiters.wait_for_server_status(self.servers_client, server_id, state)
-        migration_list = (self.admin_migration_client.list_migrations()
-                          ['migrations'])
-
-        msg = ("Live Migration failed. Migrations list for Instance "
-               "%s: [" % server_id)
-        for live_migration in migration_list:
-            if (live_migration['instance_uuid'] == server_id):
-                msg += "\n%s" % live_migration
-        msg += "]"
-        self.assertEqual(target_host, self.get_host_for_server(server_id),
-                         msg)
-
     @testtools.skipUnless(CONF.compute_feature_enabled.
                           volume_backed_live_migration,
                           'Volume-backed live migration not available')
@@ -103,7 +81,7 @@ class LiveMigrationTest(base.BaseWhiteboxComputeTest):
         destination_host = self.get_host_other_than(server_id)
         LOG.info("Live migrate from source %s to destination %s",
                  source_host, destination_host)
-        self._live_migrate(server_id, destination_host, 'ACTIVE')
+        self.live_migrate(server_id, destination_host, 'ACTIVE')
 
         # Assert cache-mode has not changed during live migration
         self.assertEqual(cache_type, root_disk_cache())

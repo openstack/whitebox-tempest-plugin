@@ -24,9 +24,12 @@ For more information, refer to:
 - https://github.com/openstack/intel-nfv-ci-tests
 """
 
+
 import testtools
 import xml.etree.ElementTree as ET
 
+from oslo_serialization import jsonutils
+from tempest.common import compute
 from tempest.common import utils
 from tempest import config
 
@@ -34,7 +37,11 @@ from whitebox_tempest_plugin.api.compute import base
 from whitebox_tempest_plugin import exceptions
 from whitebox_tempest_plugin.services import clients
 
+from oslo_log import log as logging
+
+
 CONF = config.CONF
+LOG = logging.getLogger(__name__)
 
 
 def parse_cpu_spec(spec):
@@ -102,6 +109,40 @@ class BasePinningTest(base.BaseWhiteboxComputeTest):
 
     shared_cpu_policy = {'hw:cpu_policy': 'shared'}
     dedicated_cpu_policy = {'hw:cpu_policy': 'dedicated'}
+
+    def get_server_cell_pinning(self, server_id):
+        """Get the host NUMA cell numbers to which the server's virtual NUMA
+        cells are pinned.
+
+        :param server_id: The instance UUID to look up.
+        :return cpu_pins: A dict of guest cell number -> set(host cell numbers
+                          said cell is pinned to)
+        """
+        root = self.get_server_xml(server_id)
+
+        memnodes = root.findall('./numatune/memnode')
+        cell_pins = {}
+        for memnode in memnodes:
+            cell_pins[int(memnode.get('cellid'))] = parse_cpu_spec(
+                memnode.get('nodeset'))
+
+        return cell_pins
+
+    def get_server_emulator_threads(self, server_id):
+        """Get the host CPU numbers to which the server's emulator threads are
+        pinned.
+
+        :param server_id: The instance UUID to look up.
+        :return emulator_threads: A set of host CPU numbers.
+        """
+        root = self.get_server_xml(server_id)
+
+        emulatorpins = root.findall('./cputune/emulatorpin')
+        emulator_threads = set()
+        for pin in emulatorpins:
+            emulator_threads |= parse_cpu_spec(pin.get('cpuset'))
+
+        return emulator_threads
 
     def get_server_cpu_pinning(self, server_id):
         """Get the host CPU numbers to which the server's vCPUs are pinned.
@@ -361,3 +402,299 @@ class CPUThreadPolicyTest(BasePinningTest):
                 set(sib).isdisjoint(cpu_pinnings.values()),
                 "vCPUs siblings were required and were not used. Does this "
                 "host have HyperThreading enabled?")
+
+
+class NUMALiveMigrationTest(BasePinningTest):
+
+    # Don't bother with old microversions where disk_over_commit was required
+    # for the live migration request.
+    min_microversion = '2.25'
+
+    @classmethod
+    def skip_checks(cls):
+        super(NUMALiveMigrationTest, cls).skip_checks()
+        if (CONF.compute.min_compute_nodes < 2 or
+                CONF.whitebox.max_compute_nodes > 2):
+            raise cls.skipException('Exactly 2 compute nodes required.')
+        if not compute.is_scheduler_filter_enabled('DifferentHostFilter'):
+            raise cls.skipException('DifferentHostFilter required.')
+
+    def _get_cpu_spec(self, cpu_list):
+        """Returns a libvirt-style CPU spec from the provided list of integers. For
+        example, given [0, 2, 3], returns "0,2,3".
+        """
+        return ','.join(map(str, cpu_list))
+
+    def _get_db_numa_topology(self, instance_uuid):
+        """Returns an instance's NUMA topology as a JSON object.
+        """
+        db_client = clients.DatabaseClient()
+        with db_client.cursor('nova_cell1') as cursor:
+            cursor.execute('SELECT numa_topology FROM instance_extra '
+                           'WHERE instance_uuid = "%s"' % instance_uuid)
+            numa_topology = jsonutils.loads(
+                cursor.fetchone()['numa_topology'])
+        return numa_topology
+
+    def _get_cpu_pins_from_db_topology(self, db_topology):
+        """Given a JSON object representing a instance's database NUMA
+        topology, returns a dict of dicts indicating CPU pinning, for example:
+        {0: {'1': 2, '3': 4},
+         1: {'2': 6, '7': 8}}
+        """
+        pins = {}
+        cell_count = 0
+        for cell in db_topology['nova_object.data']['cells']:
+            pins[cell_count] = cell['nova_object.data']['cpu_pinning_raw']
+            cell_count += 1
+        return pins
+
+    def _get_pcpus_from_cpu_pins(self, cpu_pins):
+        """Given a dict of dicts of CPU pins, return just the host pCPU IDs for
+        all cells and guest vCPUs.
+        """
+        pcpus = set()
+        for cell, pins in cpu_pins.items():
+            pcpus.update(set(pins.values()))
+        return pcpus
+
+    def test_cpu_pinning(self):
+        hv1, hv2 = self.get_all_hypervisors()
+        numaclient_1 = clients.NUMAClient(hv1)
+        numaclient_2 = clients.NUMAClient(hv2)
+
+        # Get hosts's topology
+        topo_1 = numaclient_1.get_host_topology()
+        topo_2 = numaclient_2.get_host_topology()
+
+        # Need at least 2 NUMA nodes per host
+        if len(topo_1) < 2 or len(topo_2) < 2:
+            raise self.skipException('At least 2 NUMA nodes per host required')
+
+        # Put the numbers of CPUs per node into a list
+        cpus_per_node = [len(cpu_list) for cpu_list in
+                         topo_1.values() + topo_2.values()]
+        # Collapse the list into a set. If the set's length is 1, all nodes
+        # have the same number of CPUs.
+        if len(set(cpus_per_node)) != 1:
+            raise self.skipException('NUMA nodes must have same number of '
+                                     'CPUs')
+
+        # Set both hosts's vcpu_pin_set to the CPUs in the first NUMA node to
+        # force instances to land there
+        hv1_sm = clients.ServiceManager(hv1, 'nova-compute')
+        hv2_sm = clients.ServiceManager(hv2, 'nova-compute')
+        with hv1_sm.config_option('DEFAULT', 'vcpu_pin_set',
+                                  self._get_cpu_spec(topo_1[0])), \
+                hv2_sm.config_option('DEFAULT', 'vcpu_pin_set',
+                                     self._get_cpu_spec(topo_2[0])):
+
+            # Boot 2 servers such that their vCPUs "fill" a NUMA node.
+            specs = {'hw:cpu_policy': 'dedicated'}
+            flavor = self.create_flavor(vcpus=cpus_per_node[0],
+                                        extra_specs=specs)
+            server_a = self.create_test_server(flavor=flavor['id'])
+            # TODO(artom) As of 2.68 we can no longer force a live-migration,
+            # and having the different_host hint in the RequestSpec will
+            # prevent live migration. Start enabling/disabling
+            # DifferentHostFilter as needed?
+            server_b = self.create_test_server(
+                flavor=flavor['id'],
+                scheduler_hints={'different_host': server_a['id']})
+
+            # At this point we expect CPU pinning in the database to be
+            # identical for both servers
+            db_topo_a = self._get_db_numa_topology(server_a['id'])
+            db_pins_a = self._get_cpu_pins_from_db_topology(db_topo_a)
+            db_topo_b = self._get_db_numa_topology(server_b['id'])
+            db_pins_b = self._get_cpu_pins_from_db_topology(db_topo_b)
+            self.assertEqual(db_pins_a, db_pins_b,
+                             'Expected servers to have identical CPU pins, '
+                             'instead have %s and %s' % (db_pins_a,
+                                                         db_pins_b))
+
+            # They should have identical (non-null) CPU pins
+            pin_a = self.get_pinning_as_set(server_a['id'])
+            pin_b = self.get_pinning_as_set(server_b['id'])
+            self.assertTrue(pin_a and pin_b,
+                            'Pinned servers are actually unpinned: '
+                            '%s, %s' % (pin_a, pin_b))
+            self.assertEqual(
+                pin_a, pin_b,
+                'Pins should be identical: %s, %s' % (pin_a, pin_b))
+
+            # Live migrate server_b to server_a's compute, adding the second
+            # NUMA node's CPUs to vcpu_pin_set
+            host_a = self.get_host_other_than(server_b['id'])
+            host_a_sm = clients.ServiceManager(host_a, 'nova-compute')
+            numaclient_a = clients.NUMAClient(host_a)
+            topo_a = numaclient_a.get_host_topology()
+            with host_a_sm.config_option(
+                    'DEFAULT', 'vcpu_pin_set',
+                    self._get_cpu_spec(topo_a[0] + topo_a[1])):
+                self.live_migrate(server_b['id'], host_a, 'ACTIVE')
+
+                # They should have disjoint (non-null) CPU pins in their XML
+                pin_a = self.get_pinning_as_set(server_a['id'])
+                pin_b = self.get_pinning_as_set(server_b['id'])
+                self.assertTrue(pin_a and pin_b,
+                                'Pinned servers are actually unpinned: '
+                                '%s, %s' % (pin_a, pin_b))
+                self.assertTrue(pin_a.isdisjoint(pin_b),
+                                'Pins overlap: %s, %s' % (pin_a, pin_b))
+
+                # Same for their topologies in the database
+                db_topo_a = self._get_db_numa_topology(server_a['id'])
+                pcpus_a = self._get_pcpus_from_cpu_pins(
+                    self._get_cpu_pins_from_db_topology(db_topo_a))
+                db_topo_b = self._get_db_numa_topology(server_b['id'])
+                pcpus_b = self._get_pcpus_from_cpu_pins(
+                    self._get_cpu_pins_from_db_topology(db_topo_b))
+                self.assertTrue(pcpus_a and pcpus_b)
+                self.assertTrue(
+                    pcpus_a.isdisjoint(pcpus_b),
+                    'Expected servers to have disjoint CPU pins in the '
+                    'database, instead have %s and %s' % (pcpus_a, pcpus_b))
+
+                # NOTE(artom) At this point we have to manually delete both
+                # servers before the config_option() context manager reverts
+                # any config changes it made. This is Nova bug 1836945.
+                self.delete_server(server_a['id'])
+                self.delete_server(server_b['id'])
+
+    def test_emulator_threads(self):
+        # Need 4 CPUs on each host
+        for hv in self.get_all_hypervisors():
+            numaclient = clients.NUMAClient(hv)
+            num_cpus = numaclient.get_num_cpus()
+            if num_cpus < 4:
+                raise self.skipException('%s has %d CPUs, need 4', hv,
+                                         num_cpus)
+
+        hv1, hv2 = self.get_all_hypervisors()
+        hv1_sm = clients.ServiceManager(hv1, 'nova-compute')
+        hv2_sm = clients.ServiceManager(hv2, 'nova-compute')
+        with hv1_sm.config_option('DEFAULT', 'vcpu_pin_set', '0,1'), \
+                hv1_sm.config_option('compute', 'cpu_shared_set', '2'), \
+                hv2_sm.config_option('DEFAULT', 'vcpu_pin_set', '0,1'), \
+                hv2_sm.config_option('compute', 'cpu_shared_set', '3'):
+
+            # Boot two servers
+            specs = {'hw:cpu_policy': 'dedicated',
+                     'hw:emulator_threads_policy': 'share'}
+            flavor = self.create_flavor(vcpus=1, extra_specs=specs)
+            server_a = self.create_test_server(flavor=flavor['id'])
+            server_b = self.create_test_server(
+                flavor=flavor['id'],
+                scheduler_hints={'different_host': server_a['id']})
+
+            # They should have different (non-null) emulator pins
+            threads_a = self.get_server_emulator_threads(server_a['id'])
+            threads_b = self.get_server_emulator_threads(server_b['id'])
+            self.assertTrue(threads_a and threads_b,
+                            'Emulator threads should be pinned, are unpinned: '
+                            '%s, %s' % (threads_a, threads_b))
+            self.assertTrue(threads_a.isdisjoint(threads_b))
+
+            # Live migrate server_b
+            compute_a = self.get_host_other_than(server_b['id'])
+            self.live_migrate(server_b['id'], compute_a, 'ACTIVE')
+
+            # They should have identical (non-null) emulator pins and disjoint
+            # (non-null) CPU pins
+            threads_a = self.get_server_emulator_threads(server_a['id'])
+            threads_b = self.get_server_emulator_threads(server_b['id'])
+            self.assertTrue(threads_a and threads_b,
+                            'Emulator threads should be pinned, are unpinned: '
+                            '%s, %s' % (threads_a, threads_b))
+            self.assertEqual(threads_a, threads_b)
+            pin_a = self.get_pinning_as_set(server_a['id'])
+            pin_b = self.get_pinning_as_set(server_b['id'])
+            self.assertTrue(pin_a and pin_b,
+                            'Pinned servers are actually unpinned: '
+                            '%s, %s' % (pin_a, pin_b))
+            self.assertTrue(pin_a.isdisjoint(pin_b),
+                            'Pins overlap: %s, %s' % (pin_a, pin_b))
+
+    def test_hugepages(self):
+        hv_a, hv_b = self.get_all_hypervisors()
+        numaclient_a = clients.NUMAClient(hv_a)
+        numaclient_b = clients.NUMAClient(hv_b)
+
+        # Get the first host's topology and hugepages config
+        topo_a = numaclient_a.get_host_topology()
+        pagesize_a = numaclient_a.get_pagesize()
+        pages_a = numaclient_a.get_hugepages()
+
+        # Same for second host
+        topo_b = numaclient_b.get_host_topology()
+        pagesize_b = numaclient_b.get_pagesize()
+        pages_b = numaclient_b.get_hugepages()
+
+        # Need at least 2 NUMA nodes per host
+        if len(topo_a) < 2 or len(topo_b) < 2:
+            raise self.skipException('At least 2 NUMA nodes per host required')
+
+        # The hosts need to have the same pagesize
+        if not pagesize_a == pagesize_b:
+            raise self.skipException('Hosts must have same pagesize')
+
+        # Put the numbers of CPUs per node into a list, then collapse into a
+        # set. If the set's length is 1, all nodes have the same number of
+        # CPUs.
+        if not len(set([len(cpu_list) for cpu_list in
+                        topo_a.values() + topo_b.values()])) == 1:
+            raise self.skipException('NUMA nodes must have same number of '
+                                     'CPUs')
+
+        # Same idea, but for hugepages total
+        if not len(set([pagecount['total'] for pagecount in
+                        pages_a.values() + pages_b.values()])) == 1:
+            raise self.skipException('NUMA nodes must have same number of '
+                                     'total hugepages')
+
+        # The smallest available number of hugepages must be bigger than
+        # total / 2 to ensure no node can accept more than 1 instance with that
+        # many hugepages
+        min_free = min([pagecount['free'] for pagecount in
+                        pages_a.values() + pages_b.values()])
+        min_free_required = pages_a[0]['total'] / 2
+        if min_free < min_free_required:
+            raise self.skipException(
+                'Need enough free hugepages to effectively "fill" a NUMA '
+                'node. Need: %d. Have: %d' % (min_free_required, min_free))
+
+        # Create a flavor that'll "fill" a NUMA node
+        ram = pagesize_a / 1024 * min_free
+        specs = {'hw:numa_nodes': '1',
+                 'hw:mem_page_size': 'large'}
+        flavor = self.create_flavor(vcpus=len(topo_a[0]), ram=ram,
+                                    extra_specs=specs)
+
+        # Boot two servers
+        server_a = self.create_test_server(flavor=flavor['id'])
+        server_b = self.create_test_server(
+            flavor=flavor['id'],
+            scheduler_hints={'different_host': server_a['id']})
+
+        # We expect them to end up with the same cell pin - specifically, guest
+        # cell 0 to host cell 0.
+        pin_a = self.get_server_cell_pinning(server_a['id'])
+        pin_b = self.get_server_cell_pinning(server_b['id'])
+        self.assertTrue(pin_a and pin_b,
+                        'Cells not actually pinned: %s, %s' % (pin_a, pin_b))
+        self.assertEqual(pin_a, pin_b,
+                         'Servers ended up on different host cells. '
+                         'This is OK, but is unexpected and the test cannot '
+                         'continue. Pins: %s, %s' % (pin_a, pin_b))
+
+        # Live migrate server_b
+        compute_a = self.get_host_other_than(server_b['id'])
+        self.live_migrate(server_b['id'], compute_a, 'ACTIVE')
+
+        # Their guest NUMA node 0 should be on different host nodes
+        pin_a = self.get_server_cell_pinning(server_a['id'])
+        pin_b = self.get_server_cell_pinning(server_b['id'])
+        self.assertTrue(pin_a[0] and pin_b[0],
+                        'Cells not actually pinned: %s, %s' % (pin_a, pin_b))
+        self.assertTrue(pin_a[0].isdisjoint(pin_b[0]))

@@ -38,6 +38,7 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
         cls.flavors_client = cls.os_admin.flavors_client
         cls.hypervisor_client = cls.os_admin.hypervisor_client
         cls.image_client = cls.os_admin.image_client_v2
+        cls.admin_migration_client = cls.os_admin.migrations_client
 
     def create_test_server(self, *args, **kwargs):
         # override the function to return the admin view of the created server
@@ -121,3 +122,19 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
         virshxml = clients.VirshXMLClient(hv_ip)
         xml = virshxml.dumpxml(server_instance_name)
         return ET.fromstring(xml)
+
+    def live_migrate(self, server_id, target_host, state):
+        self.admin_servers_client.live_migrate_server(
+            server_id, host=target_host, block_migration='auto')
+        waiters.wait_for_server_status(self.servers_client, server_id, state)
+        migration_list = (self.admin_migration_client.list_migrations()
+                          ['migrations'])
+
+        msg = ("Live Migration failed. Migrations list for Instance "
+               "%s: [" % server_id)
+        for live_migration in migration_list:
+            if (live_migration['instance_uuid'] == server_id):
+                msg += "\n%s" % live_migration
+        msg += "]"
+        self.assertEqual(target_host, self.get_host_for_server(server_id),
+                         msg)

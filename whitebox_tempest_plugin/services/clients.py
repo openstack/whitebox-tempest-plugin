@@ -30,7 +30,10 @@ def sudo(command):
 
 def in_container(container_name, command):
     if CONF.whitebox.containers:
-        return 'docker exec -u root %s %s' % (container_name, command)
+        executable = CONF.whitebox.container_runtime
+        return '%s exec -u root %s %s' % (executable,
+                                          container_name,
+                                          command)
     return command
 
 

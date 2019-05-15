@@ -57,4 +57,10 @@ opts = [
         default=31337,
         help="Number of compute hosts in the deployment. Some tests depend "
              "on there being a single compute host."),
+    cfg.StrOpt(
+        'container_runtime',
+        default="docker",
+        choices=["docker", "podman"],
+        help="Name of the executable running containers. Correct values are"
+        " 'docker' (default) for osp 12 to 14, and 'podman' starting 15")
 ]

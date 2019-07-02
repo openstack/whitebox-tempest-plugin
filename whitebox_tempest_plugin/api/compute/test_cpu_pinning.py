@@ -37,19 +37,93 @@ from whitebox_tempest_plugin.services import clients
 CONF = config.CONF
 
 
+def parse_cpu_spec(spec):
+    """Parse a CPU set specification.
+
+    NOTE(artom): This has been lifted from Nova with minor exceptions-related
+    adjustments.
+
+    Each element in the list is either a single CPU number, a range of
+    CPU numbers, or a caret followed by a CPU number to be excluded
+    from a previous range.
+
+    :param spec: cpu set string eg "1-4,^3,6"
+
+    :returns: a set of CPU indexes
+    """
+    cpuset_ids = set()
+    cpuset_reject_ids = set()
+    for rule in spec.split(','):
+        rule = rule.strip()
+        # Handle multi ','
+        if len(rule) < 1:
+            continue
+        # Note the count limit in the .split() call
+        range_parts = rule.split('-', 1)
+        if len(range_parts) > 1:
+            reject = False
+            if range_parts[0] and range_parts[0][0] == '^':
+                reject = True
+                range_parts[0] = str(range_parts[0][1:])
+
+            # So, this was a range; start by converting the parts to ints
+            try:
+                start, end = [int(p.strip()) for p in range_parts]
+            except ValueError:
+                raise exceptions.InvalidCPUSpec(spec=spec)
+            # Make sure it's a valid range
+            if start > end:
+                raise exceptions.InvalidCPUSpec(spec=spec)
+            # Add available CPU ids to set
+            if not reject:
+                cpuset_ids |= set(range(start, end + 1))
+            else:
+                cpuset_reject_ids |= set(range(start, end + 1))
+        elif rule[0] == '^':
+            # Not a range, the rule is an exclusion rule; convert to int
+            try:
+                cpuset_reject_ids.add(int(rule[1:].strip()))
+            except ValueError:
+                raise exceptions.InvalidCPUSpec(spec=spec)
+        else:
+            # OK, a single CPU to include; convert to int
+            try:
+                cpuset_ids.add(int(rule))
+            except ValueError:
+                raise exceptions.InvalidCPUSpec(spec=spec)
+
+    # Use sets to handle the exclusion rules for us
+    cpuset_ids -= cpuset_reject_ids
+
+    return cpuset_ids
+
+
 class BasePinningTest(base.BaseWhiteboxComputeTest):
 
     shared_cpu_policy = {'hw:cpu_policy': 'shared'}
     dedicated_cpu_policy = {'hw:cpu_policy': 'dedicated'}
 
-    def get_server_cpu_pinning(self, server):
-        root = self.get_server_xml(server['id'])
+    def get_server_cpu_pinning(self, server_id):
+        """Get the host CPU numbers to which the server's vCPUs are pinned.
 
-        vcpupin_nodes = root.findall('./cputune/vcpupin')
-        cpu_pinnings = {int(x.get('vcpu')): int(x.get('cpuset'))
-                        for x in vcpupin_nodes if x is not None}
+        :param server_id: The instance UUID to look up.
+        :return cpu_pins: A dict of vCPU number -> set(host CPU numbers said
+                          vCPU is pinned to)
+        """
+        root = self.get_server_xml(server_id)
 
-        return cpu_pinnings
+        vcpupins = root.findall('./cputune/vcpupin')
+        cpu_pins = {}
+        for pin in vcpupins:
+            cpu_pins[int(pin.get('vcpu'))] = parse_cpu_spec(pin.get('cpuset'))
+
+        return cpu_pins
+
+    def get_pinning_as_set(self, server_id):
+        pinset = set()
+        for vcpu, pins in self.get_server_cpu_pinning(server_id).items():
+            pinset |= pins
+        return pinset
 
 
 class CPUPolicyTest(BasePinningTest):
@@ -79,8 +153,8 @@ class CPUPolicyTest(BasePinningTest):
         flavor = self.create_flavor(extra_specs=self.dedicated_cpu_policy)
         server_a = self.create_test_server(flavor=flavor['id'])
         server_b = self.create_test_server(flavor=flavor['id'])
-        cpu_pinnings_a = self.get_server_cpu_pinning(server_a)
-        cpu_pinnings_b = self.get_server_cpu_pinning(server_b)
+        cpu_pinnings_a = self.get_server_cpu_pinning(server_a['id'])
+        cpu_pinnings_b = self.get_server_cpu_pinning(server_b['id'])
 
         self.assertEqual(
             len(cpu_pinnings_a), self.vcpus,
@@ -102,7 +176,7 @@ class CPUPolicyTest(BasePinningTest):
         """Ensure resizing an instance to unpinned actually drops pinning."""
         flavor_a = self.create_flavor(extra_specs=self.dedicated_cpu_policy)
         server = self.create_test_server(flavor=flavor_a['id'])
-        cpu_pinnings = self.get_server_cpu_pinning(server)
+        cpu_pinnings = self.get_server_cpu_pinning(server['id'])
 
         self.assertEqual(
             len(cpu_pinnings), self.vcpus,
@@ -110,7 +184,7 @@ class CPUPolicyTest(BasePinningTest):
 
         flavor_b = self.create_flavor(extra_specs=self.shared_cpu_policy)
         server = self.resize_server(server['id'], flavor_b['id'])
-        cpu_pinnings = self.get_server_cpu_pinning(server)
+        cpu_pinnings = self.get_server_cpu_pinning(server['id'])
 
         self.assertEqual(
             len(cpu_pinnings), 0,
@@ -122,7 +196,7 @@ class CPUPolicyTest(BasePinningTest):
         """Ensure resizing an instance to pinned actually applies pinning."""
         flavor_a = self.create_flavor(extra_specs=self.shared_cpu_policy)
         server = self.create_test_server(flavor=flavor_a['id'])
-        cpu_pinnings = self.get_server_cpu_pinning(server)
+        cpu_pinnings = self.get_server_cpu_pinning(server['id'])
 
         self.assertEqual(
             len(cpu_pinnings), 0,
@@ -130,7 +204,7 @@ class CPUPolicyTest(BasePinningTest):
 
         flavor_b = self.create_flavor(extra_specs=self.dedicated_cpu_policy)
         server = self.resize_server(server['id'], flavor_b['id'])
-        cpu_pinnings = self.get_server_cpu_pinning(server)
+        cpu_pinnings = self.get_server_cpu_pinning(server['id'])
 
         self.assertEqual(
             len(cpu_pinnings), self.vcpus,
@@ -140,14 +214,14 @@ class CPUPolicyTest(BasePinningTest):
         """Ensure pinning information is persisted after a reboot."""
         flavor = self.create_flavor(extra_specs=self.dedicated_cpu_policy)
         server = self.create_test_server(flavor=flavor['id'])
-        cpu_pinnings = self.get_server_cpu_pinning(server)
+        cpu_pinnings = self.get_server_cpu_pinning(server['id'])
 
         self.assertEqual(
             len(cpu_pinnings), self.vcpus,
             "CPU pinning was not applied to new instance.")
 
         server = self.reboot_server(server['id'], 'HARD')
-        cpu_pinnings = self.get_server_cpu_pinning(server)
+        cpu_pinnings = self.get_server_cpu_pinning(server['id'])
 
         # we don't actually assert that the same pinning information is used
         # because that's not expected. We just care that _some_ pinning is in
@@ -225,7 +299,7 @@ class CPUThreadPolicyTest(BasePinningTest):
         server = self.create_test_server(flavor=flavor['id'])
         host = server['OS-EXT-SRV-ATTR:host']
 
-        cpu_pinnings = self.get_server_cpu_pinning(server)
+        cpu_pinnings = self.get_server_cpu_pinning(server['id'])
         pcpu_siblings = self.get_host_cpu_siblings(host)
 
         self.assertEqual(len(cpu_pinnings), self.vcpus)
@@ -250,7 +324,7 @@ class CPUThreadPolicyTest(BasePinningTest):
         server = self.create_test_server(flavor=flavor['id'])
         host = server['OS-EXT-SRV-ATTR:host']
 
-        cpu_pinnings = self.get_server_cpu_pinning(server)
+        cpu_pinnings = self.get_server_cpu_pinning(server['id'])
         pcpu_siblings = self.get_host_cpu_siblings(host)
 
         self.assertEqual(len(cpu_pinnings), self.vcpus)
@@ -274,7 +348,7 @@ class CPUThreadPolicyTest(BasePinningTest):
         server = self.create_test_server(flavor=flavor['id'])
         host = server['OS-EXT-SRV-ATTR:host']
 
-        cpu_pinnings = self.get_server_cpu_pinning(server)
+        cpu_pinnings = self.get_server_cpu_pinning(server['id'])
         pcpu_siblings = self.get_host_cpu_siblings(host)
 
         self.assertEqual(len(cpu_pinnings), self.vcpus)

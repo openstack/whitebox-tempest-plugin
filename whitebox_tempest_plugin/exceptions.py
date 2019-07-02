@@ -22,3 +22,7 @@ class MissingHypervisorException(exceptions.TempestException):
 
 class MissingServiceSectionException(exceptions.TempestException):
     message = "Unable to find whitebox-%(service)s section in configuration."
+
+
+class InvalidCPUSpec(exceptions.TempestException):
+    message = "CPU spec is invalid: %(spec)s."

@@ -39,7 +39,8 @@ CONF = config.CONF
 
 class BasePinningTest(base.BaseWhiteboxComputeTest):
 
-    vcpus = 2
+    shared_cpu_policy = {'hw:cpu_policy': 'shared'}
+    dedicated_cpu_policy = {'hw:cpu_policy': 'dedicated'}
 
     def get_server_cpu_pinning(self, server):
         root = self.get_server_xml(server['id'])
@@ -61,17 +62,9 @@ class CPUPolicyTest(BasePinningTest):
             msg = "OS-FLV-EXT-DATA extension not enabled."
             raise cls.skipException(msg)
 
-    def create_flavor(self, cpu_policy):
-        flavor = super(CPUPolicyTest, self).create_flavor(vcpus=self.vcpus)
-
-        specs = {'hw:cpu_policy': cpu_policy}
-        self.flavors_client.set_flavor_extra_spec(flavor['id'], **specs)
-
-        return flavor
-
     def test_cpu_shared(self):
         """Ensure an instance with an explicit 'shared' policy work."""
-        flavor = self.create_flavor(cpu_policy='shared')
+        flavor = self.create_flavor(extra_specs=self.shared_cpu_policy)
         self.create_test_server(flavor=flavor['id'])
 
     @testtools.skipUnless(CONF.whitebox.max_compute_nodes < 2,
@@ -83,7 +76,7 @@ class CPUPolicyTest(BasePinningTest):
         default. However, we check specifics of that later and only assert that
         things aren't overlapping here.
         """
-        flavor = self.create_flavor(cpu_policy='dedicated')
+        flavor = self.create_flavor(extra_specs=self.dedicated_cpu_policy)
         server_a = self.create_test_server(flavor=flavor['id'])
         server_b = self.create_test_server(flavor=flavor['id'])
         cpu_pinnings_a = self.get_server_cpu_pinning(server_a)
@@ -107,7 +100,7 @@ class CPUPolicyTest(BasePinningTest):
                           'Resize not available.')
     def test_resize_pinned_server_to_unpinned(self):
         """Ensure resizing an instance to unpinned actually drops pinning."""
-        flavor_a = self.create_flavor(cpu_policy='dedicated')
+        flavor_a = self.create_flavor(extra_specs=self.dedicated_cpu_policy)
         server = self.create_test_server(flavor=flavor_a['id'])
         cpu_pinnings = self.get_server_cpu_pinning(server)
 
@@ -115,7 +108,7 @@ class CPUPolicyTest(BasePinningTest):
             len(cpu_pinnings), self.vcpus,
             "Instance should be pinned but is unpinned")
 
-        flavor_b = self.create_flavor(cpu_policy='shared')
+        flavor_b = self.create_flavor(extra_specs=self.shared_cpu_policy)
         server = self.resize_server(server['id'], flavor_b['id'])
         cpu_pinnings = self.get_server_cpu_pinning(server)
 
@@ -127,7 +120,7 @@ class CPUPolicyTest(BasePinningTest):
                           'Resize not available.')
     def test_resize_unpinned_server_to_pinned(self):
         """Ensure resizing an instance to pinned actually applies pinning."""
-        flavor_a = self.create_flavor(cpu_policy='shared')
+        flavor_a = self.create_flavor(extra_specs=self.shared_cpu_policy)
         server = self.create_test_server(flavor=flavor_a['id'])
         cpu_pinnings = self.get_server_cpu_pinning(server)
 
@@ -135,7 +128,7 @@ class CPUPolicyTest(BasePinningTest):
             len(cpu_pinnings), 0,
             "Instance should be unpinned but is pinned")
 
-        flavor_b = self.create_flavor(cpu_policy='dedicated')
+        flavor_b = self.create_flavor(extra_specs=self.dedicated_cpu_policy)
         server = self.resize_server(server['id'], flavor_b['id'])
         cpu_pinnings = self.get_server_cpu_pinning(server)
 
@@ -145,7 +138,7 @@ class CPUPolicyTest(BasePinningTest):
 
     def test_reboot_pinned_server(self):
         """Ensure pinning information is persisted after a reboot."""
-        flavor = self.create_flavor(cpu_policy='dedicated')
+        flavor = self.create_flavor(extra_specs=self.dedicated_cpu_policy)
         server = self.create_test_server(flavor=flavor['id'])
         cpu_pinnings = self.get_server_cpu_pinning(server)
 
@@ -167,17 +160,12 @@ class CPUPolicyTest(BasePinningTest):
 class CPUThreadPolicyTest(BasePinningTest):
     """Validate CPU thread policy support."""
 
-    def create_flavor(self, cpu_thread_policy):
-        flavor = super(CPUThreadPolicyTest, self).create_flavor(
-            vcpus=self.vcpus)
-
-        specs = {
-            'hw:cpu_policy': 'dedicated',
-            'hw:cpu_thread_policy': cpu_thread_policy
-        }
-        self.flavors_client.set_flavor_extra_spec(flavor['id'], **specs)
-
-        return flavor
+    isolate_thread_policy = {'hw:cpu_policy': 'dedicated',
+                             'hw:cpu_thread_policy': 'isolate'}
+    prefer_thread_policy = {'hw:cpu_policy': 'dedicated',
+                            'hw:cpu_thread_policy': 'prefer'}
+    require_thread_policy = {'hw:cpu_policy': 'dedicated',
+                             'hw:cpu_thread_policy': 'require'}
 
     @staticmethod
     def get_siblings_list(sib):
@@ -233,7 +221,7 @@ class CPUThreadPolicyTest(BasePinningTest):
 
     def test_threads_isolate(self):
         """Ensure vCPUs *are not* placed on thread siblings."""
-        flavor = self.create_flavor(cpu_thread_policy='isolate')
+        flavor = self.create_flavor(extra_specs=self.isolate_thread_policy)
         server = self.create_test_server(flavor=flavor['id'])
         host = server['OS-EXT-SRV-ATTR:host']
 
@@ -258,7 +246,7 @@ class CPUThreadPolicyTest(BasePinningTest):
         For this to work, we require a host with HyperThreads. Scheduling will
         pass without this, but the test will not.
         """
-        flavor = self.create_flavor(cpu_thread_policy='prefer')
+        flavor = self.create_flavor(extra_specs=self.prefer_thread_policy)
         server = self.create_test_server(flavor=flavor['id'])
         host = server['OS-EXT-SRV-ATTR:host']
 
@@ -282,7 +270,7 @@ class CPUThreadPolicyTest(BasePinningTest):
         For this to work, we require a host with HyperThreads. Scheduling will
         fail without this.
         """
-        flavor = self.create_flavor(cpu_thread_policy='require')
+        flavor = self.create_flavor(extra_specs=self.require_thread_policy)
         server = self.create_test_server(flavor=flavor['id'])
         host = server['OS-EXT-SRV-ATTR:host']
 

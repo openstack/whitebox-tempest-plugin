@@ -30,7 +30,7 @@ class MultiqueueTest(base.BaseWhiteboxComputeTest):
 
     def test_multiqueue(self):
         image_id = self.copy_default_image(hw_vif_multiqueue_enabled='true')
-        flavor = self.create_flavor(vcpus=2)
+        flavor = self.create_flavor()
         server = self.create_test_server(
             flavor=flavor['id'], image_id=image_id,
             networks=[{'uuid': self.get_tenant_network()['id']}])

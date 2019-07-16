@@ -14,7 +14,9 @@
 #    under the License.
 
 import contextlib
+import pymysql
 from six import StringIO
+import sshtunnel
 
 from oslo_log import log as logging
 from tempest import config
@@ -182,3 +184,54 @@ class NUMAClient(SSHClient):
                     free = int(line.split(':')[1].lstrip())
             pages[node] = {'total': total, 'free': free}
         return pages
+
+
+class DatabaseClient(object):
+
+    def __init__(self):
+        self.ssh_key = CONF.whitebox.ctlplane_ssh_private_key_path
+        self.ssh_user = CONF.whitebox.ctlplane_ssh_username
+
+    @contextlib.contextmanager
+    def cursor(self, database_name, commit=False):
+        """Yields a PyMySQL cursor, tunneling to the internal subnet if
+        necessary.
+        """
+        tunnel_local_bind_host = '127.42.42.42'
+        tunnel_local_bind_port = 4242
+        if CONF.whitebox_database.internal_ip:
+            with sshtunnel.SSHTunnelForwarder(
+                    (CONF.whitebox_database.host, 3306),
+                    ssh_username=self.ssh_user,
+                    ssh_pkey=self.ssh_key,
+                    remote_bind_address=(CONF.whitebox_database.internal_ip,
+                                         3306),
+                    local_bind_address=(tunnel_local_bind_host,
+                                        tunnel_local_bind_port)):
+                conn = pymysql.connect(
+                    host=tunnel_local_bind_host, port=tunnel_local_bind_port,
+                    user=CONF.whitebox_database.user,
+                    password=CONF.whitebox_database.password,
+                    database=database_name,
+                    cursorclass=pymysql.cursors.DictCursor)
+                with conn.cursor() as c:
+                    try:
+                        yield c
+                    finally:
+                        if commit:
+                            conn.commit()
+                        conn.close()
+        else:
+            conn = pymysql.connect(
+                host=CONF.whitebox_database.host, port=3306,
+                user=CONF.whitebox_database.user,
+                password=CONF.whitebox_database.password,
+                database=database_name,
+                cursorclass=pymysql.cursors.DictCursor)
+            with conn.cursor() as c:
+                try:
+                    yield c
+                finally:
+                    if commit:
+                        conn.commit()
+                    conn.close()

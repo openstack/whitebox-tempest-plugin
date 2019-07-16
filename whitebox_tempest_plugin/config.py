@@ -78,3 +78,26 @@ nova_compute_opts = [
         help='Command to restart the nova-compute service, without any '
              'privilege management (ie, no sudo).'),
 ]
+
+database_group = cfg.OptGroup(
+    name='whitebox-database',
+    title='Config options to access the database.')
+
+database_opts = [
+    cfg.StrOpt(
+        'host',
+        help='Address of the database host. This is normally a controller.'),
+    cfg.StrOpt(
+        'internal_ip',
+        help='If the databse service is listening on separate internal '
+             'network, this option specifies its IP on that network. It will '
+             'be used to set up an SSH tunnel through the database host.'),
+    cfg.StrOpt(
+        'user',
+        help='Username to use when connecting to the database server. '
+             'This should normally be the root user, as it needs to '
+             'have permissions on all databases.'),
+    cfg.StrOpt(
+        'password',
+        help='The password to use when connecting to the database server.')
+]

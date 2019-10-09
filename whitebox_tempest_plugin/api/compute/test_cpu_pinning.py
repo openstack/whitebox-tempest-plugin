@@ -33,6 +33,7 @@ from tempest.common import compute
 from tempest.common import utils
 from tempest.common import waiters
 from tempest import config
+from tempest.exceptions import BuildErrorException
 from tempest.lib import decorators
 
 from whitebox_tempest_plugin.api.compute import base
@@ -47,7 +48,6 @@ LOG = logging.getLogger(__name__)
 
 
 class BasePinningTest(base.BaseWhiteboxComputeTest):
-
     shared_cpu_policy = {'hw:cpu_policy': 'shared'}
     dedicated_cpu_policy = {'hw:cpu_policy': 'dedicated'}
 
@@ -367,8 +367,400 @@ class CPUThreadPolicyTest(BasePinningTest):
                 "host have HyperThreading enabled?")
 
 
-class NUMALiveMigrationBase(BasePinningTest):
+class EmulatorExtraCPUTest(BasePinningTest):
 
+    vcpus = 1
+    min_microversion = '2.74'
+
+    def setUp(self):
+        super(EmulatorExtraCPUTest, self).setUp()
+        # Iterate over cpu_topology and find the NUMA Node with the most
+        # pCPUs and set that as the NUMA Node to use throughout the test
+        largest_numa_node = max(CONF.whitebox_hardware.cpu_topology.items(),
+                                key=lambda k: len(k[1]))
+        self.numa_to_use = largest_numa_node[0]
+
+    @classmethod
+    def skip_checks(cls):
+        super(EmulatorExtraCPUTest, cls).skip_checks()
+        if not utils.is_extension_enabled('OS-FLV-EXT-DATA', 'compute'):
+            msg = "OS-FLV-EXT-DATA extension not enabled."
+            raise cls.skipException(msg)
+        if getattr(CONF.whitebox_hardware, 'cpu_topology', None) is None:
+            msg = "cpu_topology in whitebox-hardware is not present"
+            raise cls.skipException(msg)
+
+    def create_flavor(self, threads_policy, vcpus):
+        flavor = super(EmulatorExtraCPUTest,
+                       self).create_flavor(vcpus=vcpus, disk=1)
+
+        specs = {
+            'hw:cpu_policy': 'dedicated',
+            'hw:emulator_threads_policy': threads_policy
+        }
+        self.flavors_client.set_flavor_extra_spec(flavor['id'], **specs)
+        return flavor
+
+    def get_server_emulator_threads(self, server_id):
+        """Get the host CPU numbers to which the server's emulator threads are
+        pinned.
+
+        :param server_id: The instance UUID to look up.
+        :return emulator_threads: A set of host CPU numbers.
+        """
+        root = self.get_server_xml(server_id)
+
+        emulatorpins = root.findall('./cputune/emulatorpin')
+        emulator_threads = set()
+        for pin in emulatorpins:
+            emulator_threads |= whitebox_utils.parse_cpu_spec(
+                pin.get('cpuset'))
+
+        return emulator_threads
+
+    def policy_share_cpu_shared_set(self, section, pin_set_mode):
+        """With policy set to share and cpu_share_set set, emulator threads
+        should be pinned to cpu_share_set.
+
+
+        :param section: The nova.conf section to apply the pin_set
+        configuration
+        :param pin_set_mode: Which pCPU list mode to use when exposing
+        dedicated pCPU's to the guest, either vcpu_pin_set or cpu_dedicated_set
+        :param single_shared_cpu bool, wheter to use a single pCPU for the
+        shared set or a range of pCPUs for the shared_set range.
+        """
+        # NOTE: this scenario is based around upstream BP:
+        # https://blueprints.launchpad.net/nova/+spec/overhead-pin-set and
+        # downstream BZ https://bugzilla.redhat.com/show_bug.cgi?id=1468004#c0
+        # which allows for multiple guest's emulator threads to share the same
+        # cpu_shared_set range
+        if len(CONF.whitebox_hardware.cpu_topology[self.numa_to_use]) < 3:
+            raise self.skipException('Test requires NUMA Node with 3 or more '
+                                     'CPUs to run')
+        dedicated_set = self._get_cpu_spec(
+            CONF.whitebox_hardware.cpu_topology[self.numa_to_use][:2])
+
+        cpu_shared_set_str = self._get_cpu_spec(
+            CONF.whitebox_hardware.cpu_topology[self.numa_to_use][2:])
+
+        hostname = self.list_compute_hosts()[0]
+        host_sm = clients.NovaServiceManager(
+            hostname, 'nova-compute', self.os_admin.services_client)
+
+        # Update the compute node's cpu_shared_set to cpu_shared_set_str and
+        # dedicated CPUs to the range found for dedicated_set
+        with host_sm.config_options((section, pin_set_mode, dedicated_set),
+                                    ('compute', 'cpu_shared_set',
+                                    cpu_shared_set_str)):
+
+            # Create a flavor using the shared threads_policy and two instances
+            # on the same host
+            flavor = self.create_flavor(threads_policy='share',
+                                        vcpus=self.vcpus)
+            server_a = self.create_test_server(
+                clients=self.os_admin,
+                flavor=flavor['id'],
+                host=hostname
+            )
+            server_b = self.create_test_server(
+                clients=self.os_admin,
+                flavor=flavor['id'],
+                host=hostname
+            )
+
+            # Gather the emulator threads from both servers
+            emulator_threads_a = \
+                self.get_server_emulator_threads(server_a['id'])
+            emulator_threads_b = \
+                self.get_server_emulator_threads(server_b['id'])
+
+            # Confirm the emulator threads from server's A and B are both equal
+            # to cpu_shared_set
+            cpu_shared_set = whitebox_utils.parse_cpu_spec(cpu_shared_set_str)
+            self.assertEqual(
+                emulator_threads_a, cpu_shared_set,
+                'Emulator threads for server A %s are not the same as CPU set '
+                '%s' % (emulator_threads_a, cpu_shared_set))
+
+            self.assertEqual(
+                emulator_threads_b, cpu_shared_set,
+                'Emulator threads for server B %s are not the same as CPU set '
+                '%s' % (emulator_threads_b, cpu_shared_set))
+
+            self.delete_server(server_a['id'])
+            self.delete_server(server_b['id'])
+
+    def policy_share_cpu_shared_unset(self, section, pin_set_mode):
+        """With policy set to share and cpu_share_set unset, emulator threads
+        should float over the instance's pCPUs.
+
+        :param section: The nova.conf section to apply the pin_set
+        configuration
+        :param pin_set_mode: Which pCPU list mode to use when exposing
+        dedicated pCPU's to the guest, either vcpu_pin_set or cpu_dedicated_set
+        """
+        if len(CONF.whitebox_hardware.cpu_topology[self.numa_to_use]) < 2:
+            raise self.skipException('Test requires NUMA Node with 2 or more '
+                                     'CPUs to run')
+
+        dedicated_set = self._get_cpu_spec(
+            CONF.whitebox_hardware.cpu_topology[self.numa_to_use][:2])
+        hostname = self.list_compute_hosts()[0]
+        host_sm = clients.NovaServiceManager(
+            hostname, 'nova-compute', self.os_admin.services_client)
+
+        # Update the compute node's cpu_shared_set to None and dedicated CPUs
+        # to the range found for dedicated_set
+        with host_sm.config_options((section, pin_set_mode, dedicated_set),
+                                    ('compute', 'cpu_shared_set', None)):
+
+            # Create a flavor using the shared threads_policy and two instances
+            # on the same host
+            flavor = self.create_flavor(threads_policy='share',
+                                        vcpus=self.vcpus)
+            server_a = self.create_test_server(
+                clients=self.os_admin,
+                flavor=flavor['id'],
+                host=hostname
+            )
+            server_b = self.create_test_server(
+                clients=self.os_admin,
+                flavor=flavor['id'],
+                host=hostname
+            )
+
+            # Gather the emulator threads from server A and B. Then gather the
+            # pinned PCPUs from server A and B.
+            emulator_threads_a = \
+                self.get_server_emulator_threads(server_a['id'])
+            emulator_threads_b = \
+                self.get_server_emulator_threads(server_b['id'])
+
+            cpu_pins_a = self.get_pinning_as_set(server_a['id'])
+            cpu_pins_b = self.get_pinning_as_set(server_b['id'])
+
+            # Validate emulator threads for server's A and B are pinned to all
+            # of server A's and B's pCPUs
+            self.assertEqual(
+                emulator_threads_a, cpu_pins_a,
+                'Threads %s not the same as CPU pins %s' % (emulator_threads_a,
+                                                            cpu_pins_a))
+
+            self.assertEqual(
+                emulator_threads_b, cpu_pins_b,
+                'Threads %s not the same as CPU pins %s' % (emulator_threads_b,
+                                                            cpu_pins_b))
+
+            # Confirm the pinned cpus from server a to do no intersect with
+            # server b
+            self.assertTrue(
+                cpu_pins_a.isdisjoint(cpu_pins_b),
+                'Different server pins overlap: %s and %s' % (cpu_pins_a,
+                                                              cpu_pins_b))
+            self.delete_server(server_a['id'])
+            self.delete_server(server_b['id'])
+
+    def policy_isolate(self, section, pin_set_mode):
+        """With policy isolate, cpu_shared_set is ignored, and emulator threads
+        should be pinned to a pCPU distinct from the instance's pCPUs.
+
+        :param section: The nova.conf section to apply the pin_set
+        configuration
+        :param pin_set_mode: Which pCPU list mode to use when exposing
+        dedicated pCPU's to the guest, either vcpu_pin_set or cpu_dedicated_set
+        """
+        if len(CONF.whitebox_hardware.cpu_topology[self.numa_to_use]) < 4:
+            raise self.skipException('Test requires NUMA Node with 4 or more '
+                                     'CPUs to run')
+        dedicated_set = \
+            set(CONF.whitebox_hardware.cpu_topology[self.numa_to_use])
+        dedicated_set_str = self._get_cpu_spec(dedicated_set)
+
+        hostname = self.list_compute_hosts()[0]
+        host_sm = clients.NovaServiceManager(
+            hostname, 'nova-compute', self.os_admin.services_client)
+
+        # Update the compute node's cpu_shared_set to None and dedicated CPUs
+        # to the range found for dedicated_set_str
+        with host_sm.config_options((section, pin_set_mode, dedicated_set_str),
+                                    ('compute', 'cpu_shared_set', None)):
+
+            # Create a flavor using the isolate threads_policy and two
+            # instances on the same host
+            flavor = self.create_flavor(threads_policy='isolate',
+                                        vcpus=self.vcpus)
+            server_a = self.create_test_server(
+                clients=self.os_admin,
+                flavor=flavor['id'],
+                host=hostname
+            )
+            server_b = self.create_test_server(
+                clients=self.os_admin,
+                flavor=flavor['id'],
+                host=hostname
+            )
+
+            # Gather the emulator threads from server A and B. Then gather the
+            # pinned PCPUs from server A and B.
+            emulator_threads_a = \
+                self.get_server_emulator_threads(server_a['id'])
+            emulator_threads_b = \
+                self.get_server_emulator_threads(server_b['id'])
+
+            cpu_pins_a = self.get_pinning_as_set(server_a['id'])
+            cpu_pins_b = self.get_pinning_as_set(server_b['id'])
+
+            # Check that every value gathered is a subset of the
+            # cpu_dedicate_set configured for the host
+            for pin_set in [emulator_threads_a, emulator_threads_b, cpu_pins_a,
+                            cpu_pins_b]:
+                self.assertTrue(
+                    pin_set.issubset(dedicated_set), 'Pin set value %s is not '
+                    'a subset of %s' % (pin_set, dedicated_set))
+
+            # Validate that all emulator thread and guest pinned CPUs are all
+            # disjointed from each other
+            self.assertTrue(
+                cpu_pins_a.isdisjoint(emulator_threads_a),
+                'Threads %s overlap with CPUs %s' % (emulator_threads_a,
+                                                     cpu_pins_a))
+            self.assertTrue(
+                cpu_pins_b.isdisjoint(emulator_threads_b),
+                'Threads %s overlap with CPUs %s' % (emulator_threads_b,
+                                                     cpu_pins_b))
+            self.assertTrue(
+                cpu_pins_a.isdisjoint(cpu_pins_b),
+                'Different server pins overlap: %s and %s' % (cpu_pins_a,
+                                                              cpu_pins_b))
+            self.assertTrue(
+                emulator_threads_a.isdisjoint(emulator_threads_b),
+                'Different threads overlap: %s and %s' % (emulator_threads_a,
+                                                          emulator_threads_b))
+            self.delete_server(server_a['id'])
+            self.delete_server(server_b['id'])
+
+    def emulator_no_extra_cpu(self, section, pin_set_mode):
+        """Create a flavor that consumes all available pCPUs for the guest.
+        The flavor should also be set to isolate emulator pinning. Instance
+        should fail to build, since there are no distinct pCPUs available for
+        the emulator thread.
+
+        :param pin_set_mode: Which pCPU list mode to use when exposing
+        dedicated pCPU's to the guest, either vcpu_pin_set or cpu_dedicated_set
+        """
+        if len(CONF.whitebox_hardware.cpu_topology[self.numa_to_use]) < 2:
+            raise self.skipException('Test requires NUMA Node with 2 or more '
+                                     'CPUs to run')
+        dedicated_set = self._get_cpu_spec(
+            CONF.whitebox_hardware.cpu_topology[self.numa_to_use][:2])
+
+        hostname = self.list_compute_hosts()[0]
+        host_sm = clients.NovaServiceManager(
+            hostname, 'nova-compute', self.os_admin.services_client)
+
+        with host_sm.config_options((section, pin_set_mode, dedicated_set),
+                                    ('compute', 'cpu_shared_set', None)):
+
+            # Create a dedicated flavor with a vcpu size equal to the number
+            # of available pCPUs in the dedicated set. With threads_policy
+            # being set to isolate, the build should fail since no more
+            # pCPUs will be available.
+            flavor = self.create_flavor(threads_policy='isolate',
+                                        vcpus=len(dedicated_set))
+
+            # Confirm the instance cannot be built
+            self.assertRaises(BuildErrorException,
+                              self.create_test_server,
+                              clients=self.os_admin,
+                              flavor=flavor['id'],
+                              host=hostname)
+
+
+class VCPUPinSetEmulatorThreads(EmulatorExtraCPUTest):
+
+    max_microversion = '2.79'
+    pin_set_mode = 'vcpu_pin_set'
+    pin_section = 'DEFAULT'
+
+    def test_policy_share_cpu_shared_set(self):
+        """With policy set to share and cpu_share_set set, emulator threads
+        should be pinned to cpu_share_set.
+        """
+        super(VCPUPinSetEmulatorThreads,
+              self).policy_share_cpu_shared_set(
+                  section=self.pin_section, pin_set_mode=self.pin_set_mode)
+
+    def test_policy_share_cpu_shared_unset(self):
+        """With policy set to share and cpu_share_set unset, emulator threads
+        should float over the instance's pCPUs.
+        """
+        super(VCPUPinSetEmulatorThreads,
+              self).policy_share_cpu_shared_unset(
+                  section=self.pin_section, pin_set_mode=self.pin_set_mode)
+
+    def test_policy_isolate(self):
+        """With policy isolate, cpu_shared_set is ignored, and emulator threads
+        sould be pinned to a pCPU distinct from the instance's pCPUs.  pCPU's
+        are exposed to the guest via vcpu_pin_set.
+        """
+        super(VCPUPinSetEmulatorThreads,
+              self).policy_isolate(
+                  section=self.pin_section, pin_set_mode=self.pin_set_mode)
+
+    def test_emulator_no_extra_cpu(self):
+        """With policy isolate and an instance's vCPU's consuming all available
+        pCPU's from the vcpu_pin_set, build should fail since there are no
+        pCPU's available for the emulator thread
+        """
+        super(VCPUPinSetEmulatorThreads,
+              self).emulator_no_extra_cpu(
+                  section=self.pin_section, pin_set_mode=self.pin_set_mode)
+
+
+class CPUDedicatedEmulatorThreads(EmulatorExtraCPUTest):
+
+    compute_min_microversion = '2.79'
+    compute_max_microversion = 'latest'
+    pin_set_mode = 'cpu_dedicated_set'
+    pin_section = 'compute'
+
+    def test_policy_share_cpu_shared_set(self):
+        """With policy set to share and cpu_share_set set, emulator threads
+        should be pinned to cpu_share_set.
+        """
+        super(CPUDedicatedEmulatorThreads,
+              self).policy_share_cpu_shared_set(
+                  section=self.pin_section, pin_set_mode=self.pin_set_mode)
+
+    def test_policy_share_cpu_shared_unset(self):
+        """With policy set to share and cpu_share_set unset, emulator threads
+        should float over the instance's pCPUs.
+        """
+        super(CPUDedicatedEmulatorThreads,
+              self).policy_share_cpu_shared_unset(
+                  section=self.pin_section, pin_set_mode=self.pin_set_mode)
+
+    def test_policy_isolate(self):
+        """With policy isolate, cpu_shared_set is ignored, and emulator threads
+        sould be pinned to a pCPU distinct from the instance's pCPUs.  pCPU's
+        are exposed to the guest via cpu_dedicated_set.
+        """
+        super(CPUDedicatedEmulatorThreads,
+              self).policy_isolate(
+                  section=self.pin_section, pin_set_mode=self.pin_set_mode)
+
+    def test_emulator_no_extra_cpu(self):
+        """With policy isolate and an instance's vCPU's consuming all available
+        pCPU's from the cpu_dedicated_set, build should fail since there are no
+        pCPU's available for the emulator thread
+        """
+        super(CPUDedicatedEmulatorThreads,
+              self).emulator_no_extra_cpu(
+                  section=self.pin_section, pin_set_mode=self.pin_set_mode)
+
+
+class NUMALiveMigrationBase(BasePinningTest):
     @classmethod
     def skip_checks(cls):
         super(NUMALiveMigrationBase, cls).skip_checks()

@@ -1,0 +1,9 @@
+- name: Install numactl
+  package:
+      name: numactl
+      state: present
+  become: yes
+
+- name: Allocate hugepages
+  shell: echo {{ num_hugepages }} > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages
+  become: yes

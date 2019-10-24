@@ -1,0 +1,4 @@
+- hosts: all
+  roles:
+      - whitebox-common
+      - whitebox-nova-compute

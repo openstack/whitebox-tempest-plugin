@@ -325,11 +325,15 @@ class CPUThreadPolicyTest(BasePinningTest):
         """
         siblings = {}
 
-        try:
-            host_address = CONF.whitebox.hypervisors[host]
-        except KeyError:
-            raise exceptions.MissingHypervisorException(server="",
-                                                        host=host)
+        if CONF.whitebox.hypervisors:
+            try:
+                host_address = CONF.whitebox.hypervisors[host]
+            except KeyError:
+                raise exceptions.MissingHypervisorException(server="",
+                                                            host=host)
+        else:
+            host_address = host
+
         virshxml = clients.VirshXMLClient(host_address)
         capxml = virshxml.capabilities()
         root = ET.fromstring(capxml)

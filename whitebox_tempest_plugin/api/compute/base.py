@@ -102,17 +102,27 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
     def get_hypervisor_ip(self, server_id):
         server = self.servers_client.show_server(server_id)
         host = server['server']['OS-EXT-SRV-ATTR:host']
-        try:
+
+        if not CONF.whitebox.hypervisors:
+            # NOTE(artom) [whitebox]/hypervisors not being set means we're
+            # running against a devstack deployment and we can just use host
+            # directly.
+            return host
+
+        if host in CONF.whitebox.hypervisors:
             return CONF.whitebox.hypervisors[host]
-        except KeyError:
-            raise exceptions.MissingHypervisorException(server=server_id,
-                                                        host=host)
+
+        raise exceptions.MissingHypervisorException(server=server_id,
+                                                    host=host)
 
     def get_all_hypervisors(self):
         """Returns a list of all hypervisor IPs in the deployment. Assumes all
         are up and running.
         """
-        return CONF.whitebox.hypervisors.values()
+        if CONF.whitebox.hypervisors:
+            return CONF.whitebox.hypervisors.values()
+        hvs = self.hypervisor_client.list_hypervisors()['hypervisors']
+        return [hv['hypervisor_hostname'] for hv in hvs]
 
     def get_server_xml(self, server_id):
         hv_ip = self.get_hypervisor_ip(server_id)

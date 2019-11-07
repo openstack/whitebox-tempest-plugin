@@ -18,6 +18,7 @@ from oslo_log import log as logging
 from tempest.common import waiters
 from tempest import config
 from tempest.lib.common.utils import data_utils
+from tempest.lib import decorators
 
 from whitebox_tempest_plugin.api.compute import base
 
@@ -69,10 +70,14 @@ class RxTxQueueSizeTest(base.BaseWhiteboxComputeTest):
     # Required in /etc/nova/nova.conf
     #    [libvirt]
     #    rx_queue_size = 1024
+    # TODO(artom) We either need to refactor this to use the
+    # ServiceManager.config_option context manager, or remove this test
+    # altogether if it adds no value.
+    @decorators.skip_because(bug='2006820', bug_type='storyboard')
     def test_rx_queue_size(self):
         domain = self.get_server_xml(self.server_id)
         driver = domain.find(
             "devices/interface[@type='bridge']/driver[@name='vhost']")
         self.assertEqual(
-            driver.attrib['rx_queue_size'], '1024',
+            driver.attrib('rx_queue_size'), '1024',
             "Can't find interface with the proper rx_queue_size")

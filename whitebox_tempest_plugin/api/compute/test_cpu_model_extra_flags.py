@@ -15,6 +15,7 @@
 
 from oslo_log import log as logging
 from tempest import config
+from tempest.lib import decorators
 
 from whitebox_tempest_plugin.api.compute import base
 
@@ -31,6 +32,7 @@ class CpuModelExtraFlagsTest(base.BaseWhiteboxComputeTest):
     #    cpu_model = Haswell-noTSX
     #    cpu_model_extra_flags = vmx, pdpe1gb
     #    virt_type = kvm
+    @decorators.skip_because(bug='2006825', bug_type='storyboard')
     def test_cpu_model_extra_flags(self):
         server = self.create_test_server(wait_until="ACTIVE")
         root = self.get_server_xml(server['id'])

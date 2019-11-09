@@ -24,7 +24,6 @@ For more information, refer to:
 - https://github.com/openstack/intel-nfv-ci-tests
 """
 
-
 import testtools
 import xml.etree.ElementTree as ET
 

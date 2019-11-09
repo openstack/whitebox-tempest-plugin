@@ -46,8 +46,10 @@ class SSHClient(object):
                                                       container_name, command)
         elif sudo:
             command = 'sudo %s' % command
-        LOG.debug("Executing %s", command)
-        return ssh_client.exec_command(command)
+        LOG.debug('command=%s', command)
+        result = ssh_client.exec_command(command)
+        LOG.debug('result=%s', result)
+        return result
 
 
 class VirshXMLClient(SSHClient):

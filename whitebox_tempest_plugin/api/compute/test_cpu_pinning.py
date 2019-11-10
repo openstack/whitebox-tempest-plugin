@@ -24,6 +24,7 @@ For more information, refer to:
 - https://github.com/openstack/intel-nfv-ci-tests
 """
 
+from itertools import chain
 import testtools
 import xml.etree.ElementTree as ET
 
@@ -473,6 +474,15 @@ class NUMALiveMigrationTest(BasePinningTest):
             pcpus.update(set(pins.values()))
         return pcpus
 
+    def _get_cpus_per_node(self, *args):
+        """Given a list of iterables, each containing the CPU IDs for a
+        certain NUMA node, return a set containing the number of CPUs in each
+        node. This is only used to make sure all NUMA nodes have the same
+        number of CPUs - which cannot happen on real hardware, but could happen
+        in virtual machines.
+        """
+        return set([len(cpu_list) for cpu_list in chain(*args)])
+
     def test_cpu_pinning(self):
         hv1, hv2 = self.get_all_hypervisors()
         numaclient_1 = clients.NUMAClient(hv1)
@@ -486,12 +496,10 @@ class NUMALiveMigrationTest(BasePinningTest):
         if len(topo_1) < 2 or len(topo_2) < 2:
             raise self.skipException('At least 2 NUMA nodes per host required')
 
-        # Put the numbers of CPUs per node into a list
-        cpus_per_node = [len(cpu_list) for cpu_list in
-                         topo_1.values() + topo_2.values()]
-        # Collapse the list into a set. If the set's length is 1, all nodes
-        # have the same number of CPUs.
-        if len(set(cpus_per_node)) != 1:
+        # All NUMA nodes need to have same number of CPUs
+        cpus_per_node = self._get_cpus_per_node(topo_1.values(),
+                                                topo_2.values())
+        if len(cpus_per_node) != 1:
             raise self.skipException('NUMA nodes must have same number of '
                                      'CPUs')
 
@@ -506,7 +514,7 @@ class NUMALiveMigrationTest(BasePinningTest):
 
             # Boot 2 servers such that their vCPUs "fill" a NUMA node.
             specs = {'hw:cpu_policy': 'dedicated'}
-            flavor = self.create_flavor(vcpus=cpus_per_node[0],
+            flavor = self.create_flavor(vcpus=cpus_per_node.pop(),
                                         extra_specs=specs)
             server_a = self.create_test_server(flavor=flavor['id'])
             # TODO(artom) As of 2.68 we can no longer force a live-migration,
@@ -654,25 +662,22 @@ class NUMALiveMigrationTest(BasePinningTest):
         if not pagesize_a == pagesize_b:
             raise self.skipException('Hosts must have same pagesize')
 
-        # Put the numbers of CPUs per node into a list, then collapse into a
-        # set. If the set's length is 1, all nodes have the same number of
-        # CPUs.
-        if not len(set([len(cpu_list) for cpu_list in
-                        topo_a.values() + topo_b.values()])) == 1:
+        # All NUMA nodes need to have same number of CPUs
+        if len(self._get_cpus_per_node(topo_a.values(),
+                                       topo_b.values())) != 1:
             raise self.skipException('NUMA nodes must have same number of '
                                      'CPUs')
 
         # Same idea, but for hugepages total
-        if not len(set([pagecount['total'] for pagecount in
-                        pages_a.values() + pages_b.values()])) == 1:
+        pagecounts = chain(pages_a.values(), pages_b.values())
+        if not len(set([count['total'] for count in pagecounts])) == 1:
             raise self.skipException('NUMA nodes must have same number of '
                                      'total hugepages')
 
         # The smallest available number of hugepages must be bigger than
         # total / 2 to ensure no node can accept more than 1 instance with that
         # many hugepages
-        min_free = min([pagecount['free'] for pagecount in
-                        pages_a.values() + pages_b.values()])
+        min_free = min([count['free'] for count in pagecounts])
         min_free_required = pages_a[0]['total'] / 2
         if min_free < min_free_required:
             raise self.skipException(

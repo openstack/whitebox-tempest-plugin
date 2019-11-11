@@ -658,6 +658,12 @@ class NUMALiveMigrationTest(BasePinningTest):
         pagesize_b = numaclient_b.get_pagesize()
         pages_b = numaclient_b.get_hugepages()
 
+        # Need hugepages
+        for pages_config in pages_a, pages_b:
+            for numa_cell, pages in pages_config.items():
+                if pages['total'] == 0:
+                    raise self.skipException('Hugepages required')
+
         # Need at least 2 NUMA nodes per host
         if len(topo_a) < 2 or len(topo_b) < 2:
             raise self.skipException('At least 2 NUMA nodes per host required')

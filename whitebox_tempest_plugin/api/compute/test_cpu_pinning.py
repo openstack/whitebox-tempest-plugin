@@ -146,25 +146,21 @@ class BasePinningTest(base.BaseWhiteboxComputeTest):
 
     def get_server_cpu_pinning(self, server_id):
         """Get the host CPU numbers to which the server's vCPUs are pinned.
+        Assumes that cpu_policy=dedicated is in effect so that every vCPU is
+        pinned to a single pCPU.
 
         :param server_id: The instance UUID to look up.
-        :return cpu_pins: A dict of vCPU number -> set(host CPU numbers said
-                          vCPU is pinned to)
+        :return cpu_pins: A int:int dict indicating CPU pins.
         """
         root = self.get_server_xml(server_id)
 
         vcpupins = root.findall('./cputune/vcpupin')
-        cpu_pins = {}
-        for pin in vcpupins:
-            cpu_pins[int(pin.get('vcpu'))] = parse_cpu_spec(pin.get('cpuset'))
+        # NOTE(artom) This assumes every guest CPU is pinned to a single host
+        # CPU - IOW that the 'dedicated' cpu_policy is in effect.
+        cpu_pins = {int(pin.get('vcpu')): int(pin.get('cpuset'))
+                    for pin in vcpupins if pin is not None}
 
         return cpu_pins
-
-    def get_pinning_as_set(self, server_id):
-        pinset = set()
-        for vcpu, pins in self.get_server_cpu_pinning(server_id).items():
-            pinset |= pins
-        return pinset
 
 
 class CPUPolicyTest(BasePinningTest):
@@ -434,6 +430,14 @@ class NUMALiveMigrationTest(BasePinningTest):
             raise cls.skipException('Exactly 2 compute nodes required.')
         if not compute.is_scheduler_filter_enabled('DifferentHostFilter'):
             raise cls.skipException('DifferentHostFilter required.')
+
+    def get_pinning_as_set(self, server_id):
+        pinset = set()
+        root = self.get_server_xml(server_id)
+        vcpupins = root.findall('./cputune/vcpupin')
+        for pin in vcpupins:
+            pinset |= parse_cpu_spec(pin.get('cpuset'))
+        return pinset
 
     def _get_cpu_spec(self, cpu_list):
         """Returns a libvirt-style CPU spec from the provided list of integers. For

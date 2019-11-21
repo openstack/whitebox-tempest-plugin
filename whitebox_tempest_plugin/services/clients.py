@@ -84,8 +84,9 @@ class ServiceManager(SSHClient):
             conf = getattr(CONF, 'whitebox-%s' % service)
         except AttributeError:
             raise exceptions.MissingServiceSectionException(service=service)
-        self.config_path = conf.config_path
-        self.restart_command = conf.restart_command
+        self.config_path = getattr(conf, 'config_path', None)
+        self.restart_command = getattr(conf, 'restart_command', None)
+        self.stop_command = getattr(conf, 'stop_command', None)
 
     @contextlib.contextmanager
     def config_option(self, section, option, value):
@@ -145,6 +146,11 @@ class ServiceManager(SSHClient):
         # running after a restart, so we just sleep 15 seconds. This is ugly
         # hax, and we need to find something better.
         time.sleep(15)
+        return result
+
+    def stop(self):
+        result = self.execute(self.stop_command, sudo=True)
+        time.sleep(5)
         return result
 
 

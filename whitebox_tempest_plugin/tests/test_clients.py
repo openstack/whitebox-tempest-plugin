@@ -148,6 +148,14 @@ class ServiceManagerTestCase(base.WhiteboxPluginTestCase):
             service.restart()
             mock_exec.assert_called_with('fake restart command', sudo=True)
 
+    def test_stop(self):
+        self.flags(stop_command='fake stop command',
+                   group='whitebox-nova-libvirt')
+        service = clients.ServiceManager('fake-host', 'nova-libvirt')
+        with mock.patch.object(service, 'execute') as mock_exec:
+            service.stop()
+            mock_exec.assert_called_with('fake stop command', sudo=True)
+
 
 class NUMAClientTestCase(base.WhiteboxPluginTestCase):
 

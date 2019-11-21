@@ -79,6 +79,21 @@ nova_compute_opts = [
              'privilege management (ie, no sudo).'),
 ]
 
+nova_libvirt_group = cfg.OptGroup(
+    name='whitebox-nova-libvirt',
+    title='Config options to manage the nova-libvirt service')
+
+nova_libvirt_opts = [
+    cfg.StrOpt(
+        'restart_command',
+        help='Command to restart the nova-libvirt service, without any '
+             'privilege management (ie, no sudo).'),
+    cfg.StrOpt(
+        'stop_command',
+        help='Command to stop the nova-libvirt service, without any '
+             'privilege management (ie, no sudo).'),
+]
+
 database_group = cfg.OptGroup(
     name='whitebox-database',
     title='Config options to access the database.')

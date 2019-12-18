@@ -19,5 +19,5 @@
   include_role:
       name: copy-build-sshkey
   vars:
+      ansible_become: yes
       copy_sshkey_target_user: 'tempest'
-  become: yes

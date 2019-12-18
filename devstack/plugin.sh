@@ -13,6 +13,7 @@ function configure {
     # This needs to come from Zuul, as devstack itself has no idea how many
     # nodes are in the env
     iniset $TEMPEST_CONFIG whitebox max_compute_nodes $MAX_COMPUTE_NODES
+    iniset $TEMPEST_CONFIG whitebox available_cinder_storage $WHITEBOX_AVAILABLE_CINDER_STORAGE
 
     iniset $TEMPEST_CONFIG whitebox-nova-compute config_path "$WHITEBOX_NOVA_COMPUTE_CONFIG_PATH"
     iniset $TEMPEST_CONFIG whitebox-nova-compute restart_command "$WHITEBOX_NOVA_COMPUTE_RESTART_COMMAND"

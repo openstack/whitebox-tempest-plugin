@@ -142,9 +142,9 @@ class ServiceManager(SSHClient):
         # example, we might go on to boot a server, only for the service to
         # restart in the middle of the boot process. There is no
         # straightforward and uniform way to wait for a service to actually be
-        # running after a restart, so we just sleep 5 seconds. This is ugly
+        # running after a restart, so we just sleep 15 seconds. This is ugly
         # hax, and we need to find something better.
-        time.sleep(5)
+        time.sleep(15)
         return result
 
 

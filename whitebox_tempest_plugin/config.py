@@ -99,5 +99,9 @@ database_opts = [
              'have permissions on all databases.'),
     cfg.StrOpt(
         'password',
-        help='The password to use when connecting to the database server.')
+        help='The password to use when connecting to the database server.'),
+    cfg.StrOpt(
+        'nova_cell1_db_name',
+        default="nova_cell1",
+        help="Name of the Nova db to use for connection")
 ]

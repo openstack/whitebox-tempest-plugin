@@ -31,6 +31,7 @@ import xml.etree.ElementTree as ET
 from oslo_serialization import jsonutils
 from tempest.common import compute
 from tempest.common import utils
+from tempest.common import waiters
 from tempest import config
 
 from whitebox_tempest_plugin.api.compute import base
@@ -161,6 +162,18 @@ class BasePinningTest(base.BaseWhiteboxComputeTest):
                     for pin in vcpupins if pin is not None}
 
         return cpu_pins
+
+    def _get_db_numa_topology(self, instance_uuid):
+        """Returns an instance's NUMA topology as a JSON object.
+        """
+        db_client = clients.DatabaseClient()
+        db = CONF.whitebox_database.nova_cell1_db_name
+        with db_client.cursor(db) as cursor:
+            cursor.execute('SELECT numa_topology FROM instance_extra '
+                           'WHERE instance_uuid = "%s"' % instance_uuid)
+            numa_topology = jsonutils.loads(
+                cursor.fetchone()['numa_topology'])
+        return numa_topology
 
 
 class CPUPolicyTest(BasePinningTest):
@@ -445,17 +458,6 @@ class NUMALiveMigrationTest(BasePinningTest):
         """
         return ','.join(map(str, cpu_list))
 
-    def _get_db_numa_topology(self, instance_uuid):
-        """Returns an instance's NUMA topology as a JSON object.
-        """
-        db_client = clients.DatabaseClient()
-        with db_client.cursor('nova_cell1') as cursor:
-            cursor.execute('SELECT numa_topology FROM instance_extra '
-                           'WHERE instance_uuid = "%s"' % instance_uuid)
-            numa_topology = jsonutils.loads(
-                cursor.fetchone()['numa_topology'])
-        return numa_topology
-
     def _get_cpu_pins_from_db_topology(self, db_topology):
         """Given a JSON object representing a instance's database NUMA
         topology, returns a dict of dicts indicating CPU pinning, for example:
@@ -728,3 +730,39 @@ class NUMALiveMigrationTest(BasePinningTest):
         self.assertTrue(pin_a[0] and pin_b[0],
                         'Cells not actually pinned: %s, %s' % (pin_a, pin_b))
         self.assertTrue(pin_a[0].isdisjoint(pin_b[0]))
+
+
+class NUMARebuildTest(BasePinningTest):
+    """Test in-place rebuild of NUMA instances"""
+
+    vcpus = 2
+    prefer_thread_policy = {'hw:cpu_policy': 'dedicated',
+                            'hw:cpu_thread_policy': 'prefer'}
+
+    @classmethod
+    def skip_checks(cls):
+        super(NUMARebuildTest, cls).skip_checks()
+        if not compute.is_scheduler_filter_enabled('NUMATopologyFilter'):
+            raise cls.skipException('NUMATopologyFilter required.')
+
+    def test_in_place_rebuild(self):
+        """This test should pass provided no NUMA topology changes occur.
+
+        Steps:
+        1. Create a VM with one image
+        2. Rebuild the VM with another image
+        3. Check NUMA topology remains same after rebuild
+        """
+        flavor = self.create_flavor(vcpus=self.vcpus,
+                                    extra_specs=self.prefer_thread_policy)
+        server = self.create_test_server(flavor=flavor['id'])
+        db_topo_orig = self._get_db_numa_topology(server['id'])
+        host = server['OS-EXT-SRV-ATTR:host']
+        self.servers_client.rebuild_server(server['id'],
+                                           self.image_ref_alt)['server']
+        waiters.wait_for_server_status(self.servers_client,
+                                       server['id'], 'ACTIVE')
+        self.assertEqual(host, self.get_host_for_server(server['id']))
+        db_topo_rebuilt = self._get_db_numa_topology(server['id'])
+        self.assertEqual(db_topo_orig, db_topo_rebuilt,
+                         "NUMA topology doesn't match")

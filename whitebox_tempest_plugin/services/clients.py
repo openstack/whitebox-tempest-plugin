@@ -214,7 +214,8 @@ class DatabaseClient(object):
         tunnel_local_bind_port = 4242
         if CONF.whitebox_database.internal_ip:
             with sshtunnel.SSHTunnelForwarder(
-                    (CONF.whitebox_database.host, 3306),
+                    (CONF.whitebox_database.host,
+                     CONF.whitebox_database.ssh_gateway_port),
                     ssh_username=self.ssh_user,
                     ssh_pkey=self.ssh_key,
                     remote_bind_address=(CONF.whitebox_database.internal_ip,

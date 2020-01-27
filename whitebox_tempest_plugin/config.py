@@ -103,5 +103,9 @@ database_opts = [
     cfg.StrOpt(
         'nova_cell1_db_name',
         default="nova_cell1",
-        help="Name of the Nova db to use for connection")
+        help="Name of the Nova db to use for connection"),
+    cfg.IntOpt(
+        'ssh_gateway_port',
+        default=3306,
+        help="SSH port forwarding gateway number")
 ]

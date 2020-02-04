@@ -218,6 +218,7 @@ class DatabaseClient(object):
                      CONF.whitebox_database.ssh_gateway_port),
                     ssh_username=self.ssh_user,
                     ssh_pkey=self.ssh_key,
+                    allow_agent=False,
                     remote_bind_address=(CONF.whitebox_database.internal_ip,
                                          3306),
                     local_bind_address=(tunnel_local_bind_host,

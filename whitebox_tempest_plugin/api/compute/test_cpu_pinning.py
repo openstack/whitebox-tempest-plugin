@@ -517,7 +517,6 @@ class NUMALiveMigrationTest(BasePinningTest):
                                   self._get_cpu_spec(topo_1[0])), \
                 hv2_sm.config_option('DEFAULT', 'vcpu_pin_set',
                                      self._get_cpu_spec(topo_2[0])):
-
             # Boot 2 servers such that their vCPUs "fill" a NUMA node.
             specs = {'hw:cpu_policy': 'dedicated'}
             flavor = self.create_flavor(vcpus=cpus_per_node.pop(),
@@ -555,8 +554,13 @@ class NUMALiveMigrationTest(BasePinningTest):
             # Live migrate server_b to server_a's compute, adding the second
             # NUMA node's CPUs to vcpu_pin_set
             host_a = self.get_host_other_than(server_b['id'])
-            host_a_sm = clients.ServiceManager(host_a, 'nova-compute')
-            numaclient_a = clients.NUMAClient(host_a)
+            # NOTE (jparker) since certain deployment's execution hosts
+            # may not have DNS mappings for their respective compute and
+            # controllers nodes, attempt to determine and use the hv ip
+            # when setting up the ServiceManager
+            host_a_ip = self.get_hypervisor_ip(server_a['id'])
+            host_a_sm = clients.ServiceManager(host_a_ip, 'nova-compute')
+            numaclient_a = clients.NUMAClient(host_a_ip)
             topo_a = numaclient_a.get_host_topology()
             with host_a_sm.config_option(
                     'DEFAULT', 'vcpu_pin_set',
@@ -645,6 +649,12 @@ class NUMALiveMigrationTest(BasePinningTest):
             self.assertTrue(pin_a.isdisjoint(pin_b),
                             'Pins overlap: %s, %s' % (pin_a, pin_b))
 
+            # NOTE(artom) At this point we have to manually delete both
+            # servers before the config_option() context manager reverts
+            # any config changes it made. This is Nova bug 1836945.
+            self.delete_server(server_a['id'])
+            self.delete_server(server_b['id'])
+
     def test_hugepages(self):
         hv_a, hv_b = self.get_all_hypervisors()
         numaclient_a = clients.NUMAClient(hv_a)
@@ -686,6 +696,10 @@ class NUMALiveMigrationTest(BasePinningTest):
             raise self.skipException('NUMA nodes must have same number of '
                                      'total hugepages')
 
+        # NOTE(jparker) due to the check to validate each NUMA node has the
+        # same number of hugepages, the pagecounts iterator becomes empty.
+        # 'Resetting' pagecounts to calculate minimum free huge pages
+        pagecounts = chain(pages_a.values(), pages_b.values())
         # The smallest available number of hugepages must be bigger than
         # total / 2 to ensure no node can accept more than 1 instance with that
         # many hugepages

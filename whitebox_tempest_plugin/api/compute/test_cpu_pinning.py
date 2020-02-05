@@ -37,6 +37,7 @@ from tempest import config
 from whitebox_tempest_plugin.api.compute import base
 from whitebox_tempest_plugin import exceptions
 from whitebox_tempest_plugin.services import clients
+from whitebox_tempest_plugin import utils as whitebox_utils
 
 from oslo_log import log as logging
 
@@ -173,6 +174,7 @@ class BasePinningTest(base.BaseWhiteboxComputeTest):
                            'WHERE instance_uuid = "%s"' % instance_uuid)
             numa_topology = jsonutils.loads(
                 cursor.fetchone()['numa_topology'])
+            numa_topology = whitebox_utils.normalize_json(numa_topology)
         return numa_topology
 
 

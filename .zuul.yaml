@@ -63,7 +63,6 @@
     name: x/whitebox-tempest-plugin
     templates:
       - openstack-python-jobs
-      - openstack-python35-jobs
       - openstack-python36-jobs
       - openstack-python37-jobs
     check:

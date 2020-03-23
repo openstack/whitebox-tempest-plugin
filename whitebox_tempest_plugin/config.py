@@ -59,6 +59,7 @@ general_opts = [
              "on there being a single compute host."),
     cfg.IntOpt(
         'available_cinder_storage',
+        default=0,
         help="Cinder storage available to the deployment (in GB)."),
     cfg.StrOpt(
         'container_runtime',

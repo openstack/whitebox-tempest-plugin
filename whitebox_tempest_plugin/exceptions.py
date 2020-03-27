@@ -16,8 +16,8 @@
 from tempest.lib import exceptions
 
 
-class MissingHypervisorException(exceptions.TempestException):
-    message = "Unable to find IP in conf. Server: %(server)s, host: %(host)s."
+class CtrlplaneAddressResolutionError(exceptions.TempestException):
+    message = "Unable to find IP in conf. for host: %(host)s."
 
 
 class MissingServiceSectionException(exceptions.TempestException):

@@ -338,8 +338,7 @@ class CPUThreadPolicyTest(BasePinningTest):
             try:
                 host_address = CONF.whitebox.hypervisors[host]
             except KeyError:
-                raise exceptions.MissingHypervisorException(server="",
-                                                            host=host)
+                raise exceptions.CtrlplaneAddressResolutionError(host=host)
         else:
             host_address = host
 
@@ -490,9 +489,11 @@ class NUMALiveMigrationTest(BasePinningTest):
         return set([len(cpu_list) for cpu_list in chain(*args)])
 
     def test_cpu_pinning(self):
-        hv1, hv2 = self.get_all_hypervisors()
-        numaclient_1 = clients.NUMAClient(hv1)
-        numaclient_2 = clients.NUMAClient(hv2)
+        host1, host2 = [self.get_ctrlplane_address(host) for host in
+                        self.list_compute_hosts()]
+
+        numaclient_1 = clients.NUMAClient(host1)
+        numaclient_2 = clients.NUMAClient(host2)
 
         # Get hosts's topology
         topo_1 = numaclient_1.get_host_topology()
@@ -511,12 +512,12 @@ class NUMALiveMigrationTest(BasePinningTest):
 
         # Set both hosts's vcpu_pin_set to the CPUs in the first NUMA node to
         # force instances to land there
-        hv1_sm = clients.ServiceManager(hv1, 'nova-compute')
-        hv2_sm = clients.ServiceManager(hv2, 'nova-compute')
-        with hv1_sm.config_option('DEFAULT', 'vcpu_pin_set',
-                                  self._get_cpu_spec(topo_1[0])), \
-                hv2_sm.config_option('DEFAULT', 'vcpu_pin_set',
-                                     self._get_cpu_spec(topo_2[0])):
+        host1_sm = clients.ServiceManager(host1, 'nova-compute')
+        host2_sm = clients.ServiceManager(host2, 'nova-compute')
+        with host1_sm.config_option('DEFAULT', 'vcpu_pin_set',
+                                    self._get_cpu_spec(topo_1[0])), \
+            host2_sm.config_option('DEFAULT', 'vcpu_pin_set',
+                                   self._get_cpu_spec(topo_2[0])):
             # Boot 2 servers such that their vCPUs "fill" a NUMA node.
             specs = {'hw:cpu_policy': 'dedicated'}
             flavor = self.create_flavor(vcpus=cpus_per_node.pop(),
@@ -554,13 +555,9 @@ class NUMALiveMigrationTest(BasePinningTest):
             # Live migrate server_b to server_a's compute, adding the second
             # NUMA node's CPUs to vcpu_pin_set
             host_a = self.get_host_other_than(server_b['id'])
-            # NOTE (jparker) since certain deployment's execution hosts
-            # may not have DNS mappings for their respective compute and
-            # controllers nodes, attempt to determine and use the hv ip
-            # when setting up the ServiceManager
-            host_a_ip = self.get_hypervisor_ip(server_a['id'])
-            host_a_sm = clients.ServiceManager(host_a_ip, 'nova-compute')
-            numaclient_a = clients.NUMAClient(host_a_ip)
+            host_a_addr = self.get_ctrlplane_address(host_a)
+            host_a_sm = clients.ServiceManager(host_a_addr, 'nova-compute')
+            numaclient_a = clients.NUMAClient(host_a_addr)
             topo_a = numaclient_a.get_host_topology()
             with host_a_sm.config_option(
                     'DEFAULT', 'vcpu_pin_set',
@@ -597,20 +594,23 @@ class NUMALiveMigrationTest(BasePinningTest):
 
     def test_emulator_threads(self):
         # Need 4 CPUs on each host
-        for hv in self.get_all_hypervisors():
-            numaclient = clients.NUMAClient(hv)
+        host1, host2 = [self.get_ctrlplane_address(host) for host in
+                        self.list_compute_hosts()]
+
+        for host in [host1, host2]:
+            numaclient = clients.NUMAClient(host)
             num_cpus = numaclient.get_num_cpus()
             if num_cpus < 4:
-                raise self.skipException('%s has %d CPUs, need 4', hv,
+                raise self.skipException('%s has %d CPUs, need 4',
+                                         host,
                                          num_cpus)
 
-        hv1, hv2 = self.get_all_hypervisors()
-        hv1_sm = clients.ServiceManager(hv1, 'nova-compute')
-        hv2_sm = clients.ServiceManager(hv2, 'nova-compute')
-        with hv1_sm.config_option('DEFAULT', 'vcpu_pin_set', '0,1'), \
-                hv1_sm.config_option('compute', 'cpu_shared_set', '2'), \
-                hv2_sm.config_option('DEFAULT', 'vcpu_pin_set', '0,1'), \
-                hv2_sm.config_option('compute', 'cpu_shared_set', '3'):
+        host1_sm = clients.ServiceManager(host1, 'nova-compute')
+        host2_sm = clients.ServiceManager(host2, 'nova-compute')
+        with host1_sm.config_option('DEFAULT', 'vcpu_pin_set', '0,1'), \
+                host1_sm.config_option('compute', 'cpu_shared_set', '2'), \
+                host2_sm.config_option('DEFAULT', 'vcpu_pin_set', '0,1'), \
+                host2_sm.config_option('compute', 'cpu_shared_set', '3'):
 
             # Boot two servers
             specs = {'hw:cpu_policy': 'dedicated',
@@ -656,9 +656,11 @@ class NUMALiveMigrationTest(BasePinningTest):
             self.delete_server(server_b['id'])
 
     def test_hugepages(self):
-        hv_a, hv_b = self.get_all_hypervisors()
-        numaclient_a = clients.NUMAClient(hv_a)
-        numaclient_b = clients.NUMAClient(hv_b)
+        host_a, host_b = [self.get_ctrlplane_address(host) for host in
+                          self.list_compute_hosts()]
+
+        numaclient_a = clients.NUMAClient(host_a)
+        numaclient_b = clients.NUMAClient(host_b)
 
         # Get the first host's topology and hugepages config
         topo_a = numaclient_a.get_host_topology()

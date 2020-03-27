@@ -26,6 +26,11 @@ def fake_show_server(server_id):
         return {'server': {'OS-EXT-SRV-ATTR:host': 'missing-host'}}
 
 
+def fake_list_services(binary):
+    return {'services': [{'binary': 'nova-compute', 'host': 'fake-host'},
+            {'binary': 'nova-compute', 'host': 'fake-host2'}]}
+
+
 class UtilsTestCase(base.WhiteboxPluginTestCase):
 
     def setUp(self):
@@ -36,19 +41,21 @@ class UtilsTestCase(base.WhiteboxPluginTestCase):
             return_value=None)
         self.test_class = compute_base.BaseWhiteboxComputeTest()
         self.test_class.servers_client = mock.Mock()
+        self.test_class.service_client = mock.Mock()
         self.test_class.servers_client.show_server = fake_show_server
+        self.test_class.service_client.list_services = fake_list_services
         self.flags(hypervisors={'fake-host': 'fake-ip',
                                 'fake-host2': 'fake-ip2'}, group='whitebox')
 
-    def test_get_hypervisor_ip(self):
+    def test_get_ctrlplane_address(self):
         self.assertEqual('fake-ip',
-                         self.test_class.get_hypervisor_ip('fake-id'))
+                         self.test_class.get_ctrlplane_address('fake-host'))
 
     @mock.patch.object(compute_base.LOG, 'error')
-    def test_get_hypervisor_ip_keyerror(self, mock_log):
-        self.assertRaises(exceptions.MissingHypervisorException,
-                          self.test_class.get_hypervisor_ip, 'missing-id')
+    def test_get_ctrlplane_address_keyerror(self, mock_log):
+        self.assertRaises(exceptions.CtrlplaneAddressResolutionError,
+                          self.test_class.get_ctrlplane_address, 'missing-id')
 
-    def test_get_all_hypervisors(self):
-        self.assertItemsEqual(['fake-ip', 'fake-ip2'],
-                              self.test_class.get_all_hypervisors())
+    def test_list_compute_hosts(self):
+        self.assertItemsEqual(['fake-host', 'fake-host2'],
+                              self.test_class.list_compute_hosts())

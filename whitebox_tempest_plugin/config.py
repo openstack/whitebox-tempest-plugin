@@ -40,18 +40,20 @@ general_opts = [
         default=False,
         help='Deployment is containerized.'),
     cfg.DictOpt(
-        'hypervisors',
-        help="Dictionary of hypervisor IP addresses. The keys are the "
-             "hostnames as they appear in the OS-EXT-SRV-ATTR:host field of "
-             "Nova's show server details API. The values are the ctlplane IP "
-             "addresses. For example:"
+        'ctrlplane_addresses',
+        help="Dictionary of control plane addresses. The keys are the "
+             "compute hostnames as they appear in the OS-EXT-SRV-ATTR:host "
+             "field of Nova's show server details API. The values are the "
+             "control plane addresses. For example:"
              ""
-             "  hypervisors = compute-0.localdomain:172.16.42.11,"
-             "                controller-0.localdomain:172.16.42.10"
+             "  ctrlplane_addresses = compute-0.localdomain:172.16.42.11,"
+             "                        compute-1.localdomain:172.16.42.10"
              ""
              "While this looks like a poor man's DNS, this is needed "
              "because the environment running the test does not necessarily "
-             "have the ctlplane DNS accessible."),
+             "have the ctlplane DNS accessible.",
+        deprecated_opts=[cfg.DeprecatedOpt('hypervisors',
+                                           group='whitebox')]),
     cfg.IntOpt(
         'max_compute_nodes',
         default=31337,

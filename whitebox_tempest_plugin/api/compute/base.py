@@ -36,6 +36,7 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
         # TODO(stephenfin): Rewrite tests to use 'admin_servers_client' etc.
         cls.servers_client = cls.os_admin.servers_client
         cls.flavors_client = cls.os_admin.flavors_client
+        cls.service_client = cls.os_admin.services_client
         cls.hypervisor_client = cls.os_admin.hypervisor_client
         cls.image_client = cls.os_admin.image_client_v2
         cls.admin_migration_client = cls.os_admin.migrations_client
@@ -99,37 +100,44 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
 
         return new_image['id']
 
-    def get_hypervisor_ip(self, server_id):
-        server = self.servers_client.show_server(server_id)
-        host = server['server']['OS-EXT-SRV-ATTR:host']
+    def get_ctrlplane_address(self, compute_hostname):
+        """Return the appropriate host address depending on a deployment.
 
-        if not CONF.whitebox.hypervisors:
-            # NOTE(artom) [whitebox]/hypervisors not being set means we're
-            # running against a devstack deployment and we can just use host
-            # directly.
-            return host
+        In TripleO deployments the Undercloud does not have DNS entries for
+        the compute hosts. This method checks if there are 'DNS' mappings of
+        the provided hostname to it's control plane IP address and returns it.
+        For Devstack deployments, no such parameters will exist and the method
+        will just return compute_hostname
 
-        if host in CONF.whitebox.hypervisors:
-            return CONF.whitebox.hypervisors[host]
-
-        raise exceptions.MissingHypervisorException(server=server_id,
-                                                    host=host)
-
-    def get_all_hypervisors(self):
-        """Returns a list of all hypervisor IPs in the deployment. Assumes all
-        are up and running.
+        :param compute_hostname: str the compute hostname
+        :return str simply pass the provided compute_hostname back or
+        return the associated control plane IP address
         """
-        if CONF.whitebox.hypervisors:
-            return CONF.whitebox.hypervisors.values()
-        hvs = self.hypervisor_client.list_hypervisors()['hypervisors']
-        return [hv['hypervisor_hostname'] for hv in hvs]
+        if not CONF.whitebox.ctrlplane_addresses:
+            return compute_hostname
+
+        if compute_hostname in CONF.whitebox.ctrlplane_addresses:
+            return CONF.whitebox.ctrlplane_addresses[compute_hostname]
+
+        raise exceptions.CtrlplaneAddressResolutionError(host=compute_hostname)
+
+    def list_compute_hosts(self):
+        """Returns a list of all nova-compute hostnames in the deployment.
+        Assumes all are up and running.
+        """
+        binary_name = 'nova-compute'
+        services = \
+            self.service_client.list_services(binary=binary_name)['services']
+        return [service['host'] for service in services]
 
     def get_server_xml(self, server_id):
-        hv_ip = self.get_hypervisor_ip(server_id)
+        server = self.servers_client.show_server(server_id)
+        host = server['server']['OS-EXT-SRV-ATTR:host']
+        cntrlplane_addr = self.get_ctrlplane_address(host)
         server_instance_name = self.servers_client.show_server(
             server_id)['server']['OS-EXT-SRV-ATTR:instance_name']
 
-        virshxml = clients.VirshXMLClient(hv_ip)
+        virshxml = clients.VirshXMLClient(cntrlplane_addr)
         xml = virshxml.dumpxml(server_instance_name)
         return ET.fromstring(xml)
 

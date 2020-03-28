@@ -40,6 +40,8 @@
     required-projects:
         x/whitebox-tempest-plugin
     pre-run: playbooks/whitebox.yaml
+    irrelevant-files:
+      - ^test-requirements.txt$
     vars:
         tox_envlist: all
         tempest_concurrency: 1

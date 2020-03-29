@@ -15,11 +15,11 @@
 
 import testtools
 
+from oslo_log import log as logging
 from tempest import config
 
 from whitebox_tempest_plugin.api.compute import base
 
-from oslo_log import log as logging
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)

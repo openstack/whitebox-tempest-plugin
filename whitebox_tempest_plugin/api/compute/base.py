@@ -37,7 +37,6 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
         cls.servers_client = cls.os_admin.servers_client
         cls.flavors_client = cls.os_admin.flavors_client
         cls.service_client = cls.os_admin.services_client
-        cls.hypervisor_client = cls.os_admin.hypervisor_client
         cls.image_client = cls.os_admin.image_client_v2
         cls.admin_migration_client = cls.os_admin.migrations_client
 
@@ -100,24 +99,25 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
 
         return new_image['id']
 
-    def get_ctrlplane_address(self, compute_hostname):
+    def get_ctlplane_address(self, compute_hostname):
         """Return the appropriate host address depending on a deployment.
 
         In TripleO deployments the Undercloud does not have DNS entries for
         the compute hosts. This method checks if there are 'DNS' mappings of
-        the provided hostname to it's control plane IP address and returns it.
+        the provided hostname to its control plane IP address and returns it.
         For Devstack deployments, no such parameters will exist and the method
         will just return compute_hostname
 
         :param compute_hostname: str the compute hostname
-        :return str simply pass the provided compute_hostname back or
-        return the associated control plane IP address
+        :return: The address to be used to access the compute host. For
+                 devstack deployments, this is compute_host itself. For
+                 TripleO, it needs to be looked up in the configuration.
         """
-        if not CONF.whitebox.ctrlplane_addresses:
+        if not CONF.whitebox.ctlplane_addresses:
             return compute_hostname
 
-        if compute_hostname in CONF.whitebox.ctrlplane_addresses:
-            return CONF.whitebox.ctrlplane_addresses[compute_hostname]
+        if compute_hostname in CONF.whitebox.ctlplane_addresses:
+            return CONF.whitebox.ctlplane_addresses[compute_hostname]
 
         raise exceptions.CtrlplaneAddressResolutionError(host=compute_hostname)
 
@@ -133,7 +133,7 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
     def get_server_xml(self, server_id):
         server = self.servers_client.show_server(server_id)
         host = server['server']['OS-EXT-SRV-ATTR:host']
-        cntrlplane_addr = self.get_ctrlplane_address(host)
+        cntrlplane_addr = self.get_ctlplane_address(host)
         server_instance_name = self.servers_client.show_server(
             server_id)['server']['OS-EXT-SRV-ATTR:instance_name']
 

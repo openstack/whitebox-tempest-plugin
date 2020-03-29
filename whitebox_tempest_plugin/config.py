@@ -40,13 +40,13 @@ general_opts = [
         default=False,
         help='Deployment is containerized.'),
     cfg.DictOpt(
-        'ctrlplane_addresses',
+        'ctlplane_addresses',
         help="Dictionary of control plane addresses. The keys are the "
              "compute hostnames as they appear in the OS-EXT-SRV-ATTR:host "
              "field of Nova's show server details API. The values are the "
              "control plane addresses. For example:"
              ""
-             "  ctrlplane_addresses = compute-0.localdomain:172.16.42.11,"
+             "  ctlplane_addresses = compute-0.localdomain:172.16.42.11,"
              "                        compute-1.localdomain:172.16.42.10"
              ""
              "While this looks like a poor man's DNS, this is needed "

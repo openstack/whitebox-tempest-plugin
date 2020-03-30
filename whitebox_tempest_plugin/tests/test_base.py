@@ -31,10 +31,10 @@ def fake_list_services(binary):
             {'binary': 'nova-compute', 'host': 'fake-host2'}]}
 
 
-class UtilsTestCase(base.WhiteboxPluginTestCase):
+class ComputeBaseTestCase(base.WhiteboxPluginTestCase):
 
     def setUp(self):
-        super(UtilsTestCase, self).setUp()
+        super(ComputeBaseTestCase, self).setUp()
         # NOTE(artom) We need to mock __init__ for the class to instantiate
         # correctly.
         compute_base.BaseWhiteboxComputeTest.__init__ = mock.Mock(

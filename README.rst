@@ -1,40 +1,34 @@
 Whitebox Tempest plugin
 =======================
 
-This repo is a Tempest plugin that contains scenario tests ran against
-TripleO/Director-based deployments.
+This is a Tempest plugin for whitebox testing. While Tempest's scope is limited
+to only the REST APIs, whitebox allows tests to peak behind the curtain,
+similar to how a cloud admin might. Examining things on the compute host(s)
+and/or the controller(s) is not only allowed, it's required for a test to be in
+whitebox's scope. Whitebox tests must still be REST API-driven, however their
+assertions can involve things like the instance XML (if the Nova libvirt driver
+is in use) or the database.
 
-.. important::
-
-   This is still a work in progress.
-
-* Free software: Apache license
-* Documentation: n/a
-* Source: https://review.rdoproject.org/r/gitweb?p=openstack/whitebox-tempest-plugin.git
-* Bugs: n/a
+* Bugs: https://storyboard.openstack.org/#!/project/1162
+* IRC: #openstack-qa on freenode
 
 Requirements
 ------------
 
-The tests assume a TripleO/Director-based deployment with an undercloud and
-overcloud. The tests will be run from the undercloud therefore Tempest should
-be installed and configured on the undercloud node. It's assumed that the Unix
-user running the tests, generally *stack*, has SSH access to all the compute
-nodes running in the overcloud.
+While Tempest is cloud-agnostic because all clouds expose the same OpenStack
+APIs (with some caveats around extensions), whitebox peaks behind the curtain,
+and thus is coupled to the way the cloud was deployed. Currently, devstack and
+TripleO (with undercloud and overcloud) are supported, with only devstack being
+tested in CI.
 
-Most tests have specific hardware requirements. These are documented in the
-tests themselves and the tests should fast-fail if these hardware requirements
-are not met. You will require multiple nodes to run these tests and will need
-to manually specify which test to run on which node. For more information on
-our plans here, refer to :ref:`roadmap`.
-
-For more information on TripleO/Director, refer to the `Red Hat OpenStack
-Platform documentation`__.
-
-__ https://access.redhat.com/documentation/en-us/red_hat_openstack_platform/11/html/director_installation_and_usage/chap-introduction
+Some tests have specific hardware requirements. These should be documented as
+config options, and tests are expected to skip if their hardware requirements
+are not declared in the configration.
 
 Install, configure and run
 --------------------------
+
+0. Tempest needs to be installed and configured.
 
 1. Install the plugin.
 
@@ -42,71 +36,45 @@ Install, configure and run
 
      WORKSPACE=/some/directory
      cd $WORKSPACE
-     git clone https://github.com/redhat-openstack/whitebox-tempest-plugin
+     git clone https://opendev.org/openstack/whitebox-tempest-plugin
      sudo pip install whitebox-tempest-plugin
 
 2. Configure Tempest.
 
-   Add the following lines at the end of your ``tempest.conf`` file. These
-   determine how your undercloud node, which is running Tempest, should connect
-   to the compute nodes in the overcloud and vice versa. For example::
+   The exact configuration will depend on the deployment. There is no
+   configuration reference yet, have a look at
+   ``whitebox_tempest_plugin/config.py`` instead. As an example, here is a
+   configuration for a multinode TripleO deployment::
 
-     [whitebox]
-     hypervisors = compute-0.localdomain:192.168.24.6,compute-1.localdomain:192.168.24.12
-     # Only set the following if different from the defaults listed
-     # ctlplane_ssh_username = heat-admin
-     # ctlplane_ssh_private_key_path = /home/stack/.ssh/id_rsa
-     containers = true
-     max_compute_nodes = 2 # Some tests depend on there being a single
-                           # (available) compute node
+   [whitebox]
+   ctlplane_addresses = compute-0.localdomain:192.168.24.6,compute-1.localdomain:192.168.24.12
+   ctlplane_ssh_username = heat-admin
+   ctlplane_ssh_private_key_path = /home/stack/.ssh/id_rsa
+   containers = true
+   max_compute_nodes = 2 # Some tests depend on there being a single
+                         # (available) compute node
 
 3. Execute the tests. ::
 
-     tempest run --regex whitebox_tempest_plugin.
+     tempest run --serial --regex whitebox_tempest_plugin.
+
+   .. important::
+
+      Whitebox expects its tests to run one at a time. Make sure to pass
+      `--serial` or `--concurrency 1` to `tempest run`.
+
 
 How to add a new test
 ---------------------
 
-New tests should be added to the ``whitebox_tempest_plugin/tests`` directory.
-
-According to the plugin interface doc__, you should mainly import "stable" APIs
-which usually are:
-
-* ``tempest.lib.*``
-* ``tempest.config``
-* ``tempest.test_discover.plugins``
-* ``tempest.common.credentials_factory``
-* ``tempest.clients``
-* ``tempest.test``
-
-Importing classes from ``tempest.api.*`` could be dangerous since future
-version of Tempest could break.
-
-__ http://docs.openstack.org/tempest/latest/plugin.html
-
-.. _roadmap:
-
-Roadmap
--------
-
-The different tests found here all have different hardware requirements, and
-these requirements often conflict. For example, a test that requires a host
-without HyperThreading enabled cannot be used for a test that requires
-HyperThreading. As a result, it's not possible to have one "master
-configuration" that can be used to run all tests. Instead, different tests must
-be run on different nodes.
-
-At present, this plugin exists in isolation and the running of individual tests
-on nodes, along with the configuration of said nodes, remains a manual process.
-However, the end goal for this project is to be able to kick run this test
-suite of against *N* overcloud nodes, where each node has a different hardware
-configuration and *N* is the total number of different hardware configurations
-required (one for real-time, one for SR-IOV, etc.). Each node would have a
-different profile__ and host aggregates would likely be used to ensure each
-test runs on its preferred hardware. To get here, we should probably provide a
-recipe along with hardware configuration steps.
-
-This being said, the above is way off yet. For now, we're focussed on getting
-the tests in place so we can stop doing all this stuff by hand.
-
-__ http://tripleo.org/install/advanced_deployment/profile_matching.html
+Tests should fit whitebox's scope. If a test intereacts with REST APIs and
+nothing else, it is better suited for Tempest itself. New tests should be added
+in their respective subdirectories. For example, tests that use the compute API
+live in ``whitebox_tempest_plugin/api/compute``.  Test code does not need unit
+tests, but helpers or utilities do. Unit tests live in
+``whitebox_tempest_plugin/tests``. Whitebox does not adhere to the `Tempest
+plugin interface <https://docs.openstack.org/tempest/latest/plugin.html>`. As
+mentioned, whitebox tests run one at a time, so it's safe for a test to modify
+the environment and/or be destructive, as long as it cleans up after itself.
+For example, changing Nova configuration values and/or restarting services is
+acceptable, as long as the original values and service state are restored.

@@ -70,7 +70,7 @@ class VolumesAdminNegativeTest(base.BaseWhiteboxComputeTest,
         self.assertGreater(
             len(disks_after_attach),
             len(disks_before_attach))
-        host = self.get_ctrlplane_address(server['OS-EXT-SRV-ATTR:host'])
+        host = self.get_ctlplane_address(server['OS-EXT-SRV-ATTR:host'])
 
         # stop the nova_libvirt service
         clients.ServiceManager(host, 'nova-libvirt').stop()

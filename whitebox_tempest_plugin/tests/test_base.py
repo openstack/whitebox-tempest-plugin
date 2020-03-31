@@ -44,17 +44,18 @@ class ComputeBaseTestCase(base.WhiteboxPluginTestCase):
         self.test_class.service_client = mock.Mock()
         self.test_class.servers_client.show_server = fake_show_server
         self.test_class.service_client.list_services = fake_list_services
-        self.flags(hypervisors={'fake-host': 'fake-ip',
-                                'fake-host2': 'fake-ip2'}, group='whitebox')
+        self.flags(ctlplane_addresses={'fake-host': 'fake-ip',
+                                       'fake-host2': 'fake-ip2'},
+                   group='whitebox')
 
-    def test_get_ctrlplane_address(self):
+    def test_get_ctlplane_address(self):
         self.assertEqual('fake-ip',
-                         self.test_class.get_ctrlplane_address('fake-host'))
+                         self.test_class.get_ctlplane_address('fake-host'))
 
     @mock.patch.object(compute_base.LOG, 'error')
-    def test_get_ctrlplane_address_keyerror(self, mock_log):
+    def test_get_ctlplane_address_keyerror(self, mock_log):
         self.assertRaises(exceptions.CtrlplaneAddressResolutionError,
-                          self.test_class.get_ctrlplane_address, 'missing-id')
+                          self.test_class.get_ctlplane_address, 'missing-id')
 
     def test_list_compute_hosts(self):
         self.assertItemsEqual(['fake-host', 'fake-host2'],

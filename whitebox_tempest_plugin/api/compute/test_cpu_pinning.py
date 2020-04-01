@@ -428,20 +428,14 @@ class CPUThreadPolicyTest(BasePinningTest):
                 "host have HyperThreading enabled?")
 
 
-class NUMALiveMigrationTest(BasePinningTest):
-
-    # Don't bother with old microversions where disk_over_commit was required
-    # for the live migration request.
-    min_microversion = '2.25'
+class NUMALiveMigrationBase(BasePinningTest):
 
     @classmethod
     def skip_checks(cls):
-        super(NUMALiveMigrationTest, cls).skip_checks()
+        super(NUMALiveMigrationBase, cls).skip_checks()
         if (CONF.compute.min_compute_nodes < 2 or
                 CONF.whitebox.max_compute_nodes > 2):
             raise cls.skipException('Exactly 2 compute nodes required.')
-        if not compute.is_scheduler_filter_enabled('DifferentHostFilter'):
-            raise cls.skipException('DifferentHostFilter required.')
 
     def get_pinning_as_set(self, server_id):
         pinset = set()
@@ -487,6 +481,36 @@ class NUMALiveMigrationTest(BasePinningTest):
         in virtual machines.
         """
         return set([len(cpu_list) for cpu_list in chain(*args)])
+
+    def _get_shared_cpuset(self, server_id):
+        """Search the xml vcpu element of the provided server for its cpuset.
+        Convert cpuset found into a set of integers.
+        """
+        root = self.get_server_xml(server_id)
+        cpuset = root.find('./vcpu').attrib.get('cpuset', None)
+        return parse_cpu_spec(cpuset)
+
+    def get_all_cpus(self):
+        """Aggregate the dictionary values of [whitebox]/cpu_topology from
+        tempest.conf into a list of pCPU ids.
+        """
+        topology_dict = CONF.whitebox_hardware.cpu_topology
+        cpus = []
+        [cpus.extend(c) for c in topology_dict.values()]
+        return cpus
+
+
+class NUMALiveMigrationTest(NUMALiveMigrationBase):
+
+    # Don't bother with old microversions where disk_over_commit was required
+    # for the live migration request.
+    min_microversion = '2.25'
+
+    @classmethod
+    def skip_checks(cls):
+        super(NUMALiveMigrationTest, cls).skip_checks()
+        if not compute.is_scheduler_filter_enabled('DifferentHostFilter'):
+            raise cls.skipException('DifferentHostFilter required.')
 
     @decorators.skip_because(bug='2007395', bug_type='storyboard')
     def test_cpu_pinning(self):
@@ -758,6 +782,171 @@ class NUMALiveMigrationTest(BasePinningTest):
         self.assertTrue(pin_a[0] and pin_b[0],
                         'Cells not actually pinned: %s, %s' % (pin_a, pin_b))
         self.assertTrue(pin_a[0].isdisjoint(pin_b[0]))
+
+
+class NUMACPUDedicatedLiveMigrationTest(NUMALiveMigrationBase):
+
+    min_microversion = '2.74'
+
+    @classmethod
+    def skip_checks(cls):
+        super(NUMACPUDedicatedLiveMigrationTest, cls).skip_checks()
+        if getattr(CONF.whitebox_hardware, 'cpu_topology', None) is None:
+            msg = "cpu_topology in whitebox-hardware is not present"
+            raise cls.skipException(msg)
+
+    def test_collocation_migration(self):
+        cpu_list = self.get_all_cpus()
+        if len(cpu_list) < 4:
+            raise self.skipException('Requires at least 4 pCPUs to run')
+
+        host1, host2 = self.list_compute_hosts()
+        flavor_vcpu_size = 1
+        # Use the first two cpu ids for host1's dedicated pCPU and host2's
+        # shared pCPUs. Use the third and fourth cpu ids for host1's shared set
+        # and host2's dedicated set
+        host1_dedicated_set = host2_shared_set = cpu_list[:2]
+        host2_dedicated_set = host1_shared_set = cpu_list[2:4]
+
+        dedicated_flavor = self.create_flavor(
+            vcpus=flavor_vcpu_size,
+            extra_specs=self.dedicated_cpu_policy
+        )
+        shared_flavor = self.create_flavor(vcpus=flavor_vcpu_size)
+
+        host1_sm = clients.NovaServiceManager(host1, 'nova-compute',
+                                              self.os_admin.services_client)
+        host2_sm = clients.NovaServiceManager(host2, 'nova-compute',
+                                              self.os_admin.services_client)
+
+        with whitebox_utils.multicontext(
+            host1_sm.config_options(('compute', 'cpu_dedicated_set',
+                                     self._get_cpu_spec(host1_dedicated_set)),
+                                    ('compute', 'cpu_shared_set',
+                                     self._get_cpu_spec(host1_shared_set))
+                                    ),
+            host2_sm.config_options(('compute', 'cpu_dedicated_set',
+                                     self._get_cpu_spec(host2_dedicated_set)),
+                                    ('compute', 'cpu_shared_set',
+                                     self._get_cpu_spec(host2_shared_set))
+                                    )
+        ):
+            # Create a total of four instances, with each compute host holding
+            # a server with a cpu_dedicated policy and a server that will
+            # float across the respective host's cpu_shared_set
+            dedicated_server_a = self.create_test_server(
+                clients=self.os_admin, flavor=dedicated_flavor['id'],
+                host=host1
+            )
+            shared_server_a = self.create_test_server(
+                clients=self.os_admin, flavor=shared_flavor['id'],
+                host=host1
+            )
+            dedicated_server_b = self.create_test_server(
+                clients=self.os_admin, flavor=dedicated_flavor['id'],
+                host=host2
+            )
+            shared_server_b = self.create_test_server(
+                clients=self.os_admin, flavor=shared_flavor['id'],
+                host=host2
+            )
+
+            # The pinned vCPU's in the domain XML's for dedicated server A and
+            # B should map to physical CPU's that are a subset of the
+            # cpu_dedicated_set of their respective compute host.
+            server_dedicated_cpus_a = self.get_pinning_as_set(
+                dedicated_server_a['id']
+            )
+            self.assertTrue(server_dedicated_cpus_a.issubset(
+                            host1_dedicated_set),
+                            'Pinned CPU\'s %s of server A %s is not a subset'
+                            ' of %s' % (server_dedicated_cpus_a,
+                                        dedicated_server_a['id'],
+                                        host1_dedicated_set))
+
+            server_dedicated_cpus_b = self.get_pinning_as_set(
+                dedicated_server_b['id']
+            )
+            self.assertTrue(server_dedicated_cpus_b.issubset(
+                            host2_dedicated_set),
+                            'Pinned CPU\'s %s of server B %s is not a subset'
+                            ' of %s' % (server_dedicated_cpus_b,
+                                        dedicated_server_b['id'],
+                                        host2_dedicated_set))
+
+            # Shared servers A and B should have a cpuset that is equal to
+            # their respective host's cpu_shared_set
+            server_shared_cpus_a = self._get_shared_cpuset(
+                shared_server_a['id']
+            )
+            self.assertItemsEqual(server_shared_cpus_a,
+                                  host1_shared_set,
+                                  'Shared CPU Set %s of shared server A %s is '
+                                  'not equal to shared set of of %s' %
+                                  (server_shared_cpus_a, shared_server_a['id'],
+                                   host1_shared_set))
+
+            server_shared_cpus_b = self._get_shared_cpuset(
+                shared_server_b['id']
+            )
+            self.assertItemsEqual(server_shared_cpus_b,
+                                  host2_shared_set,
+                                  'Shared CPU Set %s of shared server B %s is '
+                                  'not equal to shared set of of %s' %
+                                  (server_shared_cpus_b, shared_server_b['id'],
+                                   host2_shared_set))
+
+            # Live migrate shared server A to the compute node with shared
+            # server B. Both servers are using shared vCPU's so migration
+            # should be successful
+            self.live_migrate(shared_server_a['id'], host2, 'ACTIVE')
+
+            # Validate shared server A now has a shared cpuset that is a equal
+            # to it's new host's cpu_shared_set
+            # FIXME(jparker) change host1_shared_set to host2_shared_set once
+            # Nova bug 1869804 has been addressed
+            shared_set_a = self._get_shared_cpuset(shared_server_a['id'])
+            self.assertItemsEqual(shared_set_a, host1_shared_set,
+                                  'After migration of server %s, shared CPU '
+                                  'set %s is not equal to new shared set %s' %
+                                  (shared_server_a['id'], shared_set_a,
+                                   host1_shared_set))
+
+            # Live migrate dedicated server A to the same host holding
+            # dedicated server B. End result should be all 4 servers are on
+            # the same host.
+            self.live_migrate(dedicated_server_a['id'], host2, 'ACTIVE')
+
+            # Dedicated server A should have a CPU pin set that is a subset of
+            # it's new host's cpu_dedicated_set and should not intersect with
+            # dedicated server B's CPU pin set or the cpu_shared_set of the
+            # host
+            dedicated_pin_a = self.get_pinning_as_set(dedicated_server_a['id'])
+            dedicated_pin_b = self.get_pinning_as_set(dedicated_server_b['id'])
+            self.assertTrue(dedicated_pin_a.issubset(
+                            host2_dedicated_set),
+                            'Pinned Host CPU\'s %s of server %s is '
+                            'not a subset of %s' % (dedicated_pin_a,
+                                                    dedicated_server_a['id'],
+                                                    host2_dedicated_set))
+            self.assertTrue(dedicated_pin_a.isdisjoint(dedicated_pin_b),
+                            'Pinned Host CPU\'s %s of server %s overlaps with '
+                            '%s' % (dedicated_pin_a,
+                                    dedicated_server_a['id'],
+                                    dedicated_pin_b))
+            self.assertTrue(dedicated_pin_a.isdisjoint(host2_shared_set),
+                            'Pinned Host CPU\'s %s of server %s overlaps with '
+                            'cpu_shared_set %s' % (dedicated_pin_a,
+                                                   dedicated_server_a['id'],
+                                                   host2_shared_set))
+
+            # NOTE(jparker) Due to Nova bug 1836945, cleanUp methods will fail
+            # to delete servers when nova.conf configurations revert.  Need to
+            # manually delete the servers in the test method.
+            self.delete_server(dedicated_server_a['id'])
+            self.delete_server(dedicated_server_b['id'])
+            self.delete_server(shared_server_a['id'])
+            self.delete_server(shared_server_b['id'])
 
 
 class NUMARebuildTest(BasePinningTest):

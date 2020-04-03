@@ -38,8 +38,8 @@ class WhiteboxTempestPlugin(plugins.TempestPlugin):
                                   whitebox_config.nova_compute_opts)
         config.register_opt_group(conf, whitebox_config.database_group,
                                   whitebox_config.database_opts)
-        config.register_opt_group(conf, whitebox_config.nova_libvirt_group,
-                                  whitebox_config.nova_libvirt_opts)
+        config.register_opt_group(conf, whitebox_config.libvirt_group,
+                                  whitebox_config.libvirt_opts)
         config.register_opt_group(conf, whitebox_config.hardware_group,
                                   whitebox_config.hardware_opts)
 
@@ -48,8 +48,8 @@ class WhiteboxTempestPlugin(plugins.TempestPlugin):
                  whitebox_config.general_opts),
                 (whitebox_config.nova_compute_group.name,
                  whitebox_config.nova_compute_opts),
-                (whitebox_config.nova_libvirt_group.name,
-                 whitebox_config.nova_libvirt_opts),
+                (whitebox_config.libvirt_group.name,
+                 whitebox_config.libvirt_opts),
                 (whitebox_config.database_group.name,
                  whitebox_config.database_opts),
                 (whitebox_config.hardware_group.name,

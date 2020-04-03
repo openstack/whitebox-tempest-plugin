@@ -1,10 +1,5 @@
 #!/bin/sh
 
-function install {
-    echo_summary "Installing whitebox-tempest-plugin"
-    setup_dev_lib "whitebox-tempest-plugin"
-}
-
 function configure {
     echo_summary "Configuring whitebox-tempest-plugin options"
     iniset $TEMPEST_CONFIG whitebox ctlplane_ssh_username $STACK_USER
@@ -28,9 +23,7 @@ function configure {
 
 if [[ "$1" == "stack" ]]; then
     if is_service_enabled tempest; then
-        if [[ "$2" == "install" ]]; then
-            install
-        elif [[ "$2" == "test-config" ]]; then
+        if [[ "$2" == "test-config" ]]; then
             configure
         fi
     fi

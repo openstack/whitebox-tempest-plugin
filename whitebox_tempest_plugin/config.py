@@ -130,3 +130,16 @@ database_opts = [
         default=3306,
         help="SSH port forwarding gateway number")
 ]
+
+hardware_group = cfg.OptGroup(
+    name='whitebox-hardware',
+    title='Config options that describe the underlying compute node hardware '
+          'in the environment.')
+
+hardware_opts = [
+    cfg.StrOpt(
+        'vgpu_vendor_id',
+        default=None,
+        help='The vendor id of the underlying vgpu hardware of the compute. '
+             'An example with Nvidia would be 10de'),
+]

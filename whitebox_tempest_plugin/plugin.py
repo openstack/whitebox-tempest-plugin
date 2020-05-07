@@ -40,6 +40,8 @@ class WhiteboxTempestPlugin(plugins.TempestPlugin):
                                   whitebox_config.database_opts)
         config.register_opt_group(conf, whitebox_config.nova_libvirt_group,
                                   whitebox_config.nova_libvirt_opts)
+        config.register_opt_group(conf, whitebox_config.hardware_group,
+                                  whitebox_config.hardware_opts)
 
     def get_opt_lists(self):
         return [(whitebox_config.general_group.name,
@@ -49,4 +51,6 @@ class WhiteboxTempestPlugin(plugins.TempestPlugin):
                 (whitebox_config.nova_libvirt_group.name,
                  whitebox_config.nova_libvirt_opts),
                 (whitebox_config.database_group.name,
-                 whitebox_config.database_opts)]
+                 whitebox_config.database_opts),
+                (whitebox_config.hardware_group.name,
+                 whitebox_config.hardware_opts)]

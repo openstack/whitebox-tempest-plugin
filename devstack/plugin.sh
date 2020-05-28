@@ -23,6 +23,8 @@ function configure {
     iniset $TEMPEST_CONFIG whitebox-database user $DATABASE_USER
     iniset $TEMPEST_CONFIG whitebox-database password $DATABASE_PASSWORD
     iniset $TEMPEST_CONFIG whitebox-database host $DATABASE_HOST
+
+    iniset $TEMPEST_CONFIG whitebox-hardware cpu_topology "$WHITEBOX_CPU_TOPOLOGY"
 }
 
 if [[ "$1" == "stack" ]]; then

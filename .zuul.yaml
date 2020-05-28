@@ -106,6 +106,8 @@
       code itself.
     vars:
       tempest_test_regex: ^whitebox_tempest_plugin\.
+      devstack_localrc:
+        WHITEBOX_CPU_TOPOLOGY: "0: [0,1,2,3,4,5,6,7]"
 
 - job:
     name: whitebox-multinode-multinuma-devstack
@@ -120,6 +122,7 @@
       tempest_test_regex: '(NUMALiveMigrationTest.test_cpu_pinning|CPUThreadPolicyTest)'
       devstack_localrc:
         SMT_HOSTS: "{{ hostvars['controller']['ansible_facts']['ansible_hostname'] }},{{ hostvars['compute']['ansible_facts']['ansible_hostname'] }}"
+        WHITEBOX_CPU_TOPOLOGY: "0: [0,1,2,3], 1: [4,5,6,7]"
 
 - project:
     templates:

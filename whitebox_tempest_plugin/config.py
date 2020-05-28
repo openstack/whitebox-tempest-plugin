@@ -14,6 +14,7 @@
 #    under the License.
 
 from oslo_config import cfg
+from oslo_config import types
 
 
 general_group = cfg.OptGroup(
@@ -155,4 +156,11 @@ hardware_opts = [
         default=[],
         help='List of compute hosts that have SMT (Hyper-Threading in Intel '
              'parlance).'),
+    cfg.Opt(
+        'cpu_topology',
+        type=types.Dict(types.List(types.Integer(), bounds=True)),
+        help='Host CPU topology, as a dictionary of <NUMA node ID>:'
+             '<List of CPUs in that node>. For example, if NUMA node 0 has '
+             'CPUs 0 and 1, and NUMA node 1 has CPUs 2 and 3, the value to '
+             'set would be `0: [0,1], 1: [2, 3]`.')
 ]

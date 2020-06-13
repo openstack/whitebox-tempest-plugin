@@ -38,7 +38,7 @@
     description: |
         Devstack multinode job.
     required-projects:
-        x/whitebox-tempest-plugin
+        openstack/whitebox-tempest-plugin
     pre-run: playbooks/whitebox.yaml
     irrelevant-files:
       - ^test-requirements.txt$
@@ -48,7 +48,7 @@
         tempest_test_regex: ^whitebox_tempest_plugin\.
         tempest_black_regex: "create_none_instance|virtio_to_none|none_to_virtio"
         devstack_plugins:
-            whitebox-tempest-plugin: https://opendev.org/x/whitebox-tempest-plugin.git
+            whitebox-tempest-plugin: https://opendev.org/openstack/whitebox-tempest-plugin.git
         devstack_localrc:
             MAX_COMPUTE_NODES: 2
             LIBVIRT_TYPE: kvm
@@ -63,7 +63,6 @@
             num_hugepages: 512
 
 - project:
-    name: x/whitebox-tempest-plugin
     templates:
       - openstack-python-jobs
       - openstack-python36-jobs

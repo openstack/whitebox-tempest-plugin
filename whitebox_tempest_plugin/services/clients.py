@@ -89,14 +89,25 @@ class ServiceManager(SSHClient):
         self.stop_command = getattr(conf, 'stop_command', None)
 
     @contextlib.contextmanager
-    def config_option(self, section, option, value):
-        initial_value = self.get_conf_opt(section, option)
-        self.set_conf_opt(section, option, value)
+    def config_options(self, *opts):
+        """Sets config options and restarts the service. Previous values for
+        the options are saved before setting the new ones, and restored when
+        the context manager exists.
+
+        :param opts: a list of (section, option, value) tuples, each
+                     representing a single config option
+        """
+        initial_values = []
+        for section, option, value in opts:
+            initial_values.append((section, option,
+                                   self.get_conf_opt(section, option)))
+            self.set_conf_opt(section, option, value)
         self.restart()
         try:
             yield
         finally:
-            self.set_conf_opt(section, option, initial_value)
+            for section, option, value in initial_values:
+                self.set_conf_opt(section, option, value)
             self.restart()
 
     def get_conf_opt(self, section, option):

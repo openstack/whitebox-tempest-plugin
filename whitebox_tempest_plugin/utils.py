@@ -12,7 +12,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import six
+
 from oslo_serialization import jsonutils
+
+if six.PY2:
+    import contextlib2 as contextlib
+else:
+    import contextlib
 
 
 def normalize_json(json):
@@ -29,3 +36,9 @@ def normalize_json(json):
     json = jsonutils.loads(jsonutils.dumps(json, sort_keys=True))
     sort_list_values(json)
     return json
+
+
+@contextlib.contextmanager
+def multicontext(*context_managers):
+    with contextlib.ExitStack() as stack:
+        yield [stack.enter_context(mgr) for mgr in context_managers]

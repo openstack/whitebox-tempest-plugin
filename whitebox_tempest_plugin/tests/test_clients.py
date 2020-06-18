@@ -144,8 +144,8 @@ class ServiceManagerTestCase(base.WhiteboxPluginTestCase):
 
     def test_restart(self):
         self.flags(restart_command='fake restart command',
-                   group='whitebox-nova-compute')
-        service = clients.ServiceManager('fake-host', 'nova-compute')
+                   group='whitebox-libvirt')
+        service = clients.ServiceManager('fake-host', 'libvirt')
         with mock.patch.object(service, 'execute') as mock_exec:
             service.restart()
             mock_exec.assert_called_with('fake restart command', sudo=True)

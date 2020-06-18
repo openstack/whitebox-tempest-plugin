@@ -25,6 +25,7 @@ from tempest import config
 from tempest.lib.common import ssh
 from tempest.lib import exceptions as tempest_libexc
 
+from whitebox_tempest_plugin.common import waiters
 from whitebox_tempest_plugin import exceptions
 
 CONF = config.CONF
@@ -37,10 +38,10 @@ class SSHClient(object):
     def __init__(self, hostname):
         self.ssh_key = CONF.whitebox.ctlplane_ssh_private_key_path
         self.ssh_user = CONF.whitebox.ctlplane_ssh_username
-        self.host = hostname
+        self.hostname = hostname
 
     def execute(self, command, container_name=None, sudo=False):
-        ssh_client = ssh.Client(self.host, self.ssh_user,
+        ssh_client = ssh.Client(self.hostname, self.ssh_user,
                                 key_filename=self.ssh_key)
         if (CONF.whitebox.containers and container_name):
             executable = CONF.whitebox.container_runtime
@@ -77,15 +78,18 @@ class ServiceManager(SSHClient):
         """Init the client.
 
         :param service: The service this manager is managing. Must exist as a
-                        whitebox-<service> config section.
+                        whitebox-<service> config section. For Nova services,
+                        this must match the binary in the Nova os-services API.
         """
         super(ServiceManager, self).__init__(hostname)
         conf = getattr(CONF, 'whitebox-%s' % service, None)
         if conf is None:
             raise exceptions.MissingServiceSectionException(service=service)
+        self.service = service
         self.config_path = getattr(conf, 'config_path', None)
         self.restart_command = getattr(conf, 'restart_command', None)
         self.stop_command = getattr(conf, 'stop_command', None)
+        self.start_command = getattr(conf, 'start_command', None)
 
     @contextlib.contextmanager
     def config_options(self, *opts):
@@ -162,6 +166,34 @@ class ServiceManager(SSHClient):
         result = self.execute(self.stop_command, sudo=True)
         time.sleep(5)
         return result
+
+
+class NovaServiceManager(ServiceManager):
+    """A services manager for Nova services that uses Nova's service API to be
+    smarter about stopping and restarting services.
+    """
+
+    def __init__(self, host, service, services_client):
+        super(NovaServiceManager, self).__init__(host, service)
+        self.services_client = services_client
+
+    def start(self):
+        result = self.execute(self.start_command, sudo=True)
+        waiters.wait_for_nova_service_state(self.services_client,
+                                            self.hostname, self.service,
+                                            'up')
+        return result
+
+    def stop(self):
+        result = self.execute(self.stop_command, sudo=True)
+        waiters.wait_for_nova_service_state(self.services_client,
+                                            self.hostname, self.service,
+                                            'down')
+        return result
+
+    def restart(self):
+        self.stop()
+        self.start()
 
 
 class NUMAClient(SSHClient):

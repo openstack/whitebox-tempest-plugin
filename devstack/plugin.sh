@@ -11,7 +11,8 @@ function configure {
     iniset $TEMPEST_CONFIG whitebox available_cinder_storage $WHITEBOX_AVAILABLE_CINDER_STORAGE
 
     iniset $TEMPEST_CONFIG whitebox-nova-compute config_path "$WHITEBOX_NOVA_COMPUTE_CONFIG_PATH"
-    iniset $TEMPEST_CONFIG whitebox-nova-compute restart_command "$WHITEBOX_NOVA_COMPUTE_RESTART_COMMAND"
+    iniset $TEMPEST_CONFIG whitebox-nova-compute stop_command "$WHITEBOX_NOVA_COMPUTE_STOP_COMMAND"
+    iniset $TEMPEST_CONFIG whitebox-nova-compute start_command "$WHITEBOX_NOVA_COMPUTE_START_COMMAND"
 
     iniset $TEMPEST_CONFIG whitebox-libvirt restart_command "$WHITEBOX_LIBVIRT_RESTART_COMMAND"
     iniset $TEMPEST_CONFIG whitebox-libvirt stop_command "$WHITEBOX_LIBVIRT_STOP_COMMAND"

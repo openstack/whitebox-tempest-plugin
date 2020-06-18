@@ -507,8 +507,10 @@ class NUMALiveMigrationTest(BasePinningTest):
 
         # Set both hosts's vcpu_pin_set to the CPUs in the first NUMA node to
         # force instances to land there
-        host1_sm = clients.ServiceManager(host1, 'nova-compute')
-        host2_sm = clients.ServiceManager(host2, 'nova-compute')
+        host1_sm = clients.NovaServiceManager(host1, 'nova-compute',
+                                              self.os_admin.services_client)
+        host2_sm = clients.NovaServiceManager(host2, 'nova-compute',
+                                              self.os_admin.services_client)
         with whitebox_utils.multicontext(
             host1_sm.config_options(('DEFAULT', 'vcpu_pin_set',
                                      self._get_cpu_spec(topo_1[0]))),
@@ -553,7 +555,8 @@ class NUMALiveMigrationTest(BasePinningTest):
             # NUMA node's CPUs to vcpu_pin_set
             host_a = self.get_host_other_than(server_b['id'])
             host_a_addr = self.get_ctlplane_address(host_a)
-            host_a_sm = clients.ServiceManager(host_a_addr, 'nova-compute')
+            host_a_sm = clients.NovaServiceManager(
+                host_a_addr, 'nova-compute', self.os_admin.services_client)
             numaclient_a = clients.NUMAClient(host_a_addr)
             topo_a = numaclient_a.get_host_topology()
             with host_a_sm.config_options(
@@ -603,8 +606,10 @@ class NUMALiveMigrationTest(BasePinningTest):
                                          host,
                                          num_cpus)
 
-        host1_sm = clients.ServiceManager(host1, 'nova-compute')
-        host2_sm = clients.ServiceManager(host2, 'nova-compute')
+        host1_sm = clients.NovaServiceManager(host1, 'nova-compute',
+                                              self.os_admin.services_client)
+        host2_sm = clients.NovaServiceManager(host2, 'nova-compute',
+                                              self.os_admin.services_client)
         with whitebox_utils.multicontext(
             host1_sm.config_options(('DEFAULT', 'vcpu_pin_set', '0,1'),
                                     ('compute', 'cpu_shared_set', '2')),

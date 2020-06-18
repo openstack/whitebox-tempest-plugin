@@ -32,12 +32,6 @@ class VirtioSCSIDisk(base.BaseWhiteboxComputeTest):
     # appropriately
     disks_to_create = 7
 
-    @classmethod
-    def setup_clients(cls):
-        super(VirtioSCSIDisk, cls).setup_clients()
-        cls.admin_scheduler_stats_client = \
-            cls.os_admin.volume_scheduler_stats_client_latest
-
     def setUp(self):
         super(VirtioSCSIDisk, self).setUp()
         # NOTE: Flavor and image are common amongst every test of the class

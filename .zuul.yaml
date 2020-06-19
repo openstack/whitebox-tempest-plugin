@@ -39,7 +39,7 @@
         Devstack multinode job.
     required-projects:
         openstack/whitebox-tempest-plugin
-    pre-run: playbooks/whitebox.yaml
+    pre-run: playbooks/whitebox/pre.yaml
     irrelevant-files:
       - ^test-requirements.txt$
     vars:

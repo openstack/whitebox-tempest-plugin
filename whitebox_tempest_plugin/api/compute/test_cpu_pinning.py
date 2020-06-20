@@ -509,10 +509,12 @@ class NUMALiveMigrationTest(BasePinningTest):
         # force instances to land there
         host1_sm = clients.ServiceManager(host1, 'nova-compute')
         host2_sm = clients.ServiceManager(host2, 'nova-compute')
-        with host1_sm.config_option('DEFAULT', 'vcpu_pin_set',
-                                    self._get_cpu_spec(topo_1[0])), \
+        with whitebox_utils.multicontext(
+            host1_sm.config_option('DEFAULT', 'vcpu_pin_set',
+                                   self._get_cpu_spec(topo_1[0])),
             host2_sm.config_option('DEFAULT', 'vcpu_pin_set',
-                                   self._get_cpu_spec(topo_2[0])):
+                                   self._get_cpu_spec(topo_2[0]))
+        ):
             # Boot 2 servers such that their vCPUs "fill" a NUMA node.
             specs = {'hw:cpu_policy': 'dedicated'}
             flavor = self.create_flavor(vcpus=cpus_per_node.pop(),
@@ -602,11 +604,12 @@ class NUMALiveMigrationTest(BasePinningTest):
 
         host1_sm = clients.ServiceManager(host1, 'nova-compute')
         host2_sm = clients.ServiceManager(host2, 'nova-compute')
-        with host1_sm.config_option('DEFAULT', 'vcpu_pin_set', '0,1'), \
-                host1_sm.config_option('compute', 'cpu_shared_set', '2'), \
-                host2_sm.config_option('DEFAULT', 'vcpu_pin_set', '0,1'), \
-                host2_sm.config_option('compute', 'cpu_shared_set', '3'):
-
+        with whitebox_utils.multicontext(
+            host1_sm.config_option('DEFAULT', 'vcpu_pin_set', '0,1'),
+            host1_sm.config_option('compute', 'cpu_shared_set', '2'),
+            host2_sm.config_option('DEFAULT', 'vcpu_pin_set', '0,1'),
+            host2_sm.config_option('compute', 'cpu_shared_set', '3')
+        ):
             # Boot two servers
             specs = {'hw:cpu_policy': 'dedicated',
                      'hw:emulator_threads_policy': 'share'}

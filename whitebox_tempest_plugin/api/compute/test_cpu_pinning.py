@@ -510,10 +510,10 @@ class NUMALiveMigrationTest(BasePinningTest):
         host1_sm = clients.ServiceManager(host1, 'nova-compute')
         host2_sm = clients.ServiceManager(host2, 'nova-compute')
         with whitebox_utils.multicontext(
-            host1_sm.config_option('DEFAULT', 'vcpu_pin_set',
-                                   self._get_cpu_spec(topo_1[0])),
-            host2_sm.config_option('DEFAULT', 'vcpu_pin_set',
-                                   self._get_cpu_spec(topo_2[0]))
+            host1_sm.config_options(('DEFAULT', 'vcpu_pin_set',
+                                     self._get_cpu_spec(topo_1[0]))),
+            host2_sm.config_options(('DEFAULT', 'vcpu_pin_set',
+                                     self._get_cpu_spec(topo_2[0])))
         ):
             # Boot 2 servers such that their vCPUs "fill" a NUMA node.
             specs = {'hw:cpu_policy': 'dedicated'}
@@ -556,9 +556,10 @@ class NUMALiveMigrationTest(BasePinningTest):
             host_a_sm = clients.ServiceManager(host_a_addr, 'nova-compute')
             numaclient_a = clients.NUMAClient(host_a_addr)
             topo_a = numaclient_a.get_host_topology()
-            with host_a_sm.config_option(
-                    'DEFAULT', 'vcpu_pin_set',
-                    self._get_cpu_spec(topo_a[0] + topo_a[1])):
+            with host_a_sm.config_options(
+                ('DEFAULT', 'vcpu_pin_set',
+                 self._get_cpu_spec(topo_a[0] + topo_a[1]))
+            ):
                 self.live_migrate(server_b['id'], host_a, 'ACTIVE')
 
                 # They should have disjoint (non-null) CPU pins in their XML
@@ -584,7 +585,7 @@ class NUMALiveMigrationTest(BasePinningTest):
                     'database, instead have %s and %s' % (pcpus_a, pcpus_b))
 
                 # NOTE(artom) At this point we have to manually delete both
-                # servers before the config_option() context manager reverts
+                # servers before the config_options() context manager reverts
                 # any config changes it made. This is Nova bug 1836945.
                 self.delete_server(server_a['id'])
                 self.delete_server(server_b['id'])
@@ -605,10 +606,10 @@ class NUMALiveMigrationTest(BasePinningTest):
         host1_sm = clients.ServiceManager(host1, 'nova-compute')
         host2_sm = clients.ServiceManager(host2, 'nova-compute')
         with whitebox_utils.multicontext(
-            host1_sm.config_option('DEFAULT', 'vcpu_pin_set', '0,1'),
-            host1_sm.config_option('compute', 'cpu_shared_set', '2'),
-            host2_sm.config_option('DEFAULT', 'vcpu_pin_set', '0,1'),
-            host2_sm.config_option('compute', 'cpu_shared_set', '3')
+            host1_sm.config_options(('DEFAULT', 'vcpu_pin_set', '0,1'),
+                                    ('compute', 'cpu_shared_set', '2')),
+            host2_sm.config_options(('DEFAULT', 'vcpu_pin_set', '0,1'),
+                                    ('compute', 'cpu_shared_set', '3'))
         ):
             # Boot two servers
             specs = {'hw:cpu_policy': 'dedicated',
@@ -648,7 +649,7 @@ class NUMALiveMigrationTest(BasePinningTest):
                             'Pins overlap: %s, %s' % (pin_a, pin_b))
 
             # NOTE(artom) At this point we have to manually delete both
-            # servers before the config_option() context manager reverts
+            # servers before the config_options() context manager reverts
             # any config changes it made. This is Nova bug 1836945.
             self.delete_server(server_a['id'])
             self.delete_server(server_b['id'])

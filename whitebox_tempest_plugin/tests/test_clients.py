@@ -120,7 +120,9 @@ class ServiceManagerTestCase(base.WhiteboxPluginTestCase):
             service.execute = local_exec
             # Test the config_option context manager
             with mock.patch.object(service, 'restart') as mock_restart:
-                with service.config_option('section', 'option', 'new-value'):
+                with service.config_options(
+                    ('section', 'option', 'new-value')
+                ):
                     self.assertEqual('new-value',
                                      service.get_conf_opt('section', 'option'))
                 self.assertEqual(2, mock_restart.call_count)

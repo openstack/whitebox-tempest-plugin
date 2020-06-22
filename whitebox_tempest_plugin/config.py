@@ -69,7 +69,12 @@ general_opts = [
         default="docker",
         choices=["docker", "podman"],
         help="Name of the executable running containers. Correct values are"
-        " 'docker' (default) for osp 12 to 14, and 'podman' starting 15")
+        " 'docker' (default) for osp 12 to 14, and 'podman' starting 15"),
+    cfg.IntOpt(
+        'file_backed_memory_size',
+        default=0,
+        help="file_backed_memory size in mb used to set the"
+             " [libvirt]/file_backed_memory in nova.conf")
 ]
 
 nova_compute_group = cfg.OptGroup(

@@ -152,8 +152,8 @@ class ServiceManagerTestCase(base.WhiteboxPluginTestCase):
 
     def test_stop(self):
         self.flags(stop_command='fake stop command',
-                   group='whitebox-nova-libvirt')
-        service = clients.ServiceManager('fake-host', 'nova-libvirt')
+                   group='whitebox-libvirt')
+        service = clients.ServiceManager('fake-host', 'libvirt')
         with mock.patch.object(service, 'execute') as mock_exec:
             service.stop()
             mock_exec.assert_called_with('fake stop command', sudo=True)

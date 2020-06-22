@@ -72,8 +72,8 @@ class VolumesAdminNegativeTest(base.BaseWhiteboxComputeTest,
             len(disks_before_attach))
         host = self.get_ctlplane_address(server['OS-EXT-SRV-ATTR:host'])
 
-        # stop the nova_libvirt service
-        clients.ServiceManager(host, 'nova-libvirt').stop()
+        # stop the libvirt service
+        clients.ServiceManager(host, 'libvirt').stop()
 
         # While this call to n-api will return successfully the underlying call
         # to the virt driver will fail as the libvirt service is stopped.
@@ -84,10 +84,10 @@ class VolumesAdminNegativeTest(base.BaseWhiteboxComputeTest,
         self.assertEqual(
             len(disks_after_failed_detach), len(disks_after_attach))
 
-        # restart the nova_libvirt after failed detach
-        clients.ServiceManager(host, 'nova-libvirt').restart()
+        # restart libvirt after failed detach
+        clients.ServiceManager(host, 'libvirt').restart()
 
-        # This will be a successful detach as nova_libvirt is started again
+        # This will be a successful detach as libvirt is started again
         self.servers_client.detach_volume(server['id'], attachment['volumeId'])
         waiters.wait_for_volume_resource_status(
             self.volumes_client, attachment['volumeId'], 'available')

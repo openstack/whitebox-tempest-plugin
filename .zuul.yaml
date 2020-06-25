@@ -54,6 +54,13 @@
             LIBVIRT_TYPE: kvm
             TEMPEST_PLUGINS: /opt/stack/whitebox-tempest-plugin
             WHITEBOX_PRIVKEY_PATH: /home/tempest/.ssh/id_rsa
+        devstack_local_conf:
+          post-config:
+            $NOVA_CONF:
+              libvirt:
+                cpu_mode: custom
+                cpu_model: kvm64
+                virt_type: kvm
     group-vars:
         subnode:
             num_hugepages: 2048

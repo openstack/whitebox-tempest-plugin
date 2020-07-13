@@ -146,4 +146,9 @@ hardware_opts = [
         default=None,
         help='The vendor id of the underlying vgpu hardware of the compute. '
              'An example with Nvidia would be 10de'),
+    cfg.ListOpt(
+        'smt_hosts',
+        default=[],
+        help='List of compute hosts that have SMT (Hyper-Threading in Intel '
+             'parlance).'),
 ]

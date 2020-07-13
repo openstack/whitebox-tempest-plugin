@@ -1,6 +1,3 @@
-# TODO(artom) Once https://review.opendev.org/#/c/679656/ merges, we can unify
-# the nodeset names and use the one in Nova. Until then, have a different name
-# here.
 - nodeset:
     name: multi-numa-multinode
     nodes:
@@ -31,12 +28,42 @@
         nodes:
           - compute
 
+- nodeset:
+    name: nested-virt-multinode
+    nodes:
+      - name: controller
+        label: nested-virt-ubuntu-bionic
+      - name: compute
+        label: nested-virt-ubuntu-bionic
+    groups:
+      # Node where tests are executed and test results collected
+      - name: tempest
+        nodes:
+          - controller
+      # Nodes running the compute service
+      - name: compute
+        nodes:
+          - controller
+          - compute
+      # Nodes that are not the controller
+      - name: subnode
+        nodes:
+          - compute
+      # Switch node for multinode networking setup
+      - name: switch
+        nodes:
+          - controller
+      # Peer nodes for multinode networking setup
+      - name: peers
+        nodes:
+          - compute
+
 - job:
-    name: whitebox-multinode-devstack
-    nodeset: multi-numa-multinode
+    name: whitebox-multinode-devstack-base
+    abstract: true
     parent: tempest-multinode-full-py3
     description: |
-        Devstack multinode job.
+        Base devstack multinode job.
     required-projects:
         openstack/whitebox-tempest-plugin
     pre-run: playbooks/whitebox/pre.yaml
@@ -69,6 +96,31 @@
         tempest:
             num_hugepages: 512
 
+- job:
+    name: whitebox-multinode-devstack
+    parent: whitebox-multinode-devstack-base
+    nodeset: nested-virt-multinode
+    description: |
+      Runs the entire test suite on single-NUMA, non-SMT, nested virt VMs.
+      Tests that need SMT and/or more than 1 NUMA node are skipped in the test
+      code itself.
+    vars:
+      tempest_test_regex: ^whitebox_tempest_plugin\.
+
+- job:
+    name: whitebox-multinode-multinuma-devstack
+    parent: whitebox-multinode-devstack-base
+    nodeset: multi-numa-multinode
+    voting: false
+    description: |
+      Runs specific tests that need SMT and/or more than 1 NUMA node.
+      Non-voting because there is currently only 1 provider of the `multi-numa`
+      label, and it's not super reliable.
+    vars:
+      tempest_test_regex: '(NUMALiveMigrationTest.test_cpu_pinning|CPUThreadPolicyTest)'
+      devstack_localrc:
+        SMT_HOSTS: "{{ hostvars['controller']['ansible_facts']['ansible_hostname'] }},{{ hostvars['compute']['ansible_facts']['ansible_hostname'] }}"
+
 - project:
     templates:
       - openstack-python-jobs
@@ -77,6 +129,8 @@
     check:
         jobs:
             - whitebox-multinode-devstack
+            - whitebox-multinode-multinuma-devstack
     gate:
         jobs:
             - whitebox-multinode-devstack
+            - whitebox-multinode-multinuma-devstack

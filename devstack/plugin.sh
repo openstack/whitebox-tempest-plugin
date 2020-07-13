@@ -9,6 +9,9 @@ function configure {
     # nodes are in the env
     iniset $TEMPEST_CONFIG whitebox max_compute_nodes $MAX_COMPUTE_NODES
     iniset $TEMPEST_CONFIG whitebox available_cinder_storage $WHITEBOX_AVAILABLE_CINDER_STORAGE
+    if [ -n "$SMT_HOSTS" ]; then
+        iniset $TEMPEST_CONFIG whitebox-hardware smt_hosts "$SMT_HOSTS"
+    fi
 
     iniset $TEMPEST_CONFIG whitebox-nova-compute config_path "$WHITEBOX_NOVA_COMPUTE_CONFIG_PATH"
     iniset $TEMPEST_CONFIG whitebox-nova-compute restart_command "$WHITEBOX_NOVA_COMPUTE_RESTART_COMMAND"

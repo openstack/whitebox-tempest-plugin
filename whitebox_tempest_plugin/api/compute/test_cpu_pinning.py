@@ -33,6 +33,7 @@ from tempest.common import compute
 from tempest.common import utils
 from tempest.common import waiters
 from tempest import config
+from tempest.lib import decorators
 
 from whitebox_tempest_plugin.api.compute import base
 from whitebox_tempest_plugin import exceptions
@@ -372,6 +373,8 @@ class CPUThreadPolicyTest(BasePinningTest):
                 set(sib).isdisjoint(cpu_pinnings.values()),
                 "vCPUs siblings should not have been used")
 
+    @testtools.skipUnless(len(CONF.whitebox_hardware.smt_hosts) > 0,
+                          'At least 1 SMT-capable compute host is required')
     def test_threads_prefer(self):
         """Ensure vCPUs *are* placed on thread siblings.
 
@@ -397,6 +400,8 @@ class CPUThreadPolicyTest(BasePinningTest):
                 "vCPUs siblings were required by not used. Does this host "
                 "have HyperThreading enabled?")
 
+    @testtools.skipUnless(len(CONF.whitebox_hardware.smt_hosts) > 0,
+                          'At least 1 SMT-capable compute host is required')
     def test_threads_require(self):
         """Ensure thread siblings are required and used.
 
@@ -483,6 +488,7 @@ class NUMALiveMigrationTest(BasePinningTest):
         """
         return set([len(cpu_list) for cpu_list in chain(*args)])
 
+    @decorators.skip_because(bug='2007395', bug_type='storyboard')
     def test_cpu_pinning(self):
         host1, host2 = [self.get_ctlplane_address(host) for host in
                         self.list_compute_hosts()]

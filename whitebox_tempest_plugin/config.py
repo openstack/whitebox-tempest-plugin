@@ -80,8 +80,12 @@ nova_compute_opts = [
         'config_path',
         help='Path to the configration file for the nova-compute service.'),
     cfg.StrOpt(
-        'restart_command',
-        help='Command to restart the nova-compute service, without any '
+        'start_command',
+        help='Command to start the nova-compute service, without any '
+             'privilege management (ie, no sudo).'),
+    cfg.StrOpt(
+        'stop_command',
+        help='Command to stop the nova-compute service, without any '
              'privilege management (ie, no sudo).'),
 ]
 

@@ -80,9 +80,8 @@ class ServiceManager(SSHClient):
                         whitebox-<service> config section.
         """
         super(ServiceManager, self).__init__(hostname)
-        try:
-            conf = getattr(CONF, 'whitebox-%s' % service)
-        except AttributeError:
+        conf = getattr(CONF, 'whitebox-%s' % service, None)
+        if conf is None:
             raise exceptions.MissingServiceSectionException(service=service)
         self.config_path = getattr(conf, 'config_path', None)
         self.restart_command = getattr(conf, 'restart_command', None)

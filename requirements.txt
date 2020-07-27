@@ -1,6 +1,10 @@
 # The order of packages is significant, because pip processes them in the order
 # of appearance. Changing the order has an impact on the overall integration
 # process, which may cause wedges in the gate later.
+setuptools>=17.1
+# setuptools needs to be upgraded below to ensure we have
+# a new enough setuptools version to support using >=
+# for the python_version marker
 tempest
 #crudini>=0.9.3
 oslo.log

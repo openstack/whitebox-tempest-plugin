@@ -32,9 +32,9 @@
     name: nested-virt-multinode
     nodes:
       - name: controller
-        label: nested-virt-ubuntu-bionic
+        label: nested-virt-ubuntu-focal
       - name: compute
-        label: nested-virt-ubuntu-bionic
+        label: nested-virt-ubuntu-focal
     groups:
       # Node where tests are executed and test results collected
       - name: tempest
@@ -73,7 +73,6 @@
         tox_envlist: all
         tempest_concurrency: 1
         tempest_test_regex: ^whitebox_tempest_plugin\.
-        tempest_black_regex: "create_none_instance|virtio_to_none|none_to_virtio"
         devstack_plugins:
             whitebox-tempest-plugin: https://opendev.org/openstack/whitebox-tempest-plugin.git
         devstack_localrc:

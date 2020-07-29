@@ -5,9 +5,7 @@ setuptools>=17.1
 # setuptools needs to be upgraded below to ensure we have
 # a new enough setuptools version to support using >=
 # for the python_version marker
-tempest
 #crudini>=0.9.3
-oslo.log
 sshtunnel<=0.1.3;python_version=='2.7' # MIT
 sshtunnel;python_version>='3.6' # MIT
 pymysql

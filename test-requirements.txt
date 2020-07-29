@@ -10,3 +10,12 @@ mock
 oslotest
 pycodestyle>=2.0.0,<2.6.0 # MIT
 stestr<=2.6.0;python_version=='2.7' # MIT
+# Tempest and oslo.log are actually runtime requirements (obviously), so they
+# should be in requirements.txt. However, in order to support deployments where
+# Tempest is installed from RPM and might conflict with a pip installation of
+# whitebox and Tempest, it was removed from requirements.txt. This means that
+# it had to be added here, to make sure it got installed for any tox jobs (like
+# unit tests and pep8) that don't have something like devstack installing
+# Tempest beforehand. oslo.log is in the same boat.
+tempest
+oslo.log

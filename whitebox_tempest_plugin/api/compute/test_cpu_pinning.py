@@ -415,6 +415,26 @@ class NUMALiveMigrationBase(BasePinningTest):
         cpuset = root.find('./vcpu').attrib.get('cpuset', None)
         return whitebox_utils.parse_cpu_spec(cpuset)
 
+    def _get_hugepage_xml_element(self, server_id):
+        """Gather and return all instances of the page element from XML element
+        'memoryBacking/hugepages' in a given server's domain.
+        """
+        root = self.get_server_xml(server_id)
+        huge_pages = root.findall('.memoryBacking/hugepages/page')
+        return huge_pages
+
+    def _validate_hugepage_elements(self, server_id, pagesize):
+        """Analyze the hugepage xml element(s) from a provided instance. Expect
+        to find only one hugepage element in the domain. Return boolean result
+        comparing if the found page size is equal to the expected page size.
+        """
+        huge_pages_list = self._get_hugepage_xml_element(server_id)
+        self.assertEqual(len(huge_pages_list), 1, "Expected to find 1 "
+                         "hugepage XML element on server %s but found %s"
+                         % (server_id, len(huge_pages_list)))
+        huge_page_xml = huge_pages_list[0]
+        return int(huge_page_xml.attrib['size']) == pagesize
+
 
 class NUMALiveMigrationTest(NUMALiveMigrationBase):
 
@@ -668,7 +688,7 @@ class NUMALiveMigrationTest(NUMALiveMigrationBase):
         ram = pagesize_a / 1024 * min_free
         specs = {'hw:numa_nodes': '1',
                  'hw:mem_page_size': 'large'}
-        flavor = self.create_flavor(vcpus=len(topo_a[0]), ram=ram,
+        flavor = self.create_flavor(vcpus=len(topo_a[0]), ram=int(ram),
                                     extra_specs=specs)
 
         # Boot two servers
@@ -676,6 +696,15 @@ class NUMALiveMigrationTest(NUMALiveMigrationBase):
         server_b = self.create_test_server(
             flavor=flavor['id'],
             scheduler_hints={'different_host': server_a['id']})
+
+        # Assert hugepage XML element is present on both servers and the
+        # pagesize is correct
+        for server_id in [server_a['id'], server_b['id']]:
+            self.assertTrue(
+                self._validate_hugepage_elements(server_id, pagesize_a),
+                "Expected pagesize of %s not found on server %s before "
+                "live-migration" % (pagesize_a, server_id)
+            )
 
         # We expect them to end up with the same cell pin - specifically, guest
         # cell 0 to host cell 0.
@@ -691,6 +720,14 @@ class NUMALiveMigrationTest(NUMALiveMigrationBase):
         # Live migrate server_b
         compute_a = self.get_host_other_than(server_b['id'])
         self.live_migrate(server_b['id'], compute_a, 'ACTIVE')
+
+        # Assert hugepage XML element is still present and correct size for
+        # server_b after live migration
+        self.assertTrue(
+            self._validate_hugepage_elements(server_b['id'], pagesize_a),
+            "Expected pagesize of %s not found on %s after live-migration" %
+            (pagesize_a, server_b['id'])
+        )
 
         # Their guest NUMA node 0 should be on different host nodes
         pin_a = self.get_server_cell_pinning(server_a['id'])

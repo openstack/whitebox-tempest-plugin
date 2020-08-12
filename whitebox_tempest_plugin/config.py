@@ -74,7 +74,15 @@ general_opts = [
         'file_backed_memory_size',
         default=0,
         help="file_backed_memory size in mb used to set the"
-             " [libvirt]/file_backed_memory in nova.conf")
+             " [libvirt]/file_backed_memory in nova.conf"),
+    cfg.StrOpt(
+        'selinux_label',
+        default=None,
+        help='provide the selinux labels used by the instance'),
+    cfg.StrOpt(
+        'selinux_imagelabel',
+        default=None,
+        help='provide the selinux image labels used by the instance')
 ]
 
 nova_compute_group = cfg.OptGroup(

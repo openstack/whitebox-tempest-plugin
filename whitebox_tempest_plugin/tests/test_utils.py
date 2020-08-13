@@ -23,10 +23,14 @@ class UtilsTestCase(base.WhiteboxPluginTestCase):
                 '1': True,
                 '4': {'b': [2, 1],
                       'a': [3, 0]},
+                '5': [{'z': [3, 1, 0], 'y': [5, 4, 3], 'a': [6, 7, 3]}],
                 '3': ['b', 'a', 'z']}
         self.assertEqual({'1': True,
                           '2': [1, 2, 3],
                           '3': ['a', 'b', 'z'],
                           '4': {'a': [0, 3],
-                                'b': [1, 2]}},
+                                'b': [1, 2]},
+                          '5': [{'a': [3, 6, 7],
+                                 'y': [3, 4, 5],
+                                 'z': [0, 1, 3]}]},
                          utils.normalize_json(json))

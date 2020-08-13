@@ -30,6 +30,7 @@ def normalize_json(json):
         for k, v in json.items():
             if isinstance(v, list):
                 v.sort()
+                [sort_list_values(x) for x in v if isinstance(x, dict)]
             elif isinstance(v, dict):
                 sort_list_values(v)
 

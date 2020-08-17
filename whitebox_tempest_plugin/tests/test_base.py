@@ -15,7 +15,6 @@
 import mock
 
 from whitebox_tempest_plugin.api.compute import base as compute_base
-from whitebox_tempest_plugin import exceptions
 from whitebox_tempest_plugin.tests import base
 
 
@@ -47,15 +46,6 @@ class ComputeBaseTestCase(base.WhiteboxPluginTestCase):
         self.flags(ctlplane_addresses={'fake-host': 'fake-ip',
                                        'fake-host2': 'fake-ip2'},
                    group='whitebox')
-
-    def test_get_ctlplane_address(self):
-        self.assertEqual('fake-ip',
-                         self.test_class.get_ctlplane_address('fake-host'))
-
-    @mock.patch.object(compute_base.LOG, 'error')
-    def test_get_ctlplane_address_keyerror(self, mock_log):
-        self.assertRaises(exceptions.CtrlplaneAddressResolutionError,
-                          self.test_class.get_ctlplane_address, 'missing-id')
 
     def test_list_compute_hosts(self):
         self.assertItemsEqual(['fake-host', 'fake-host2'],

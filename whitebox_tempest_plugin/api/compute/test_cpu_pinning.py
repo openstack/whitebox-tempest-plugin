@@ -337,7 +337,7 @@ class CPUThreadPolicyTest(BasePinningTest):
         """
         siblings = {}
 
-        host = self.get_ctlplane_address(host)
+        host = whitebox_utils.get_ctlplane_address(host)
         virshxml = clients.VirshXMLClient(host)
         capxml = virshxml.capabilities()
         root = ET.fromstring(capxml)
@@ -490,11 +490,12 @@ class NUMALiveMigrationTest(BasePinningTest):
 
     @decorators.skip_because(bug='2007395', bug_type='storyboard')
     def test_cpu_pinning(self):
-        host1, host2 = [self.get_ctlplane_address(host) for host in
-                        self.list_compute_hosts()]
+        host1, host2 = self.list_compute_hosts()
+        ctlplane1, ctlplane2 = [whitebox_utils.get_ctlplane_address(host) for
+                                host in [host1, host2]]
 
-        numaclient_1 = clients.NUMAClient(host1)
-        numaclient_2 = clients.NUMAClient(host2)
+        numaclient_1 = clients.NUMAClient(ctlplane1)
+        numaclient_2 = clients.NUMAClient(ctlplane2)
 
         # Get hosts's topology
         topo_1 = numaclient_1.get_host_topology()
@@ -560,9 +561,9 @@ class NUMALiveMigrationTest(BasePinningTest):
             # Live migrate server_b to server_a's compute, adding the second
             # NUMA node's CPUs to vcpu_pin_set
             host_a = self.get_host_other_than(server_b['id'])
-            host_a_addr = self.get_ctlplane_address(host_a)
+            host_a_addr = whitebox_utils.get_ctlplane_address(host_a)
             host_a_sm = clients.NovaServiceManager(
-                host_a_addr, 'nova-compute', self.os_admin.services_client)
+                host_a, 'nova-compute', self.os_admin.services_client)
             numaclient_a = clients.NUMAClient(host_a_addr)
             topo_a = numaclient_a.get_host_topology()
             with host_a_sm.config_options(
@@ -601,10 +602,11 @@ class NUMALiveMigrationTest(BasePinningTest):
 
     def test_emulator_threads(self):
         # Need 4 CPUs on each host
-        host1, host2 = [self.get_ctlplane_address(host) for host in
-                        self.list_compute_hosts()]
+        host1, host2 = self.list_compute_hosts()
+        ctlplane1, ctlplane2 = [whitebox_utils.get_ctlplane_address(host) for
+                                host in [host1, host2]]
 
-        for host in [host1, host2]:
+        for host in [ctlplane1, ctlplane2]:
             numaclient = clients.NUMAClient(host)
             num_cpus = numaclient.get_num_cpus()
             if num_cpus < 4:
@@ -666,7 +668,7 @@ class NUMALiveMigrationTest(BasePinningTest):
             self.delete_server(server_b['id'])
 
     def test_hugepages(self):
-        host_a, host_b = [self.get_ctlplane_address(host) for host in
+        host_a, host_b = [whitebox_utils.get_ctlplane_address(host) for host in
                           self.list_compute_hosts()]
 
         numaclient_a = clients.NUMAClient(host_a)

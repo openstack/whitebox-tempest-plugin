@@ -21,8 +21,8 @@ from tempest.api.compute import base
 from tempest.common import waiters
 from tempest import config
 
-from whitebox_tempest_plugin import exceptions
 from whitebox_tempest_plugin.services import clients
+from whitebox_tempest_plugin import utils as whitebox_utils
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
@@ -99,28 +99,6 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
 
         return new_image['id']
 
-    def get_ctlplane_address(self, compute_hostname):
-        """Return the appropriate host address depending on a deployment.
-
-        In TripleO deployments the Undercloud does not have DNS entries for
-        the compute hosts. This method checks if there are 'DNS' mappings of
-        the provided hostname to its control plane IP address and returns it.
-        For Devstack deployments, no such parameters will exist and the method
-        will just return compute_hostname
-
-        :param compute_hostname: str the compute hostname
-        :return: The address to be used to access the compute host. For
-                 devstack deployments, this is compute_host itself. For
-                 TripleO, it needs to be looked up in the configuration.
-        """
-        if not CONF.whitebox.ctlplane_addresses:
-            return compute_hostname
-
-        if compute_hostname in CONF.whitebox.ctlplane_addresses:
-            return CONF.whitebox.ctlplane_addresses[compute_hostname]
-
-        raise exceptions.CtrlplaneAddressResolutionError(host=compute_hostname)
-
     def list_compute_hosts(self):
         """Returns a list of all nova-compute hostnames in the deployment.
         Assumes all are up and running.
@@ -133,7 +111,7 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
     def get_server_xml(self, server_id):
         server = self.servers_client.show_server(server_id)
         host = server['server']['OS-EXT-SRV-ATTR:host']
-        cntrlplane_addr = self.get_ctlplane_address(host)
+        cntrlplane_addr = whitebox_utils.get_ctlplane_address(host)
         server_instance_name = self.servers_client.show_server(
             server_id)['server']['OS-EXT-SRV-ATTR:instance_name']
 

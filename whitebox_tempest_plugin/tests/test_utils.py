@@ -12,11 +12,18 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from whitebox_tempest_plugin import exceptions
 from whitebox_tempest_plugin.tests import base
 from whitebox_tempest_plugin import utils
 
 
 class UtilsTestCase(base.WhiteboxPluginTestCase):
+
+    def setUp(self):
+        super(UtilsTestCase, self).setUp()
+        self.flags(ctlplane_addresses={'fake-host': 'fake-ip',
+                                       'fake-host2': 'fake-ip2'},
+                   group='whitebox')
 
     def test_normalize_json(self):
         json = {'2': [2, 3, 1],
@@ -34,3 +41,11 @@ class UtilsTestCase(base.WhiteboxPluginTestCase):
                                  'y': [3, 4, 5],
                                  'z': [0, 1, 3]}]},
                          utils.normalize_json(json))
+
+    def test_get_ctlplane_address(self):
+        self.assertEqual('fake-ip',
+                         utils.get_ctlplane_address('fake-host'))
+
+    def test_get_ctlplane_address_keyerror(self):
+        self.assertRaises(exceptions.CtrlplaneAddressResolutionError,
+                          utils.get_ctlplane_address, 'missing-id')

@@ -27,6 +27,7 @@ from tempest.lib import exceptions as tempest_libexc
 
 from whitebox_tempest_plugin.common import waiters
 from whitebox_tempest_plugin import exceptions
+from whitebox_tempest_plugin import utils as whitebox_utils
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
@@ -35,13 +36,13 @@ LOG = logging.getLogger(__name__)
 class SSHClient(object):
     """A client to execute remote commands, based on tempest.lib.common.ssh."""
 
-    def __init__(self, hostname):
+    def __init__(self, ctlplane_address):
         self.ssh_key = CONF.whitebox.ctlplane_ssh_private_key_path
         self.ssh_user = CONF.whitebox.ctlplane_ssh_username
-        self.hostname = hostname
+        self.ctlplane_address = ctlplane_address
 
     def execute(self, command, container_name=None, sudo=False):
-        ssh_client = ssh.Client(self.hostname, self.ssh_user,
+        ssh_client = ssh.Client(self.ctlplane_address, self.ssh_user,
                                 key_filename=self.ssh_key)
         if (CONF.whitebox.containers and container_name):
             executable = CONF.whitebox.container_runtime
@@ -174,20 +175,26 @@ class NovaServiceManager(ServiceManager):
     """
 
     def __init__(self, host, service, services_client):
-        super(NovaServiceManager, self).__init__(host, service)
+        super(NovaServiceManager, self).__init__(
+            whitebox_utils.get_ctlplane_address(host),
+            service
+        )
         self.services_client = services_client
+        self.host = host
 
     def start(self):
         result = self.execute(self.start_command, sudo=True)
         waiters.wait_for_nova_service_state(self.services_client,
-                                            self.hostname, self.service,
+                                            self.host,
+                                            self.service,
                                             'up')
         return result
 
     def stop(self):
         result = self.execute(self.stop_command, sudo=True)
         waiters.wait_for_nova_service_state(self.services_client,
-                                            self.hostname, self.service,
+                                            self.host,
+                                            self.service,
                                             'down')
         return result
 

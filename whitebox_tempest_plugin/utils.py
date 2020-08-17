@@ -15,11 +15,15 @@
 import six
 
 from oslo_serialization import jsonutils
+from tempest import config
+from whitebox_tempest_plugin import exceptions
 
 if six.PY2:
     import contextlib2 as contextlib
 else:
     import contextlib
+
+CONF = config.CONF
 
 
 def normalize_json(json):
@@ -43,3 +47,26 @@ def normalize_json(json):
 def multicontext(*context_managers):
     with contextlib.ExitStack() as stack:
         yield [stack.enter_context(mgr) for mgr in context_managers]
+
+
+def get_ctlplane_address(compute_hostname):
+    """Return the appropriate host address depending on a deployment.
+
+    In TripleO deployments the Undercloud does not have DNS entries for
+    the compute hosts. This method checks if there are 'DNS' mappings of
+    the provided hostname to its control plane IP address and returns it.
+    For Devstack deployments, no such parameters will exist and the method
+    will just return compute_hostname
+
+    :param compute_hostname: str the compute hostname
+    :return: The address to be used to access the compute host. For
+    devstack deployments, this is compute_host itself. For TripleO, it needs
+    to be looked up in the configuration.
+    """
+    if not CONF.whitebox.ctlplane_addresses:
+        return compute_hostname
+
+    if compute_hostname in CONF.whitebox.ctlplane_addresses:
+        return CONF.whitebox.ctlplane_addresses[compute_hostname]
+
+    raise exceptions.CtrlplaneAddressResolutionError(host=compute_hostname)

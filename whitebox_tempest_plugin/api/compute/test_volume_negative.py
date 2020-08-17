@@ -22,6 +22,7 @@ from tempest import config
 
 from whitebox_tempest_plugin.api.compute import base
 from whitebox_tempest_plugin.services import clients
+from whitebox_tempest_plugin import utils as whitebox_utils
 
 CONF = config.CONF
 
@@ -70,7 +71,9 @@ class VolumesAdminNegativeTest(base.BaseWhiteboxComputeTest,
         self.assertGreater(
             len(disks_after_attach),
             len(disks_before_attach))
-        host = self.get_ctlplane_address(server['OS-EXT-SRV-ATTR:host'])
+        host = whitebox_utils.get_ctlplane_address(
+            server['OS-EXT-SRV-ATTR:host']
+        )
 
         # stop the libvirt service
         clients.ServiceManager(host, 'libvirt').stop()

@@ -31,5 +31,5 @@ def wait_for_nova_service_state(client, host, binary, state):
         if timed_out:
             raise lib_exc.TimeoutException(
                 'Service %s on host %s failed to reach state %s within '
-                'the required time (%s s)', binary, host, timeout)
+                'the required time (%s s)', binary, host, state, timeout)
         service = client.list_services(host=host, binary=binary)['services'][0]

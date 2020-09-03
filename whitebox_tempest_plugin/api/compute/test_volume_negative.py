@@ -75,20 +75,17 @@ class VolumesAdminNegativeTest(base.BaseWhiteboxComputeTest,
             server['OS-EXT-SRV-ATTR:host']
         )
 
-        # stop the libvirt service
-        clients.ServiceManager(host, 'libvirt').stop()
-
-        # While this call to n-api will return successfully the underlying call
-        # to the virt driver will fail as the libvirt service is stopped.
-        self.servers_client.detach_volume(server['id'], attachment['volumeId'])
-        waiters.wait_for_volume_resource_status(
-            self.volumes_client, attachment['volumeId'], 'in-use')
-        disks_after_failed_detach = linux_client.list_disks()
-        self.assertEqual(
-            len(disks_after_failed_detach), len(disks_after_attach))
-
-        # restart libvirt after failed detach
-        clients.ServiceManager(host, 'libvirt').restart()
+        with clients.ServiceManager(host, 'libvirt').stopped():
+            # While this call to n-api will return successfully the underlying
+            # call to the virt driver will fail as the libvirt service is
+            # stopped.
+            self.servers_client.detach_volume(server['id'],
+                                              attachment['volumeId'])
+            waiters.wait_for_volume_resource_status(
+                self.volumes_client, attachment['volumeId'], 'in-use')
+            disks_after_failed_detach = linux_client.list_disks()
+            self.assertEqual(
+                len(disks_after_failed_detach), len(disks_after_attach))
 
         # This will be a successful detach as libvirt is started again
         self.servers_client.detach_volume(server['id'], attachment['volumeId'])

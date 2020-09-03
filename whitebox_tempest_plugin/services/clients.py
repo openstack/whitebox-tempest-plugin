@@ -114,6 +114,18 @@ class ServiceManager(SSHClient):
                 self.set_conf_opt(section, option, value)
             self.restart()
 
+    @contextlib.contextmanager
+    def stopped(self):
+        """Stops this service to allow for "destructive" tests to execute with
+        the service stopped. The service is started up again after the test
+        code has run.
+        """
+        self.stop()
+        try:
+            yield
+        finally:
+            self.restart()
+
     def get_conf_opt(self, section, option):
         command = 'crudini --get %s %s %s' % (self.config_path, section,
                                               option)

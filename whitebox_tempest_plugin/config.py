@@ -109,7 +109,20 @@ libvirt_opts = [
         help='Command to stop the libvirt service, without any '
              'privilege management (ie, no sudo).',
         deprecated_opts=[cfg.DeprecatedOpt('stop_command',
-                                           group='whitebox-nova-libvirt')])
+                                           group='whitebox-nova-libvirt')]),
+    cfg.StrOpt(
+        'mask_command',
+        help='In some situations (Ubuntu Focal, for example), libvirtd can '
+             'be activated by other systemd units even if it is stopped. '
+             'In such cases, it can be useful to mask a service (ie, disable '
+             'it completely) to prevent it from being started outside of our '
+             'control. This config options sets the command to mask libvirt. '
+             'If set, it will be executed after every stop command.'),
+    cfg.StrOpt(
+        'unmask_command',
+        help='Similar to the mask_command option, this config options sets '
+             'the command to unmask libvirt. If set, it will be run before '
+             'every start command.'),
 ]
 
 database_group = cfg.OptGroup(

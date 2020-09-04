@@ -20,6 +20,8 @@ function configure {
 
     iniset $TEMPEST_CONFIG whitebox-libvirt start_command "$WHITEBOX_LIBVIRT_START_COMMAND"
     iniset $TEMPEST_CONFIG whitebox-libvirt stop_command "$WHITEBOX_LIBVIRT_STOP_COMMAND"
+    iniset $TEMPEST_CONFIG whitebox-libvirt mask_command "$WHITEBOX_LIBVIRT_MASK_COMMAND"
+    iniset $TEMPEST_CONFIG whitebox-libvirt unmask_command "$WHITEBOX_LIBVIRT_UNMASK_COMMAND"
 
     iniset $TEMPEST_CONFIG whitebox-database user $DATABASE_USER
     iniset $TEMPEST_CONFIG whitebox-database password $DATABASE_PASSWORD

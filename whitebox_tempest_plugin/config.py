@@ -101,11 +101,9 @@ libvirt_group = cfg.OptGroup(
 
 libvirt_opts = [
     cfg.StrOpt(
-        'restart_command',
-        help='Command to restart the libvirt service, without any '
-             'privilege management (ie, no sudo).',
-        deprecated_opts=[cfg.DeprecatedOpt('restart_command',
-                                           group='whitebox-nova-libvirt')]),
+        'start_command',
+        help='Command to start the libvirt service, without any '
+             'privilege management (ie, no sudo).'),
     cfg.StrOpt(
         'stop_command',
         help='Command to stop the libvirt service, without any '

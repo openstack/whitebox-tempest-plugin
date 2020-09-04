@@ -36,7 +36,6 @@ from tempest import config
 from tempest.lib import decorators
 
 from whitebox_tempest_plugin.api.compute import base
-from whitebox_tempest_plugin import exceptions
 from whitebox_tempest_plugin.services import clients
 from whitebox_tempest_plugin import utils as whitebox_utils
 
@@ -45,67 +44,6 @@ from oslo_log import log as logging
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
-
-
-def parse_cpu_spec(spec):
-    """Parse a CPU set specification.
-
-    NOTE(artom): This has been lifted from Nova with minor exceptions-related
-    adjustments.
-
-    Each element in the list is either a single CPU number, a range of
-    CPU numbers, or a caret followed by a CPU number to be excluded
-    from a previous range.
-
-    :param spec: cpu set string eg "1-4,^3,6"
-
-    :returns: a set of CPU indexes
-    """
-    cpuset_ids = set()
-    cpuset_reject_ids = set()
-    for rule in spec.split(','):
-        rule = rule.strip()
-        # Handle multi ','
-        if len(rule) < 1:
-            continue
-        # Note the count limit in the .split() call
-        range_parts = rule.split('-', 1)
-        if len(range_parts) > 1:
-            reject = False
-            if range_parts[0] and range_parts[0][0] == '^':
-                reject = True
-                range_parts[0] = str(range_parts[0][1:])
-
-            # So, this was a range; start by converting the parts to ints
-            try:
-                start, end = [int(p.strip()) for p in range_parts]
-            except ValueError:
-                raise exceptions.InvalidCPUSpec(spec=spec)
-            # Make sure it's a valid range
-            if start > end:
-                raise exceptions.InvalidCPUSpec(spec=spec)
-            # Add available CPU ids to set
-            if not reject:
-                cpuset_ids |= set(range(start, end + 1))
-            else:
-                cpuset_reject_ids |= set(range(start, end + 1))
-        elif rule[0] == '^':
-            # Not a range, the rule is an exclusion rule; convert to int
-            try:
-                cpuset_reject_ids.add(int(rule[1:].strip()))
-            except ValueError:
-                raise exceptions.InvalidCPUSpec(spec=spec)
-        else:
-            # OK, a single CPU to include; convert to int
-            try:
-                cpuset_ids.add(int(rule))
-            except ValueError:
-                raise exceptions.InvalidCPUSpec(spec=spec)
-
-    # Use sets to handle the exclusion rules for us
-    cpuset_ids -= cpuset_reject_ids
-
-    return cpuset_ids
 
 
 class BasePinningTest(base.BaseWhiteboxComputeTest):
@@ -126,8 +64,8 @@ class BasePinningTest(base.BaseWhiteboxComputeTest):
         memnodes = root.findall('./numatune/memnode')
         cell_pins = {}
         for memnode in memnodes:
-            cell_pins[int(memnode.get('cellid'))] = parse_cpu_spec(
-                memnode.get('nodeset'))
+            cell_pins[int(memnode.get('cellid'))] = \
+                whitebox_utils.parse_cpu_spec(memnode.get('nodeset'))
 
         return cell_pins
 
@@ -143,7 +81,8 @@ class BasePinningTest(base.BaseWhiteboxComputeTest):
         emulatorpins = root.findall('./cputune/emulatorpin')
         emulator_threads = set()
         for pin in emulatorpins:
-            emulator_threads |= parse_cpu_spec(pin.get('cpuset'))
+            emulator_threads |= \
+                whitebox_utils.parse_cpu_spec(pin.get('cpuset'))
 
         return emulator_threads
 
@@ -437,20 +376,6 @@ class NUMALiveMigrationBase(BasePinningTest):
                 CONF.whitebox.max_compute_nodes > 2):
             raise cls.skipException('Exactly 2 compute nodes required.')
 
-    def get_pinning_as_set(self, server_id):
-        pinset = set()
-        root = self.get_server_xml(server_id)
-        vcpupins = root.findall('./cputune/vcpupin')
-        for pin in vcpupins:
-            pinset |= parse_cpu_spec(pin.get('cpuset'))
-        return pinset
-
-    def _get_cpu_spec(self, cpu_list):
-        """Returns a libvirt-style CPU spec from the provided list of integers. For
-        example, given [0, 2, 3], returns "0,2,3".
-        """
-        return ','.join(map(str, cpu_list))
-
     def _get_cpu_pins_from_db_topology(self, db_topology):
         """Given a JSON object representing a instance's database NUMA
         topology, returns a dict of dicts indicating CPU pinning, for example:
@@ -488,16 +413,7 @@ class NUMALiveMigrationBase(BasePinningTest):
         """
         root = self.get_server_xml(server_id)
         cpuset = root.find('./vcpu').attrib.get('cpuset', None)
-        return parse_cpu_spec(cpuset)
-
-    def get_all_cpus(self):
-        """Aggregate the dictionary values of [whitebox]/cpu_topology from
-        tempest.conf into a list of pCPU ids.
-        """
-        topology_dict = CONF.whitebox_hardware.cpu_topology
-        cpus = []
-        [cpus.extend(c) for c in topology_dict.values()]
-        return cpus
+        return whitebox_utils.parse_cpu_spec(cpuset)
 
 
 class NUMALiveMigrationTest(NUMALiveMigrationBase):

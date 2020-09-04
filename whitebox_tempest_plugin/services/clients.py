@@ -13,8 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import time
-
 import contextlib
 import pymysql
 from six import StringIO
@@ -164,21 +162,10 @@ class ServiceManager(SSHClient):
         return self.execute(command, container_name=None, sudo=True)
 
     def restart(self):
-        result = self.execute(self.restart_command, sudo=True)
-        # TODO(artom) We need to make sure the service has actually started
-        # before proceeding. Otherwise, in the case of nova-compute for
-        # example, we might go on to boot a server, only for the service to
-        # restart in the middle of the boot process. There is no
-        # straightforward and uniform way to wait for a service to actually be
-        # running after a restart, so we just sleep 15 seconds. This is ugly
-        # hax, and we need to find something better.
-        time.sleep(15)
-        return result
+        return self.execute(self.restart_command, sudo=True)
 
     def stop(self):
-        result = self.execute(self.stop_command, sudo=True)
-        time.sleep(5)
-        return result
+        return self.execute(self.stop_command, sudo=True)
 
 
 class NovaServiceManager(ServiceManager):

@@ -22,6 +22,8 @@ from tempest import config
 from tempest.lib import decorators
 
 from whitebox_tempest_plugin.api.compute import base
+from whitebox_tempest_plugin.services import clients
+from whitebox_tempest_plugin import utils as whitebox_utils
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
@@ -30,13 +32,13 @@ LOG = logging.getLogger(__name__)
 #   tempest.api.compute.admin.test_live_migration
 
 
-class LiveMigrationTest(base.BaseWhiteboxComputeTest):
+class LiveMigrationBase(base.BaseWhiteboxComputeTest):
     # First support for block_migration='auto': since Mitaka (OSP9)
     min_microversion = '2.25'
 
     @classmethod
     def skip_checks(cls):
-        super(LiveMigrationTest, cls).skip_checks()
+        super(LiveMigrationBase, cls).skip_checks()
 
         if not CONF.compute_feature_enabled.live_migration:
             skip_msg = ("%s skipped as live-migration is "
@@ -56,7 +58,12 @@ class LiveMigrationTest(base.BaseWhiteboxComputeTest):
         # TODO(mriedem): SSH validation before and after the instance is
         # live migrated would be a nice test wrinkle addition.
         cls.set_network_resources(network=True, subnet=True)
-        super(LiveMigrationTest, cls).setup_credentials()
+        super(LiveMigrationBase, cls).setup_credentials()
+
+
+class LiveMigrationTest(LiveMigrationBase):
+    # First support for block_migration='auto': since Mitaka (OSP9)
+    min_microversion = '2.25'
 
     @testtools.skipUnless(CONF.compute_feature_enabled.
                           volume_backed_live_migration,
@@ -85,3 +92,115 @@ class LiveMigrationTest(base.BaseWhiteboxComputeTest):
 
         # Assert cache-mode has not changed during live migration
         self.assertEqual(cache_type, root_disk_cache())
+
+
+class LiveMigrationAndReboot(LiveMigrationBase):
+
+    dedicated_cpu_policy = {'hw:cpu_policy': 'dedicated'}
+
+    @classmethod
+    def skip_checks(cls):
+        super(LiveMigrationAndReboot, cls).skip_checks()
+        if getattr(CONF.whitebox_hardware, 'cpu_topology', None) is None:
+            msg = "cpu_topology in whitebox-hardware is not present"
+            raise cls.skipException(msg)
+
+    def _migrate_and_reboot_instance(self, section, cpu_set_parameter):
+        flavor_vcpu_size = 2
+        cpu_list = self.get_all_cpus()
+        if len(cpu_list) < 4:
+            raise self.skipException('Requires 4 or more pCPUs to execute '
+                                     'the test')
+
+        host1, host2 = self.list_compute_hosts()
+
+        # Create two different cpu dedicated ranges for each host in order
+        # to force different domain XML after instance migration
+        host1_dedicated_set = cpu_list[:2]
+        host2_dedicated_set = cpu_list[2:4]
+
+        dedicated_flavor = self.create_flavor(
+            vcpus=flavor_vcpu_size,
+            extra_specs=self.dedicated_cpu_policy
+        )
+
+        host1_sm = clients.NovaServiceManager(host1, 'nova-compute',
+                                              self.os_admin.services_client)
+        host2_sm = clients.NovaServiceManager(host2, 'nova-compute',
+                                              self.os_admin.services_client)
+
+        with whitebox_utils.multicontext(
+            host1_sm.config_options((section, cpu_set_parameter,
+                                     self._get_cpu_spec(host1_dedicated_set))),
+            host2_sm.config_options((section, cpu_set_parameter,
+                                     self._get_cpu_spec(host2_dedicated_set)))
+        ):
+            # Create a server with a dedicated cpu policy
+            server = self.create_test_server(
+                flavor=dedicated_flavor['id']
+            )
+
+            # Gather the pinned CPUs for the instance prior to migration
+            pinned_cpus_pre_migration = self.get_pinning_as_set(server['id'])
+
+            # Determine the destination migration host and migrate the server
+            # to that host
+            compute_dest = self.get_host_other_than(server['id'])
+            self.live_migrate(server['id'], compute_dest, 'ACTIVE')
+
+            # After successful migration determine the instances pinned CPUs
+            pinned_cpus_post_migration = self.get_pinning_as_set(server['id'])
+
+            # Confirm the pCPUs are no longer the same as they were when
+            # on the source compute host
+            self.assertTrue(
+                pinned_cpus_post_migration.isdisjoint(
+                    pinned_cpus_pre_migration),
+                "After migration the the server %s's current pinned CPU's "
+                "%s should no longer match the pinned CPU's it had pre "
+                " migration %s" % (server['id'], pinned_cpus_post_migration,
+                                   pinned_cpus_pre_migration)
+            )
+
+            # Soft reboot the server
+            # TODO(artom) If the soft reboot fails, the libvirt driver will do
+            # a hard reboot. This is only detectable through log parsing, so to
+            # be 100% sure we got the soft reboot we wanted, we should probably
+            # do that.
+            self.servers_client.reboot_server(server['id'], type='SOFT')
+
+            # Gather the server's pinned CPUs after the soft reboot
+            pinned_cpus_post_reboot = self.get_pinning_as_set(server['id'])
+
+            # Validate the server's pinned CPUs remain the same after the
+            # reboot
+            self.assertTrue(
+                pinned_cpus_post_migration == pinned_cpus_post_reboot,
+                'After soft rebooting server %s its pinned CPUs should have '
+                'remained the same as %s, but are instead now %s' % (
+                    server['id'], pinned_cpus_post_migration,
+                    pinned_cpus_post_reboot)
+            )
+
+            self.delete_server(server['id'])
+
+
+class VCPUPinSetMigrateAndReboot(LiveMigrationAndReboot):
+
+    max_microversion = '2.79'
+    pin_set_mode = 'vcpu_pin_set'
+    pin_section = 'DEFAULT'
+
+    def test_vcpu_pin_migrate_and_reboot(self):
+        self._migrate_and_reboot_instance(self.pin_section, self.pin_set_mode)
+
+
+class CPUDedicatedMigrateAndReboot(LiveMigrationAndReboot):
+
+    min_microversion = '2.79'
+    max_microversion = 'latest'
+    pin_set_mode = 'cpu_dedicated_set'
+    pin_section = 'compute'
+
+    def test_cpu_dedicated_migrate_and_reboot(self):
+        self._migrate_and_reboot_instance(self.pin_section, self.pin_set_mode)

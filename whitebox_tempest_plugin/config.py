@@ -82,7 +82,11 @@ general_opts = [
     cfg.StrOpt(
         'selinux_imagelabel',
         default=None,
-        help='provide the selinux image labels used by the instance')
+        help='provide the selinux image labels used by the instance'),
+    cfg.IntOpt(
+        'flavor_volume_size',
+        default=1,
+        help="volume size for flavor used in whitebox test")
 ]
 
 nova_compute_group = cfg.OptGroup(

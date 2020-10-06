@@ -48,7 +48,8 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
 
         return self.admin_servers_client.show_server(server['id'])['server']
 
-    def create_flavor(self, ram=64, vcpus=2, disk=1, name=None,
+    def create_flavor(self, ram=64, vcpus=2,
+                      disk=CONF.whitebox.flavor_volume_size, name=None,
                       is_public='True', extra_specs=None, **kwargs):
         flavor = super(BaseWhiteboxComputeTest, self).create_flavor(
             ram, vcpus, disk, name, is_public, **kwargs)

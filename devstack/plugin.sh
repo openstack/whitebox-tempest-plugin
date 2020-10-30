@@ -18,7 +18,7 @@ function configure {
     iniset $TEMPEST_CONFIG whitebox-nova-compute stop_command "$WHITEBOX_NOVA_COMPUTE_STOP_COMMAND"
     iniset $TEMPEST_CONFIG whitebox-nova-compute start_command "$WHITEBOX_NOVA_COMPUTE_START_COMMAND"
 
-    iniset $TEMPEST_CONFIG whitebox-libvirt restart_command "$WHITEBOX_LIBVIRT_RESTART_COMMAND"
+    iniset $TEMPEST_CONFIG whitebox-libvirt start_command "$WHITEBOX_LIBVIRT_START_COMMAND"
     iniset $TEMPEST_CONFIG whitebox-libvirt stop_command "$WHITEBOX_LIBVIRT_STOP_COMMAND"
 
     iniset $TEMPEST_CONFIG whitebox-database user $DATABASE_USER

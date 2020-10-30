@@ -122,7 +122,7 @@ class ServiceManager(SSHClient):
         try:
             yield
         finally:
-            self.restart()
+            self.start()
 
     def get_conf_opt(self, section, option):
         command = 'crudini --get %s %s %s' % (self.config_path, section,
@@ -161,11 +161,14 @@ class ServiceManager(SSHClient):
                                               option)
         return self.execute(command, container_name=None, sudo=True)
 
-    def restart(self):
-        return self.execute(self.restart_command, sudo=True)
+    def start(self):
+        self.execute(self.start_command, sudo=True)
 
     def stop(self):
-        return self.execute(self.stop_command, sudo=True)
+        self.execute(self.stop_command, sudo=True)
+
+    def restart(self):
+        self.execute(self.restart_command, sudo=True)
 
 
 class NovaServiceManager(ServiceManager):

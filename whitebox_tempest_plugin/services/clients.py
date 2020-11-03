@@ -86,9 +86,11 @@ class ServiceManager(SSHClient):
             raise exceptions.MissingServiceSectionException(service=service)
         self.service = service
         self.config_path = getattr(conf, 'config_path', None)
-        self.restart_command = getattr(conf, 'restart_command', None)
-        self.stop_command = getattr(conf, 'stop_command', None)
         self.start_command = getattr(conf, 'start_command', None)
+        self.stop_command = getattr(conf, 'stop_command', None)
+        self.restart_command = getattr(conf, 'restart_command', None)
+        self.mask_command = getattr(conf, 'mask_command', None)
+        self.unmask_command = getattr(conf, 'unmask_command', None)
 
     @contextlib.contextmanager
     def config_options(self, *opts):
@@ -162,10 +164,14 @@ class ServiceManager(SSHClient):
         return self.execute(command, container_name=None, sudo=True)
 
     def start(self):
+        if self.unmask_command:
+            self.execute(self.unmask_command, sudo=True)
         self.execute(self.start_command, sudo=True)
 
     def stop(self):
         self.execute(self.stop_command, sudo=True)
+        if self.unmask_command:
+            self.execute(self.mask_command, sudo=True)
 
     def restart(self):
         self.execute(self.restart_command, sudo=True)

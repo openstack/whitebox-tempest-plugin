@@ -112,15 +112,15 @@
     name: whitebox-multinode-multinuma-devstack
     parent: whitebox-multinode-devstack-base
     nodeset: multi-numa-multinode
-    voting: false
+    voting: true
     description: |
       Runs specific tests that need SMT and/or more than 1 NUMA node.
       Non-voting because there is currently only 1 provider of the `multi-numa`
       label, and it's not super reliable.
     vars:
-      tempest_test_regex: '(NUMALiveMigrationTest.test_cpu_pinning|CPUThreadPolicyTest)'
+      tempest_test_regex: ^whitebox_tempest_plugin\.
       devstack_localrc:
-        SMT_HOSTS: "{{ hostvars['controller']['ansible_facts']['ansible_hostname'] }},{{ hostvars['compute']['ansible_facts']['ansible_hostname'] }}"
+        SMT_HOSTS: "{{ groups['compute'] | map('extract', hostvars, ['ansible_hostname']) | join(',') }}"
         WHITEBOX_CPU_TOPOLOGY: "0: [0,1,2,3], 1: [4,5,6,7]"
 
 - project:
@@ -129,8 +129,6 @@
     check:
         jobs:
             - whitebox-multinode-devstack
-            - whitebox-multinode-multinuma-devstack
     gate:
         jobs:
             - whitebox-multinode-devstack
-            - whitebox-multinode-multinuma-devstack

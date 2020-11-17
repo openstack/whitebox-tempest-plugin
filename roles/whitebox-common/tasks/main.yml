@@ -1,13 +1,7 @@
-# NOTE(artom) We need to install cruini and iniparse from source until
-# https://github.com/pixelb/crudini/issues/58 and
-# https://github.com/candlepin/python-iniparse/issues/5 are on fixed PyPi.
-- name: crudini and iniparse
+- name: crudini
   pip:
-      name: "{{ item }}"
+      name: crudini
       state: present
-  with_items:
-      - git+https://github.com/pixelb/crudini.git#egg=crudini
-      - git+https://github.com/candlepin/python-iniparse.git#egg=iniparse
   become: yes
 
 # NOTE(artom) The run-tempest role runs as the tempest user, so we need to give

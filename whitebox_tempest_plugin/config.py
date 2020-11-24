@@ -86,7 +86,17 @@ general_opts = [
     cfg.IntOpt(
         'flavor_volume_size',
         default=1,
-        help="volume size for flavor used in whitebox test")
+        help="volume size for flavor used in whitebox test"),
+    cfg.StrOpt(
+        'cpu_model',
+        help='The CPU model set in the [libvirt]/cpu_models config option '
+             'on the compute hosts. While Nova supports multiple cpu_models '
+             '(and has deprecated the old singular [libvirt]/cpu_model '
+             'option), whitebox assumes a single CPU model.'),
+    cfg.ListOpt(
+        'cpu_model_extra_flags',
+        help='Extra flags set in the [libvirt]/cpu_model_extra_flags config '
+             'option on the compute hosts.'),
 ]
 
 nova_compute_group = cfg.OptGroup(

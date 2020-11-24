@@ -85,7 +85,8 @@
             $NOVA_CONF:
               libvirt:
                 cpu_mode: custom
-                cpu_model: kvm64
+                cpu_models: kvm64
+                cpu_model_extra_flags: ssse3
                 virt_type: kvm
     group-vars:
         subnode:

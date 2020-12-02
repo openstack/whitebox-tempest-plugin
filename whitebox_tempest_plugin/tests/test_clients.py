@@ -147,20 +147,14 @@ class ServiceManagerTestCase(base.WhiteboxPluginTestCase):
                               service.get_conf_opt, 'section', 'foo')
 
     def test_commands(self):
-        # NOTE(artom) There is currently no service that has all 3 start, stop
-        # and restart, so we set up a fake one for testing.
         CONF.register_group(cfg.OptGroup(name='whitebox-fake-service'))
         CONF.register_opt(cfg.StrOpt('start_command'),
                           group='whitebox-fake-service')
         CONF.register_opt(cfg.StrOpt('stop_command'),
                           group='whitebox-fake-service')
-        CONF.register_opt(cfg.StrOpt('restart_command'),
-                          group='whitebox-fake-service')
         self.flags(start_command='fake start command',
                    group='whitebox-fake-service')
         self.flags(stop_command='fake stop command',
-                   group='whitebox-fake-service')
-        self.flags(restart_command='fake restart command',
                    group='whitebox-fake-service')
         service = clients.ServiceManager('fake-host', 'fake-service')
         with mock.patch.object(service, 'execute') as mock_exec:
@@ -172,9 +166,6 @@ class ServiceManagerTestCase(base.WhiteboxPluginTestCase):
             service.stop()
             mock_exec.assert_called_with('fake stop command', sudo=True)
             mock_exec.reset_mock()
-            # Restart
-            service.restart()
-            mock_exec.assert_called_with('fake restart command', sudo=True)
 
 
 class NUMAClientTestCase(base.WhiteboxPluginTestCase):

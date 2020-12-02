@@ -88,7 +88,6 @@ class ServiceManager(SSHClient):
         self.config_path = getattr(conf, 'config_path', None)
         self.start_command = getattr(conf, 'start_command', None)
         self.stop_command = getattr(conf, 'stop_command', None)
-        self.restart_command = getattr(conf, 'restart_command', None)
         self.mask_command = getattr(conf, 'mask_command', None)
         self.unmask_command = getattr(conf, 'unmask_command', None)
 
@@ -174,7 +173,8 @@ class ServiceManager(SSHClient):
             self.execute(self.mask_command, sudo=True)
 
     def restart(self):
-        self.execute(self.restart_command, sudo=True)
+        self.stop()
+        self.start()
 
 
 class NovaServiceManager(ServiceManager):
@@ -205,10 +205,6 @@ class NovaServiceManager(ServiceManager):
                                             self.service,
                                             'down')
         return result
-
-    def restart(self):
-        self.stop()
-        self.start()
 
 
 class NUMAClient(SSHClient):

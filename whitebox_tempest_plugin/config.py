@@ -97,6 +97,19 @@ general_opts = [
         'cpu_model_extra_flags',
         help='Extra flags set in the [libvirt]/cpu_model_extra_flags config '
              'option on the compute hosts.'),
+    cfg.StrOpt(
+        'pmem_flavor_size',
+        default=None,
+        help='The PMEM mapping to the nvdimm namespaces, this value is passed '
+             'as an extra spec during flavor creation to allow for nvdimm '
+             'enabled guest creation.  Example mappings include 2GB, 6GB, '
+             'MEDIUM, LARGE'),
+    cfg.StrOpt(
+        'pmem_expected_size',
+        default=None,
+        help='The expected pmem size allocated to the instance. It requires '
+             'an IEC supported unit of measurement, i.e. Kb, Mb, KB, GB, KiB, '
+             'GiB, etc. Example format 1GB, 4GiB, 100GB. ')
 ]
 
 nova_compute_group = cfg.OptGroup(

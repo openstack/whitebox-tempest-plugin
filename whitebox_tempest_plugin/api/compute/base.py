@@ -40,11 +40,10 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
         cls.image_client = cls.os_admin.image_client_v2
         cls.admin_migration_client = cls.os_admin.migrations_client
 
-    def create_test_server(self, *args, **kwargs):
+    def create_test_server(self, wait_until='ACTIVE', *args, **kwargs):
         # override the function to return the admin view of the created server
-        kwargs['wait_until'] = 'ACTIVE'
         server = super(BaseWhiteboxComputeTest, self).create_test_server(
-            *args, **kwargs)
+            *args, wait_until=wait_until, **kwargs)
 
         return self.admin_servers_client.show_server(server['id'])['server']
 

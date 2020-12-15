@@ -15,6 +15,7 @@ function configure {
     iniset $TEMPEST_CONFIG whitebox file_backed_memory_size $WHITEBOX_FILE_BACKED_MEMORY_SIZE
     iniset $TEMPEST_CONFIG whitebox cpu_model $WHITEBOX_CPU_MODEL
     iniset $TEMPEST_CONFIG whitebox cpu_model_extra_flags $WHITEBOX_CPU_MODEL_EXTRA_FLAGS
+    iniset $TEMPEST_CONFIG whitebox rx_queue_size $WHITEBOX_RX_QUEUE_SIZE
 
     iniset $TEMPEST_CONFIG whitebox-nova-compute config_path "$WHITEBOX_NOVA_COMPUTE_CONFIG_PATH"
     iniset $TEMPEST_CONFIG whitebox-nova-compute stop_command "$WHITEBOX_NOVA_COMPUTE_STOP_COMMAND"

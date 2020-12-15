@@ -109,7 +109,11 @@ general_opts = [
         default=None,
         help='The expected pmem size allocated to the instance. It requires '
              'an IEC supported unit of measurement, i.e. Kb, Mb, KB, GB, KiB, '
-             'GiB, etc. Example format 1GB, 4GiB, 100GB. ')
+             'GiB, etc. Example format 1GB, 4GiB, 100GB. '),
+    cfg.IntOpt(
+        'rx_queue_size',
+        help='The queue size set in the [libvirt]/rx_queue_size config option '
+             'on the compute hosts.')
 ]
 
 nova_compute_group = cfg.OptGroup(

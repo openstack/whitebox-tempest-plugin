@@ -12,13 +12,13 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-#
+
+import testtools
 
 from oslo_log import log as logging
 from tempest.common import waiters
 from tempest import config
 from tempest.lib.common.utils import data_utils
-from tempest.lib import decorators
 
 from whitebox_tempest_plugin.api.compute import base
 
@@ -67,17 +67,12 @@ class RxTxQueueSizeTest(base.BaseWhiteboxComputeTest):
                                        cls.server_id, "ACTIVE")
         cls.addClassResourceCleanup(cls.delete_server, cls.server_id)
 
-    # Required in /etc/nova/nova.conf
-    #    [libvirt]
-    #    rx_queue_size = 1024
-    # TODO(artom) We either need to refactor this to use the
-    # ServiceManager.config_option context manager, or remove this test
-    # altogether if it adds no value.
-    @decorators.skip_because(bug='2006820', bug_type='storyboard')
+    @testtools.skipUnless(CONF.whitebox.rx_queue_size,
+                          '`rx_queue_size` must be set')
     def test_rx_queue_size(self):
         domain = self.get_server_xml(self.server_id)
         driver = domain.find(
             "devices/interface[@type='bridge']/driver[@name='vhost']")
         self.assertEqual(
-            driver.attrib('rx_queue_size'), '1024',
+            driver.attrib['rx_queue_size'], str(CONF.whitebox.rx_queue_size),
             "Can't find interface with the proper rx_queue_size")

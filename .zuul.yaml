@@ -88,6 +88,7 @@
                 cpu_models: kvm64
                 cpu_model_extra_flags: ssse3
                 virt_type: kvm
+                rx_queue_size: 1024
     group-vars:
         subnode:
             num_hugepages: 2048

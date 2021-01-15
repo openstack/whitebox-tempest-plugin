@@ -103,8 +103,11 @@ class VirtioSCSIDisk(base.BaseWhiteboxComputeTest):
                       None]
         return serial_ids
 
-    @testtools.skipUnless(CONF.whitebox.available_cinder_storage > 8,
-                          'Need at least 8GB of storage to execute')
+    @testtools.skipUnless(CONF.whitebox.available_cinder_storage >
+                          (CONF.whitebox.flavor_volume_size + disks_to_create),
+                          'Need more than %sGB of storage to execute'
+                          % (CONF.whitebox.flavor_volume_size + disks_to_create
+                             ))
     def test_boot_with_multiple_disks(self):
         """Using block device mapping, boot an instance with more than six
         volumes. Total volume count is determined by class variable
@@ -117,10 +120,11 @@ class VirtioSCSIDisk(base.BaseWhiteboxComputeTest):
             if i == 0:
                 boot_dict['uuid'] = self.img_id
                 boot_dict['source_type'] = 'image'
+                boot_dict['volume_size'] = CONF.whitebox.flavor_volume_size
             else:
                 boot_dict['source_type'] = 'blank'
+                boot_dict['volume_size'] = 1
             boot_dict.update({'destination_type': 'volume',
-                              'volume_size': 1,
                               'boot_index': i,
                               'disk_bus': 'scsi',
                               'delete_on_termination': True})
@@ -155,8 +159,11 @@ class VirtioSCSIDisk(base.BaseWhiteboxComputeTest):
                               "Created vol ids do not align with serial ids "
                               "found on the domain")
 
-    @testtools.skipUnless(CONF.whitebox.available_cinder_storage > 8,
-                          'Need at least 9GB of storage to execute')
+    @testtools.skipUnless(CONF.whitebox.available_cinder_storage >
+                          (CONF.whitebox.flavor_volume_size + disks_to_create),
+                          'Need more than  %sGB of storage to execute'
+                          % (CONF.whitebox.flavor_volume_size + disks_to_create
+                             ))
     def test_attach_multiple_scsi_disks(self):
         """After booting an instance from an image with virtio-scsi properties
         attach multiple additional virtio-scsi disks to the point that the
@@ -170,7 +177,7 @@ class VirtioSCSIDisk(base.BaseWhiteboxComputeTest):
         # controller since hw_scsi_model of the image was already set to
         # 'virtio-scsi' in self.setUp(). Decrementing disks_to_create by 1.
         for _ in range(self.disks_to_create - 1):
-            volume = self.create_volume()
+            volume = self.create_volume(size=1)
             vol_ids.append(volume['id'])
             self.addCleanup(self.delete_volume, volume['id'])
             self.attach_volume(server, volume)

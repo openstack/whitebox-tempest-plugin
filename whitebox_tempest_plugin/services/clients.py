@@ -14,6 +14,7 @@
 #    under the License.
 
 import contextlib
+import json
 import pymysql
 from six import StringIO
 import sshtunnel
@@ -64,6 +65,16 @@ class VirshXMLClient(SSHClient):
     def capabilities(self):
         command = 'virsh capabilities'
         return self.execute(command, container_name='nova_libvirt', sudo=True)
+
+
+class QEMUImgClient(SSHClient):
+    """A client to get QEMU image info in json format"""
+
+    def info(self, path):
+        command = 'qemu-img info --output=json --force-share %s' % path
+        output = self.execute(
+            command, container_name='nova_libvirt', sudo=True)
+        return json.loads(output)
 
 
 class ServiceManager(SSHClient):

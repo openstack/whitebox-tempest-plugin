@@ -213,5 +213,15 @@ hardware_opts = [
         help='Host CPU topology, as a dictionary of <NUMA node ID>:'
              '<List of CPUs in that node>. For example, if NUMA node 0 has '
              'CPUs 0 and 1, and NUMA node 1 has CPUs 2 and 3, the value to '
-             'set would be `0: [0,1], 1: [2, 3]`.')
+             'set would be `0: [0,1], 1: [2, 3]`.'),
+    cfg.StrOpt(
+        'sriov_physnet',
+        default=None,
+        help='The physnet to use when creating sr-iov ports'),
+    cfg.IntOpt(
+        'physnet_numa_affinity',
+        default=None,
+        help="A one to one affinity mapping of the parameter sriov_phsynet to "
+        "its underlying NIC's NUMA Node. A physnet mapping of one to many "
+        "NUMAs is not supported with this parameter")
 ]

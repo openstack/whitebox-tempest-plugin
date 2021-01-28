@@ -225,7 +225,6 @@ hardware_opts = [
     cfg.IntOpt(
         'physnet_numa_affinity',
         default=None,
-        help="A one to one affinity mapping of the parameter sriov_phsynet to "
-        "its underlying NIC's NUMA Node. A physnet mapping of one to many "
-        "NUMAs is not supported with this parameter")
+        help="The NUMA Node ID that has affinity to the NIC connected to the "
+             "physnet defined in 'sriov_physnet'")
 ]

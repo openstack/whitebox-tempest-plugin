@@ -28,6 +28,8 @@ LOG = logging.getLogger(__name__)
 
 class SRIOVNumaAffinity(base.BaseWhiteboxComputeTest):
 
+    min_microversion = '2.74'
+
     required = {'hw:cpu_policy': 'dedicated',
                 'hw:pci_numa_affinity_policy': 'required'}
     preferred = {'hw:cpu_policy': 'dedicated',

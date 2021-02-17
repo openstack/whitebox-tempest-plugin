@@ -33,7 +33,6 @@ class CpuModelExtraFlagsTest(base.BaseWhiteboxComputeTest):
     def test_cpu_model_extra_flags(self):
         server = self.create_test_server(wait_until="ACTIVE")
         root = self.get_server_xml(server['id'])
-
         # Assert that the correct CPU model as well as the proper flags
         # are correctly defined in the instance XML
         self.assertEqual(
@@ -41,6 +40,19 @@ class CpuModelExtraFlagsTest(base.BaseWhiteboxComputeTest):
             root.find("cpu[@mode='custom']/model").text,
             'Wrong CPU model defined in instance xml')
         for flag in CONF.whitebox.cpu_model_extra_flags:
-            self.assertNotEmpty(
-                root.findall('cpu[@mode="custom"]/feature[@name="%s"]' % flag),
-                "Cannot find feature '%s' in the instance xml" % flag)
+            if flag.startswith('-'):
+                self.assertNotEmpty(
+                    root.findall(
+                        'cpu[@mode="custom"]/'
+                        'feature[@name="%s"][@policy="disable"]' %
+                        flag.strip('-')),
+                    "Disabled feature '%s' not found in the XML" %
+                    flag.strip('-'))
+            else:
+                self.assertNotEmpty(
+                    root.findall(
+                        'cpu[@mode="custom"]/'
+                        'feature[@name="%s"][@policy="require"]' %
+                        flag.strip('+')),
+                    "Required feature '%s' not found in the XML" %
+                    flag.strip('+'))

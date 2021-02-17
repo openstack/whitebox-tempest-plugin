@@ -80,13 +80,15 @@
             LIBVIRT_TYPE: kvm
             TEMPEST_PLUGINS: /opt/stack/whitebox-tempest-plugin
             WHITEBOX_PRIVKEY_PATH: /home/tempest/.ssh/id_rsa
+            WHITEBOX_CPU_MODEL: kvm64
+            WHITEBOX_CPU_MODEL_EXTRA_FLAGS: vme,+ssse3,-mmx
         devstack_local_conf:
           post-config:
             $NOVA_CONF:
               libvirt:
                 cpu_mode: custom
                 cpu_models: kvm64
-                cpu_model_extra_flags: ssse3
+                cpu_model_extra_flags: vme,+ssse3,-mmx
                 virt_type: kvm
                 rx_queue_size: 1024
     group-vars:
@@ -100,7 +102,7 @@
                   libvirt:
                     cpu_mode: custom
                     cpu_models: kvm64
-                    cpu_model_extra_flags: ssse3
+                    cpu_model_extra_flags: vme,+ssse3,-mmx
                     virt_type: kvm
                     rx_queue_size: 1024
         tempest:

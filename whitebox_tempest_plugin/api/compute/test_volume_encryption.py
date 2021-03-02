@@ -42,6 +42,12 @@ class TestQEMUVolumeEncrption(base.BaseWhiteboxComputeTest,
     is luks
     '''
 
+    @classmethod
+    def skip_checks(cls):
+        super(TestQEMUVolumeEncrption, cls).skip_checks()
+        if not CONF.compute_feature_enabled.attach_encrypted_volume:
+            raise cls.skipException('Encrypted volume attach is not supported')
+
     def test_qemu_volume_encryption(self):
         server = self.create_test_server(wait_until="ACTIVE")
         unencrypted_vol = self.create_volume()

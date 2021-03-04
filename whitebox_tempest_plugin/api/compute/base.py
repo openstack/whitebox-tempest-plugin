@@ -20,6 +20,8 @@ from oslo_log import log as logging
 from tempest.api.compute import base
 from tempest.common import waiters
 from tempest import config
+from tempest.lib.common.utils import data_utils
+from tempest.lib.common.utils import test_utils
 
 from whitebox_tempest_plugin.services import clients
 from whitebox_tempest_plugin import utils as whitebox_utils
@@ -38,7 +40,12 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
         cls.flavors_client = cls.os_admin.flavors_client
         cls.service_client = cls.os_admin.services_client
         cls.image_client = cls.os_admin.image_client_v2
+        cls.volumes_client = cls.os_admin.volumes_client_latest
         cls.admin_migration_client = cls.os_admin.migrations_client
+        cls.admin_volumes_client = cls.os_admin.volumes_client_latest
+        cls.admin_volume_types_client = cls.os_admin.volume_types_client_latest
+        cls.admin_encryption_types_client =\
+            cls.os_admin.encryption_types_client_latest
 
     def create_test_server(self, wait_until='ACTIVE', *args, **kwargs):
         # override the function to return the admin view of the created server
@@ -157,3 +164,91 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
         example, given [0, 2, 3], returns "0,2,3".
         """
         return ','.join(map(str, cpu_list))
+
+    # TODO(lyarwood): Refactor all of this into a common module between
+    # tempest.api.{compute,volume} and tempest.scenario.manager where this
+    # has been copied from to avoid mixing api and scenario classes.
+    def cleanup_volume_type(self, volume_type):
+        """Clean up a given volume type.
+
+        Ensuring all volumes associated to a type are first removed before
+        attempting to remove the type itself. This includes any image volume
+        cache volumes stored in a separate tenant to the original volumes
+        created from the type.
+        """
+        volumes = self.admin_volumes_client.list_volumes(
+            detail=True, params={'all_tenants': 1})['volumes']
+        type_name = volume_type['name']
+        for volume in [v for v in volumes if v['volume_type'] == type_name]:
+            # Use the same project client to delete the volume as was used to
+            # create it and any associated secrets
+            test_utils.call_and_ignore_notfound_exc(
+                self.volumes_client.delete_volume, volume['id'])
+            self.volumes_client.wait_for_resource_deletion(volume['id'])
+        self.admin_volume_types_client.delete_volume_type(volume_type['id'])
+
+    def create_volume_type(self, client=None, name=None, backend_name=None,
+                           **kwargs):
+        """Creates volume type
+
+        In a multiple-storage back-end configuration,
+        each back end has a name (volume_backend_name).
+        The name of the back end is declared as an extra-specification
+        of a volume type (such as, volume_backend_name=LVM).
+        When a volume is created, the scheduler chooses an
+        appropriate back end to handle the request, according
+        to the volume type specified by the user.
+        The scheduler uses volume types to explicitly create volumes on
+        specific back ends.
+
+        Before using volume type, a volume type has to be declared
+        to Block Storage. In addition to that, an extra-specification
+        has to be created to link the volume type to a back end name.
+        """
+
+        if not client:
+            client = self.admin_volume_types_client
+        if not name:
+            class_name = self.__class__.__name__
+            name = data_utils.rand_name(class_name + '-volume-type')
+        randomized_name = data_utils.rand_name('scenario-type-' + name)
+
+        LOG.debug("Creating a volume type: %s on backend %s",
+                  randomized_name, backend_name)
+        extra_specs = kwargs.pop("extra_specs", {})
+        if backend_name:
+            extra_specs.update({"volume_backend_name": backend_name})
+
+        volume_type_resp = client.create_volume_type(
+            name=randomized_name, extra_specs=extra_specs, **kwargs)
+        volume_type = volume_type_resp['volume_type']
+
+        self.assertIn('id', volume_type)
+        self.addCleanup(self.cleanup_volume_type, volume_type)
+        return volume_type
+
+    def create_encryption_type(self, client=None, type_id=None, provider=None,
+                               key_size=None, cipher=None,
+                               control_location=None):
+        """Creates an encryption type for volume"""
+        if not client:
+            client = self.admin_encryption_types_client
+        if not type_id:
+            volume_type = self.create_volume_type()
+            type_id = volume_type['id']
+        LOG.debug("Creating an encryption type for volume type: %s", type_id)
+        client.create_encryption_type(
+            type_id, provider=provider, key_size=key_size, cipher=cipher,
+            control_location=control_location)
+
+    def create_encrypted_volume(self, encryption_provider, volume_type,
+                                key_size=256, cipher='aes-xts-plain64',
+                                control_location='front-end'):
+        """Creates an encrypted volume"""
+        volume_type = self.create_volume_type(name=volume_type)
+        self.create_encryption_type(type_id=volume_type['id'],
+                                    provider=encryption_provider,
+                                    key_size=key_size,
+                                    cipher=cipher,
+                                    control_location=control_location)
+        return self.create_volume(volume_type=volume_type['name'])

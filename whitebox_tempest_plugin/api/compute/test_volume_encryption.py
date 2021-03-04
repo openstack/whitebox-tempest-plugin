@@ -15,7 +15,6 @@
 
 from oslo_log import log as logging
 from tempest import config
-from tempest.scenario import manager
 
 from whitebox_tempest_plugin.api.compute import base
 from whitebox_tempest_plugin.services.clients import QEMUImgClient
@@ -25,8 +24,9 @@ CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
 
-class TestQEMUVolumeEncrption(base.BaseWhiteboxComputeTest,
-                              manager.EncryptionScenarioTest):
+# TODO(lyarwood): Use a non admin base class in order to allow the encrypted
+# volume and secrets to be created by a non-admin user.
+class TestQEMUVolumeEncryption(base.BaseWhiteboxComputeTest):
     '''Test which validates encryption. The test performs the following:
 
     1. Create a VM
@@ -44,7 +44,7 @@ class TestQEMUVolumeEncrption(base.BaseWhiteboxComputeTest,
 
     @classmethod
     def skip_checks(cls):
-        super(TestQEMUVolumeEncrption, cls).skip_checks()
+        super(TestQEMUVolumeEncryption, cls).skip_checks()
         if not CONF.compute_feature_enabled.attach_encrypted_volume:
             raise cls.skipException('Encrypted volume attach is not supported')
 

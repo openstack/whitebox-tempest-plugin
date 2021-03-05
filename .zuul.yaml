@@ -35,7 +35,8 @@
     description: |
       Runs the entire test suite on single-NUMA, non-SMT, nested virt VMs.
     required-projects:
-      openstack/whitebox-tempest-plugin
+      - openstack/whitebox-tempest-plugin
+      - openstack/barbican
     pre-run: playbooks/whitebox/pre.yaml
     irrelevant-files:
       - ^test-requirements.txt$
@@ -43,8 +44,6 @@
       tox_envlist: all
       tempest_concurrency: 1
       tempest_test_regex: ^whitebox_tempest_plugin\.
-      devstack_plugins:
-        whitebox-tempest-plugin: https://opendev.org/openstack/whitebox-tempest-plugin.git
       devstack_localrc:
         MAX_COMPUTE_NODES: 2
         LIBVIRT_TYPE: kvm
@@ -58,8 +57,12 @@
           $TEMPEST_CONFIG:
             compute-feature-enabled:
               volume_backed_live_migration: true
+            auth:
+              tempest_roles: creator
         post-config:
           $NOVA_CONF:
+            key_manager:
+              backend: barbican
             compute:
               cpu_dedicated_set: '0-3'
               cpu_shared_set: '4,5'
@@ -77,6 +80,8 @@
         devstack_local_conf:
           post-config:
             $NOVA_CONF:
+              key_manager:
+                backend: barbican
               compute:
                 cpu_dedicated_set: '4-7'
                 cpu_shared_set: '2,3'
@@ -88,6 +93,9 @@
                 rx_queue_size: 1024
       tempest:
         num_hugepages: 512
+        devstack_plugins:
+          barbican: https://opendev.org/openstack/barbican.git
+          whitebox-tempest-plugin: https://opendev.org/openstack/whitebox-tempest-plugin.git
 
 - job:
     name: whitebox-devstack-ceph-multinode

@@ -94,6 +94,15 @@
             num_hugepages: 2048
             devstack_localrc:
                 LIBVIRT_TYPE: kvm
+            devstack_local_conf:
+              post-config:
+                $NOVA_CONF:
+                  libvirt:
+                    cpu_mode: custom
+                    cpu_models: kvm64
+                    cpu_model_extra_flags: ssse3
+                    virt_type: kvm
+                    rx_queue_size: 1024
         tempest:
             num_hugepages: 512
 

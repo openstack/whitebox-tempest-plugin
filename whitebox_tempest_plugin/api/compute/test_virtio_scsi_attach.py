@@ -80,17 +80,15 @@ class VirtioSCSIDisk(base.BaseWhiteboxComputeTest):
                                    "[@model='virtio-scsi']")
         return disk_cntrls
 
-    def get_created_vol_ids(self):
-        """Get the ids of every volume created for the test
+    def get_attached_volume_ids(self, server_id):
+        """Get the id of every volume attached to the server
 
-        :return vol_ids: a list of str's comprised of all volume id's that are
-        currently tracked by the volumes client
+        :returns: A list of volume id's that are attached to the instance
         """
-        vol_ids = [vol['id'] for vol in
-                   self.volumes_client.list_volumes()['volumes']]
-        return vol_ids
+        attachments = self.servers_client.list_volume_attachments(server_id)
+        return [a.get('volumeId') for a in attachments['volumeAttachments']]
 
-    def get_all_serial_ids(self, disks):
+    def get_attached_serial_ids(self, disks):
         """Create a list of serial ids from a list of disks
 
         :param disks, a list of xml elements, each element should be the xml
@@ -152,12 +150,11 @@ class VirtioSCSIDisk(base.BaseWhiteboxComputeTest):
                          "found {}".format(self.disks_to_create,
                                            len(scsi_disks)))
 
-        vol_ids = self.get_created_vol_ids()
-        serial_ids = self.get_all_serial_ids(scsi_disks)
-        self.assertItemsEqual(vol_ids,
-                              serial_ids,
-                              "Created vol ids do not align with serial ids "
-                              "found on the domain")
+        attached_volume_ids = self.get_attached_volume_ids(server['id'])
+        attached_serial_ids = self.get_attached_serial_ids(scsi_disks)
+
+        # Assert that the attached volume ids are present as serials
+        self.assertItemsEqual(attached_volume_ids, attached_serial_ids)
 
     @testtools.skipUnless(CONF.whitebox.available_cinder_storage >
                           (CONF.whitebox.flavor_volume_size + disks_to_create),
@@ -197,8 +194,11 @@ class VirtioSCSIDisk(base.BaseWhiteboxComputeTest):
                          "found {}".format(self.disks_to_create,
                                            len(scsi_disks)))
 
-        serial_ids = self.get_all_serial_ids(scsi_disks)
-        self.assertItemsEqual(vol_ids,
-                              serial_ids,
-                              "Created vol ids do not align with serial ids "
-                              "found on the domain")
+        attached_volume_ids = self.get_attached_volume_ids(server['id'])
+        attached_serial_ids = self.get_attached_serial_ids(scsi_disks)
+
+        # Assert that the volumes IDs we attached are listed as attached
+        self.assertItemsEqual(vol_ids, attached_volume_ids)
+
+        # Assert that the volume IDs we attached are present in the serials
+        self.assertItemsEqual(vol_ids, attached_serial_ids)

@@ -42,6 +42,8 @@ class WhiteboxTempestPlugin(plugins.TempestPlugin):
                                   whitebox_config.libvirt_opts)
         config.register_opt_group(conf, whitebox_config.hardware_group,
                                   whitebox_config.hardware_opts)
+        config.register_opt_group(conf, config.compute_features_group,
+                                  whitebox_config.compute_features_group_opts)
 
     def get_opt_lists(self):
         return [(whitebox_config.general_group.name,

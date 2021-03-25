@@ -31,6 +31,8 @@ function configure {
     iniset $TEMPEST_CONFIG whitebox-database host $DATABASE_HOST
 
     iniset $TEMPEST_CONFIG whitebox-hardware cpu_topology "$WHITEBOX_CPU_TOPOLOGY"
+
+    iniset $TEMPEST_CONFIG compute-feature-enabled virtio_rng "$COMPUTE_FEATURE_VIRTIO_RNG"
 }
 
 if [[ "$1" == "stack" ]]; then

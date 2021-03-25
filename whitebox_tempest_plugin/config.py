@@ -228,3 +228,9 @@ hardware_opts = [
         help="The NUMA Node ID that has affinity to the NIC connected to the "
              "physnet defined in 'sriov_physnet'")
 ]
+
+compute_features_group_opts = [
+    cfg.BoolOpt('virtio_rng',
+                default=False,
+                help="If false, skip virtio rng tests")
+]

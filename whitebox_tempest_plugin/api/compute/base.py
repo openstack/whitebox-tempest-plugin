@@ -126,6 +126,18 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
         xml = virshxml.dumpxml(server_instance_name)
         return ET.fromstring(xml)
 
+    def get_server_blockdevice_path(self, server_id, device_name):
+        server = self.servers_client.show_server(server_id)
+        host = server['server']['OS-EXT-SRV-ATTR:host']
+        cntrlplane_addr = whitebox_utils.get_ctlplane_address(host)
+        virshxml = clients.VirshXMLClient(cntrlplane_addr)
+        blklist = virshxml.domblklist(server_id).splitlines()
+        source = None
+        for line in blklist:
+            if device_name in line:
+                target, source = line.split()
+        return source
+
     def live_migrate(self, server_id, state, target_host=None):
         orig_host = self.get_host_for_server(server_id)
         self.admin_servers_client.live_migrate_server(server_id,

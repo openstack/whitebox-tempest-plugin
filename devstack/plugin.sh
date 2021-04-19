@@ -33,6 +33,7 @@ function configure {
     iniset $TEMPEST_CONFIG whitebox-hardware cpu_topology "$WHITEBOX_CPU_TOPOLOGY"
 
     iniset $TEMPEST_CONFIG compute-feature-enabled virtio_rng "$COMPUTE_FEATURE_VIRTIO_RNG"
+    iniset $TEMPEST_CONFIG compute-feature-enabled rbd_download "$COMPUTE_FEATURE_RBD_DOWNLOAD"
 }
 
 if [[ "$1" == "stack" ]]; then

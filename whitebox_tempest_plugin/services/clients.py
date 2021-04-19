@@ -66,6 +66,22 @@ class VirshXMLClient(SSHClient):
         command = 'virsh capabilities'
         return self.execute(command, container_name='nova_libvirt', sudo=True)
 
+    def domblklist(self, server_id):
+        command = 'virsh domblklist %s' % server_id
+        return self.execute(command, container_name='nova_libvirt', sudo=True)
+
+
+class LogParserClient(SSHClient):
+    """A client to parse logs"""
+
+    def parse(self, query_string):
+        log_query_command = CONF.whitebox_nova_compute.log_query_command
+        if log_query_command == 'zgrep':
+            command = 'sh -c "zgrep \'%s\' /var/log/nova/*"' % query_string
+        else:
+            command = 'journalctl -u devstack@n-cpu -g \'%s\'' % query_string
+        return self.execute(command, container_name='nova_compute', sudo=True)
+
 
 class QEMUImgClient(SSHClient):
     """A client to get QEMU image info in json format"""

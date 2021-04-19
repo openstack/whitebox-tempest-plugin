@@ -136,6 +136,54 @@
               compute:
                 cpu_shared_set: '2,3'
 
+- job:
+    name: whitebox-devstack-ceph-compute-local-ephemeral
+    parent: whitebox-devstack-multinode-base
+    nodeset: nested-virt-multinode
+    description: |
+      Runs test_rbd_direct_download test on single-NUMA, non-SMT, nested virt
+      VMs with ceph plugin enabled.
+
+      The job uses the default qcow2 file based imagebackend for ephemeral
+      storage. It also enables the direct download of images via rbd into
+      the local imagecache for Nova.
+    required-projects:
+        - openstack/devstack-plugin-ceph
+    irrelevant-files:
+      - ^whitebox_tempest_plugin/api/compute/(?!test_rbd_direct_download).*py$
+    vars:
+      devstack_plugins:
+        devstack-plugin-ceph: https://opendev.org/openstack/devstack-plugin-ceph
+      tempest_test_regex: '^whitebox_tempest_plugin.api.compute.test_rbd_direct_download'
+      devstack_localrc:
+        COMPUTE_FEATURE_RBD_DOWNLOAD: True
+        CINDER_CEPH_UUID: d531d2d4-3937-429c-b0c2-658fe41e82ab
+      devstack_local_conf:
+        post-config:
+          $NOVA_CPU_CONF:
+            glance:
+              enable_rbd_download: True
+              rbd_user: glance
+              rbd_ceph_conf: /etc/ceph/ceph.conf
+              rbd_pool: images
+            libvirt:
+              images_type: default
+    group-vars:
+      subnode:
+        devstack_localrc:
+          REMOTE_CEPH: true
+          CINDER_CEPH_UUID: d531d2d4-3937-429c-b0c2-658fe41e82ab
+        devstack_local_conf:
+          post-config:
+            $NOVA_CPU_CONF:
+              glance:
+                enable_rbd_download: True
+                rbd_user: glance
+                rbd_ceph_conf: /etc/ceph/ceph.conf
+                rbd_pool: images
+              libvirt:
+                images_type: default
+
 - project:
     templates:
       - openstack-python3-xena-jobs
@@ -144,8 +192,11 @@
         - whitebox-devstack-multinode
         - whitebox-devstack-multinode-cpupinning
         - whitebox-devstack-multinode-cpupinninglegacy
+        # TODO(amodi): Add a periodic job for below
+        - whitebox-devstack-ceph-compute-local-ephemeral
     gate:
       jobs:
         - whitebox-devstack-multinode
         - whitebox-devstack-multinode-cpupinning
         - whitebox-devstack-multinode-cpupinninglegacy
+        - whitebox-devstack-ceph-compute-local-ephemeral

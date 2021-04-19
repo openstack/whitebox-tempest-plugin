@@ -132,6 +132,13 @@ nova_compute_opts = [
         'stop_command',
         help='Command to stop the nova-compute service, without any '
              'privilege management (ie, no sudo).'),
+    cfg.StrOpt(
+        'log_query_command',
+        default="journalctl",
+        choices=["journalctl", "zgrep"],
+        help="Name of the utility to run LogParserClient commands. "
+             "Currently, supported values are 'journalctl' (default) "
+             "for devstack and 'zgrep' for TripleO"),
 ]
 
 libvirt_group = cfg.OptGroup(
@@ -237,5 +244,8 @@ hardware_opts = [
 compute_features_group_opts = [
     cfg.BoolOpt('virtio_rng',
                 default=False,
-                help="If false, skip virtio rng tests")
+                help="If false, skip virtio rng tests"),
+    cfg.BoolOpt('rbd_download',
+                default=False,
+                help="If false, skip rbd direct download tests")
 ]

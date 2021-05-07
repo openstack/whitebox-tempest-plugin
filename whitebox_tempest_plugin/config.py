@@ -226,7 +226,12 @@ hardware_opts = [
         'physnet_numa_affinity',
         default=None,
         help="The NUMA Node ID that has affinity to the NIC connected to the "
-             "physnet defined in 'sriov_physnet'")
+             "physnet defined in 'sriov_physnet'"),
+    cfg.BoolOpt(
+        'vgpu_cold_migration_supported',
+        default=False,
+        help='Cold migration and resize supported for guest instances '
+             'with vGPU devices')
 ]
 
 compute_features_group_opts = [

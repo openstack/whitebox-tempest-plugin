@@ -10,7 +10,7 @@ assertions can involve things like the instance XML (if the Nova libvirt driver
 is in use) or the database.
 
 * Bugs: https://storyboard.openstack.org/#!/project/1162
-* IRC: #openstack-qa on freenode
+* IRC: #openstack-qa on OFTC
 
 Requirements
 ------------

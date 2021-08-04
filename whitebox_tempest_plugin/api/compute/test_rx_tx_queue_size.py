@@ -71,8 +71,11 @@ class RxTxQueueSizeTest(base.BaseWhiteboxComputeTest):
                           '`rx_queue_size` must be set')
     def test_rx_queue_size(self):
         domain = self.get_server_xml(self.server_id)
-        driver = domain.find(
-            "devices/interface[@type='bridge']/driver[@name='vhost']")
+        interface_criteria = \
+            "devices/interface[@type='%s']/driver[@name='vhost']"
+        driver = domain.find(interface_criteria % 'ethernet')
+        driver = (driver if driver is not None else domain.find(
+            interface_criteria % 'bridge'))
         self.assertEqual(
             driver.attrib['rx_queue_size'], str(CONF.whitebox.rx_queue_size),
             "Can't find interface with the proper rx_queue_size")

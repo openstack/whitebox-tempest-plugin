@@ -72,8 +72,7 @@ class VolumesAdminNegativeTest(base.BaseWhiteboxComputeTest,
             len(disks_after_attach),
             len(disks_before_attach))
         host = whitebox_utils.get_ctlplane_address(
-            server['OS-EXT-SRV-ATTR:host']
-        )
+            self.get_host_for_server(server['id']))
 
         with clients.ServiceManager(host, 'libvirt').stopped():
             # While this call to n-api will return successfully the underlying

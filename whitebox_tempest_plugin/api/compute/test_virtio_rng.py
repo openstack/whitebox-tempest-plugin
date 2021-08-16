@@ -36,7 +36,7 @@ class TestVirtIORng(base.BaseWhiteboxComputeTest):
             raise cls.skipException(skip_msg)
 
     def test_virtio_rng_model(self):
-        server = self.create_test_server()
+        server = self.create_test_server(wait_until='ACTIVE')
         domain = self.get_server_xml(server['id'])
         rng_device = domain.find("devices/rng")
         self.assertEqual(
@@ -47,6 +47,7 @@ class TestVirtIORng(base.BaseWhiteboxComputeTest):
         extra_specs = {'hw_rng:allowed': 'False'}
         flavor_id = self.create_flavor(
             extra_specs=extra_specs)['id']
-        server = self.create_test_server(flavor=flavor_id)
+        server = self.create_test_server(flavor=flavor_id,
+                                         wait_until='ACTIVE')
         domain = self.get_server_xml(server['id'])
         self.assertIsNone(domain.find("devices/rng"))

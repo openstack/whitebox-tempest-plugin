@@ -31,7 +31,7 @@ class RxTxQueueSizeTest(base.BaseWhiteboxComputeTest):
     @testtools.skipUnless(CONF.whitebox.rx_queue_size,
                           '`rx_queue_size` must be set')
     def test_rx_queue_size(self):
-        server = self.create_test_server()
+        server = self.create_test_server(wait_until='ACTIVE')
         domain = self.get_server_xml(server['id'])
         interface_criteria = \
             "devices/interface[@type='%s']/driver[@name='vhost']"

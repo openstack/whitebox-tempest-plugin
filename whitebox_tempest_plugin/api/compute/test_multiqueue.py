@@ -29,7 +29,8 @@ class MultiqueueTest(base.BaseWhiteboxComputeTest):
         flavor = self.create_flavor()
         server = self.create_test_server(
             flavor=flavor['id'], image_id=image_id,
-            networks=[{'uuid': self.get_tenant_network()['id']}])
+            networks=[{'uuid': self.get_tenant_network()['id']}],
+            wait_until='ACTIVE')
 
         domain = self.get_server_xml(server['id'])
         driver = domain.find('./devices/interface/driver')

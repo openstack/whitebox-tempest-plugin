@@ -40,15 +40,18 @@ class HwVideoModelTest(base.BaseWhiteboxComputeTest):
         self.assertEqual(hw_video_type, hw_video.get('type'))
 
     def test_create_virtio_instance(self):
-        server = self.create_test_server(image_id=self.virtio_image_id)
+        server = self.create_test_server(image_id=self.virtio_image_id,
+                                         wait_until='ACTIVE')
         self._assert_hw_video_type(server, 'virtio')
 
     def test_create_none_instance(self):
-        server = self.create_test_server(image_id=self.none_image_id)
+        server = self.create_test_server(image_id=self.none_image_id,
+                                         wait_until='ACTIVE')
         self._assert_hw_video_type(server, 'none')
 
     def test_rebuild_virtio_to_none(self):
-        server = self.create_test_server(image_id=self.virtio_image_id)
+        server = self.create_test_server(image_id=self.virtio_image_id,
+                                         wait_until='ACTIVE')
         self._assert_hw_video_type(server, 'virtio')
         self.servers_client.rebuild_server(server['id'], self.none_image_id)
         waiters.wait_for_server_status(self.servers_client, server['id'],
@@ -56,7 +59,8 @@ class HwVideoModelTest(base.BaseWhiteboxComputeTest):
         self._assert_hw_video_type(server, 'none')
 
     def test_rebuild_none_to_virtio(self):
-        server = self.create_test_server(image_id=self.virtio_image_id)
+        server = self.create_test_server(image_id=self.virtio_image_id,
+                                         wait_until='ACTIVE')
         self._assert_hw_video_type(server, 'virtio')
         self.servers_client.rebuild_server(server['id'], self.none_image_id)
         waiters.wait_for_server_status(self.servers_client, server['id'],
@@ -67,5 +71,5 @@ class HwVideoModelTest(base.BaseWhiteboxComputeTest):
                           'Requires expected default video model')
     def test_default_hw_device(self):
         expected_video_model = CONF.whitebox.default_video_model
-        server = self.create_test_server()
+        server = self.create_test_server(wait_until='ACTIVE')
         self._assert_hw_video_type(server, expected_video_model)

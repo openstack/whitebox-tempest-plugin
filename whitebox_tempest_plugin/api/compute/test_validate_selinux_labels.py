@@ -49,17 +49,17 @@ class SelinuxLabelsTest(base.BaseWhiteboxComputeTest):
             root.find("./seclabel[@model='selinux']/imagelabel").text)
 
     def test_create_server_with_label_check(self):
-        server = self.create_test_server()
+        server = self.create_test_server(wait_until='ACTIVE')
         self._assert_svirt_labels(server)
 
     def test_resize_with_label_check(self):
-        server = self.create_test_server()
+        server = self.create_test_server(wait_until='ACTIVE')
         self._assert_svirt_labels(server)
         self.resize_server(server['id'], self.new_flavor['id'])
         self._assert_svirt_labels(server)
 
     def test_live_migrate_with_label_check(self):
-        server = self.create_test_server()
+        server = self.create_test_server(wait_until='ACTIVE')
         self._assert_svirt_labels(server)
-        self.live_migrate(server['id'], 'ACTIVE')
+        self.live_migrate(self.os_primary, server['id'], 'ACTIVE')
         self._assert_svirt_labels(server)

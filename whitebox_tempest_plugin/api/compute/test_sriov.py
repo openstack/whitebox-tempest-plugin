@@ -306,13 +306,15 @@ class SRIOVNumaAffinity(SRIOVBase, numa_helper.NUMAHelperMixin):
                 flavor=flavor['id'],
                 networks=[{'port': self.port_a['port']['id']}],
                 clients=self.os_admin,
-                host=host
+                host=host,
+                wait_until='ACTIVE',
             )
             server_b = self.create_test_server(
                 flavor=flavor['id'],
                 networks=[{'port': self.port_b['port']['id']}],
                 clients=self.os_admin,
-                host=host
+                host=host,
+                wait_until='ACTIVE',
             )
             cpu_pins_a = self.get_pinning_as_set(server_a['id'])
             cpu_pins_b = self.get_pinning_as_set(server_b['id'])
@@ -392,7 +394,8 @@ class SRIOVNumaAffinity(SRIOVBase, numa_helper.NUMAHelperMixin):
                 flavor=flavor['id'],
                 networks=[{'port': self.port_a['port']['id']}],
                 clients=self.os_admin,
-                host=host
+                host=host,
+                wait_until='ACTIVE',
             )
 
             # With server A 'filling' pCPUs from the NUMA Node with SR-IOV
@@ -403,7 +406,8 @@ class SRIOVNumaAffinity(SRIOVBase, numa_helper.NUMAHelperMixin):
                               flavor=flavor['id'],
                               networks=[{'port': self.port_b['port']['id']}],
                               clients=self.os_admin,
-                              host=host)
+                              host=host,
+                              wait_until='ACTIVE')
 
             # Validate server A has correct sr-iov interface information
             # in the xml. Its type and vlan should be accurate.
@@ -487,7 +491,8 @@ class SRIOVMigration(SRIOVBase):
         )
 
         # Live migrate the server
-        self.live_migrate(server['id'], 'ACTIVE', target_host=hostname2)
+        self.live_migrate(self.os_admin, server['id'], 'ACTIVE',
+                          target_host=hostname2)
 
         # Search the instace's XML for the SR-IOV network device element based
         # on the mac address and binding:vnic_type from port info
@@ -514,7 +519,8 @@ class SRIOVMigration(SRIOVBase):
                          'is %s' % pci_allocated_count)
 
         # Migrate server back to the original host
-        self.live_migrate(server['id'], 'ACTIVE', target_host=hostname1)
+        self.live_migrate(self.os_admin, server['id'], 'ACTIVE',
+                          target_host=hostname1)
 
         # Again find the instance's network device element based on the mac
         # address and binding:vnic_type from the port info provided by ports

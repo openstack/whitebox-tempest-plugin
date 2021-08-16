@@ -38,36 +38,14 @@ LOG = logging.getLogger(__name__)
 
 class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
 
-    @classmethod
-    def setup_clients(cls):
-        super(BaseWhiteboxComputeTest, cls).setup_clients()
-        # TODO(stephenfin): Rewrite tests to use 'admin_servers_client' etc.
-        cls.servers_client = cls.os_admin.servers_client
-        cls.flavors_client = cls.os_admin.flavors_client
-        cls.service_client = cls.os_admin.services_client
-        cls.image_client = cls.os_admin.image_client_v2
-        cls.volumes_client = cls.os_admin.volumes_client_latest
-        cls.admin_migration_client = cls.os_admin.migrations_client
-        cls.admin_volumes_client = cls.os_admin.volumes_client_latest
-        cls.admin_volume_types_client = cls.os_admin.volume_types_client_latest
-        cls.admin_encryption_types_client =\
-            cls.os_admin.encryption_types_client_latest
-
-    def create_test_server(self, wait_until='ACTIVE', *args, **kwargs):
-        # override the function to return the admin view of the created server
-        server = super(BaseWhiteboxComputeTest, self).create_test_server(
-            *args, wait_until=wait_until, **kwargs)
-
-        return self.admin_servers_client.show_server(server['id'])['server']
-
     def create_flavor(self, ram=64, vcpus=2,
                       disk=CONF.whitebox.flavor_volume_size, name=None,
                       is_public='True', extra_specs=None, **kwargs):
         flavor = super(BaseWhiteboxComputeTest, self).create_flavor(
             ram, vcpus, disk, name, is_public, **kwargs)
         if extra_specs:
-            self.flavors_client.set_flavor_extra_spec(flavor['id'],
-                                                      **extra_specs)
+            self.os_admin.flavors_client.set_flavor_extra_spec(flavor['id'],
+                                                               **extra_specs)
         return flavor
 
     def copy_default_image(self, **kwargs):
@@ -77,8 +55,8 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
 
         :return image_id: The UUID of the newly created image.
         """
-        image = self.image_client.show_image(CONF.compute.image_ref)
-        image_data = self.image_client.show_image_file(
+        image = self.images_client.show_image(CONF.compute.image_ref)
+        image_data = self.images_client.show_image_file(
             CONF.compute.image_ref).data
         image_file = six.BytesIO(image_data)
 
@@ -87,12 +65,11 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
             'disk_format': image['disk_format'],
             'min_disk': image['min_disk'],
             'min_ram': image['min_ram'],
-            'visibility': 'public',
         }
         create_dict.update(kwargs)
-        new_image = self.image_client.create_image(**create_dict)
-        self.addCleanup(self.image_client.delete_image, new_image['id'])
-        self.image_client.store_image_file(new_image['id'], image_file)
+        new_image = self.images_client.create_image(**create_dict)
+        self.addCleanup(self.images_client.delete_image, new_image['id'])
+        self.images_client.store_image_file(new_image['id'], image_file)
 
         return new_image['id']
 
@@ -100,9 +77,8 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
         """Returns a list of all nova-compute hostnames in the deployment.
         Assumes all are up and running.
         """
-        binary_name = 'nova-compute'
-        services = \
-            self.service_client.list_services(binary=binary_name)['services']
+        services = self.os_admin.services_client.list_services(
+            binary='nova-compute')['services']
         return [service['host'] for service in services]
 
     @contextlib.contextmanager
@@ -116,10 +92,10 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
             yield [stack.enter_context(mgr) for mgr in ctxt_mgrs]
 
     def get_server_xml(self, server_id):
-        server = self.servers_client.show_server(server_id)
+        server = self.os_admin.servers_client.show_server(server_id)
         host = server['server']['OS-EXT-SRV-ATTR:host']
         cntrlplane_addr = whitebox_utils.get_ctlplane_address(host)
-        server_instance_name = self.servers_client.show_server(
+        server_instance_name = self.os_admin.servers_client.show_server(
             server_id)['server']['OS-EXT-SRV-ATTR:instance_name']
 
         virshxml = clients.VirshXMLClient(cntrlplane_addr)
@@ -127,8 +103,7 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
         return ET.fromstring(xml)
 
     def get_server_blockdevice_path(self, server_id, device_name):
-        server = self.servers_client.show_server(server_id)
-        host = server['server']['OS-EXT-SRV-ATTR:host']
+        host = self.get_host_for_server(server_id)
         cntrlplane_addr = whitebox_utils.get_ctlplane_address(host)
         virshxml = clients.VirshXMLClient(cntrlplane_addr)
         blklist = virshxml.domblklist(server_id).splitlines()
@@ -138,12 +113,22 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
                 target, source = line.split()
         return source
 
-    def live_migrate(self, server_id, state, target_host=None):
+    def live_migrate(self, clients, server_id, state, target_host=None):
+        """Live migrate a server.
+
+        :param client: Clients to use when waiting for the server to
+        reach the specified state.
+        :param server_id: The UUID of the server to live migrate.
+        :param state: Wait for the server to reach this state after live
+        migration.
+        :param target_host: Optional target host for the live migration.
+        """
         orig_host = self.get_host_for_server(server_id)
         self.admin_servers_client.live_migrate_server(server_id,
                                                       block_migration='auto',
                                                       host=target_host)
-        waiters.wait_for_server_status(self.servers_client, server_id, state)
+        waiters.wait_for_server_status(clients.servers_client, server_id,
+                                       state)
         if target_host:
             self.assertEqual(
                 target_host, self.get_host_for_server(server_id),
@@ -166,7 +151,7 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
         cache volumes stored in a separate tenant to the original volumes
         created from the type.
         """
-        volumes = self.admin_volumes_client.list_volumes(
+        volumes = self.os_admin.volumes_client_latest.list_volumes(
             detail=True, params={'all_tenants': 1})['volumes']
         type_name = volume_type['name']
         for volume in [v for v in volumes if v['volume_type'] == type_name]:
@@ -175,7 +160,8 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
             test_utils.call_and_ignore_notfound_exc(
                 self.volumes_client.delete_volume, volume['id'])
             self.volumes_client.wait_for_resource_deletion(volume['id'])
-        self.admin_volume_types_client.delete_volume_type(volume_type['id'])
+        self.os_admin.volume_types_client_latest.delete_volume_type(
+            volume_type['id'])
 
     def create_volume_type(self, client=None, name=None, backend_name=None,
                            **kwargs):
@@ -197,7 +183,7 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
         """
 
         if not client:
-            client = self.admin_volume_types_client
+            client = self.os_admin.volume_types_client_latest
         if not name:
             class_name = self.__class__.__name__
             name = data_utils.rand_name(class_name + '-volume-type')
@@ -222,7 +208,7 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
                                control_location=None):
         """Creates an encryption type for volume"""
         if not client:
-            client = self.admin_encryption_types_client
+            client = self.os_admin.encryption_types_client_latest
         if not type_id:
             volume_type = self.create_volume_type()
             type_id = volume_type['id']

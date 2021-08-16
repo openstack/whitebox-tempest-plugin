@@ -42,7 +42,8 @@ class NVDIMMTests(base.BaseWhiteboxComputeTest):
         # [whitebox]/pem_flavor_size
         pmem_spec = {'hw:pmem': CONF.whitebox.pmem_flavor_size}
         flavor = self.create_flavor(extra_specs=pmem_spec)
-        server = self.create_test_server(flavor=flavor['id'])
+        server = self.create_test_server(flavor=flavor['id'],
+                                         wait_until='ACTIVE')
 
         # Confirm the memory xml model is nvdimm
         root = self.get_server_xml(server['id'])

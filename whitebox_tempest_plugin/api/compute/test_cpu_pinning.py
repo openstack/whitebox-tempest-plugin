@@ -137,7 +137,7 @@ class CPUPolicyTest(BasePinningTest):
         """Ensure an instance with an explicit 'shared' policy work."""
         flavor = self.create_flavor(vcpus=self.vcpus,
                                     extra_specs=self.shared_cpu_policy)
-        self.create_test_server(flavor=flavor['id'])
+        self.create_test_server(flavor=flavor['id'], wait_until='ACTIVE')
 
     @testtools.skipUnless(CONF.whitebox.max_compute_nodes < 2,
                           'Single compute node required.')
@@ -150,8 +150,10 @@ class CPUPolicyTest(BasePinningTest):
         """
         flavor = self.create_flavor(vcpus=self.vcpus,
                                     extra_specs=self.dedicated_cpu_policy)
-        server_a = self.create_test_server(flavor=flavor['id'])
-        server_b = self.create_test_server(flavor=flavor['id'])
+        server_a = self.create_test_server(flavor=flavor['id'],
+                                           wait_until='ACTIVE')
+        server_b = self.create_test_server(flavor=flavor['id'],
+                                           wait_until='ACTIVE')
         cpu_pinnings_a = self.get_server_cpu_pinning(server_a['id'])
         cpu_pinnings_b = self.get_server_cpu_pinning(server_b['id'])
 
@@ -175,7 +177,8 @@ class CPUPolicyTest(BasePinningTest):
         """Ensure resizing an instance to unpinned actually drops pinning."""
         flavor_a = self.create_flavor(vcpus=self.vcpus,
                                       extra_specs=self.dedicated_cpu_policy)
-        server = self.create_test_server(flavor=flavor_a['id'])
+        server = self.create_test_server(flavor=flavor_a['id'],
+                                         wait_until='ACTIVE')
         cpu_pinnings = self.get_server_cpu_pinning(server['id'])
 
         self.assertEqual(
@@ -197,7 +200,8 @@ class CPUPolicyTest(BasePinningTest):
         """Ensure resizing an instance to pinned actually applies pinning."""
         flavor_a = self.create_flavor(vcpus=self.vcpus,
                                       extra_specs=self.shared_cpu_policy)
-        server = self.create_test_server(flavor=flavor_a['id'])
+        server = self.create_test_server(flavor=flavor_a['id'],
+                                         wait_until='ACTIVE')
         cpu_pinnings = self.get_server_cpu_pinning(server['id'])
 
         self.assertEqual(
@@ -217,7 +221,8 @@ class CPUPolicyTest(BasePinningTest):
         """Ensure pinning information is persisted after a reboot."""
         flavor = self.create_flavor(vcpus=self.vcpus,
                                     extra_specs=self.dedicated_cpu_policy)
-        server = self.create_test_server(flavor=flavor['id'])
+        server = self.create_test_server(flavor=flavor['id'],
+                                         wait_until='ACTIVE')
         cpu_pinnings = self.get_server_cpu_pinning(server['id'])
 
         self.assertEqual(
@@ -298,8 +303,9 @@ class CPUThreadPolicyTest(BasePinningTest):
         """Ensure vCPUs *are not* placed on thread siblings."""
         flavor = self.create_flavor(vcpus=self.vcpus,
                                     extra_specs=self.isolate_thread_policy)
-        server = self.create_test_server(flavor=flavor['id'])
-        host = server['OS-EXT-SRV-ATTR:host']
+        server = self.create_test_server(flavor=flavor['id'],
+                                         wait_until='ACTIVE')
+        host = self.get_host_for_server(server['id'])
 
         cpu_pinnings = self.get_server_cpu_pinning(server['id'])
         pcpu_siblings = self.get_host_cpu_siblings(host)
@@ -326,8 +332,9 @@ class CPUThreadPolicyTest(BasePinningTest):
         """
         flavor = self.create_flavor(vcpus=self.vcpus,
                                     extra_specs=self.prefer_thread_policy)
-        server = self.create_test_server(flavor=flavor['id'])
-        host = server['OS-EXT-SRV-ATTR:host']
+        server = self.create_test_server(flavor=flavor['id'],
+                                         wait_until='ACTIVE')
+        host = self.get_host_for_server(server['id'])
 
         cpu_pinnings = self.get_server_cpu_pinning(server['id'])
         pcpu_siblings = self.get_host_cpu_siblings(host)
@@ -353,8 +360,9 @@ class CPUThreadPolicyTest(BasePinningTest):
         """
         flavor = self.create_flavor(vcpus=self.vcpus,
                                     extra_specs=self.require_thread_policy)
-        server = self.create_test_server(flavor=flavor['id'])
-        host = server['OS-EXT-SRV-ATTR:host']
+        server = self.create_test_server(flavor=flavor['id'],
+                                         wait_until='ACTIVE')
+        host = self.get_host_for_server(server['id'])
 
         cpu_pinnings = self.get_server_cpu_pinning(server['id'])
         pcpu_siblings = self.get_host_cpu_siblings(host)
@@ -400,7 +408,8 @@ class EmulatorThreadTest(BasePinningTest, numa_helper.NUMAHelperMixin):
             'hw:cpu_policy': 'dedicated',
             'hw:emulator_threads_policy': threads_policy
         }
-        self.flavors_client.set_flavor_extra_spec(flavor['id'], **specs)
+        self.os_admin.flavors_client.set_flavor_extra_spec(flavor['id'],
+                                                           **specs)
         return flavor
 
     def test_policy_share_cpu_shared_set(self):
@@ -417,7 +426,8 @@ class EmulatorThreadTest(BasePinningTest, numa_helper.NUMAHelperMixin):
         flavor = self.create_flavor(threads_policy='share',
                                     vcpus=self.shared_cpus_per_numa)
 
-        server = self.create_test_server(flavor=flavor['id'])
+        server = self.create_test_server(flavor=flavor['id'],
+                                         wait_until='ACTIVE')
 
         # Determine the compute host the guest was scheduled to and gather
         # the cpu shared set from the host
@@ -455,11 +465,12 @@ class EmulatorThreadTest(BasePinningTest, numa_helper.NUMAHelperMixin):
                 threads_policy='share',
                 vcpus=int(self.dedicated_cpus_per_numa / 2))
 
-            server_a = self.create_test_server(flavor=flavor['id'])
+            server_a = self.create_test_server(flavor=flavor['id'],
+                                               wait_until='ACTIVE')
             server_b = self.create_test_server(
                 flavor=flavor['id'],
-                scheduler_hints={'same_host': server_a['id']}
-            )
+                scheduler_hints={'same_host': server_a['id']},
+                wait_until='ACTIVE')
 
             # Gather the emulator threads from server A and B. Then gather the
             # pinned PCPUs from server A and B.
@@ -507,7 +518,8 @@ class EmulatorThreadTest(BasePinningTest, numa_helper.NUMAHelperMixin):
         flavor = self.create_flavor(threads_policy='isolate',
                                     vcpus=(self.dedicated_cpus_per_numa - 1))
 
-        server = self.create_test_server(flavor=flavor['id'])
+        server = self.create_test_server(flavor=flavor['id'],
+                                         wait_until='ACTIVE')
 
         # Gather the emulator threads and the pinned PCPUs from the guest
         emulator_threads = \
@@ -560,7 +572,8 @@ class EmulatorThreadTest(BasePinningTest, numa_helper.NUMAHelperMixin):
         # Confirm the instance cannot be built
         self.assertRaises(BuildErrorException,
                           self.create_test_server,
-                          flavor=flavor['id'])
+                          flavor=flavor['id'],
+                          wait_until='ACTIVE')
 
 
 class NUMALiveMigrationBase(BasePinningTest):
@@ -663,14 +676,16 @@ class NUMALiveMigrationTest(NUMALiveMigrationBase):
                  'hw:emulator_threads_policy': 'share'}
         flavor = self.create_flavor(vcpus=(int(dedicated_cpus_per_numa / 2)),
                                     extra_specs=specs)
-        server_a = self.create_test_server(flavor=flavor['id'])
+        server_a = self.create_test_server(flavor=flavor['id'],
+                                           wait_until='ACTIVE')
         # TODO(artom) As of 2.68 we can no longer force a live-migration,
         # and having the different_host hint in the RequestSpec will
         # prevent live migration. Start enabling/disabling
         # DifferentHostFilter as needed?
         server_b = self.create_test_server(
             flavor=flavor['id'],
-            scheduler_hints={'different_host': server_a['id']})
+            scheduler_hints={'different_host': server_a['id']},
+            wait_until='ACTIVE')
 
         # Iterate over both guests and confirm their pinned vCPUs and emulator
         # threads are correct
@@ -714,7 +729,8 @@ class NUMALiveMigrationTest(NUMALiveMigrationBase):
 
         # Migrate server B to the same compute host as server A
         host_a = self.get_host_for_server(server_a['id'])
-        self.live_migrate(server_b['id'], 'ACTIVE', target_host=host_a)
+        self.live_migrate(self.os_primary, server_b['id'], 'ACTIVE',
+                          target_host=host_a)
 
         # After migration, guests should have disjoint (non-null) CPU pins in
         # their XML
@@ -815,10 +831,12 @@ class NUMALiveMigrationTest(NUMALiveMigrationBase):
                                     extra_specs=specs)
 
         # Boot two servers
-        server_a = self.create_test_server(flavor=flavor['id'])
+        server_a = self.create_test_server(flavor=flavor['id'],
+                                           wait_until='ACTIVE')
         server_b = self.create_test_server(
             flavor=flavor['id'],
-            scheduler_hints={'different_host': server_a['id']})
+            scheduler_hints={'different_host': server_a['id']},
+            wait_until='ACTIVE')
 
         # Assert hugepage XML element is present on both servers and the
         # pagesize is correct
@@ -842,7 +860,8 @@ class NUMALiveMigrationTest(NUMALiveMigrationBase):
 
         # Live migrate server_b
         compute_a = self.get_host_other_than(server_b['id'])
-        self.live_migrate(server_b['id'], 'ACTIVE', target_host=compute_a)
+        self.live_migrate(self.os_primary, server_b['id'], 'ACTIVE',
+                          target_host=compute_a)
 
         # Assert hugepage XML element is still present and correct size for
         # server_b after live migration
@@ -893,25 +912,20 @@ class NUMACPUDedicatedLiveMigrationTest(NUMALiveMigrationBase):
         # a server with a cpu_dedicated policy and a server that will
         # float across the respective host's cpu_shared_set
         dedicated_server_a = self.create_test_server(
-            flavor=dedicated_flavor['id']
-        )
+            flavor=dedicated_flavor['id'], wait_until='ACTIVE')
         host_a = self.get_host_for_server(dedicated_server_a['id'])
-
         shared_server_a = self.create_test_server(
             clients=self.os_admin, flavor=shared_flavor['id'],
-            host=host_a
-        )
+            host=host_a, wait_until='ACTIVE')
 
         dedicated_server_b = self.create_test_server(
             flavor=dedicated_flavor['id'],
-            scheduler_hints={'different_host': dedicated_server_a['id']}
-        )
+            scheduler_hints={'different_host': dedicated_server_a['id']},
+            wait_until='ACTIVE')
         host_b = self.get_host_for_server(dedicated_server_b['id'])
-
         shared_server_b = self.create_test_server(
             clients=self.os_admin, flavor=shared_flavor['id'],
-            host=host_b
-        )
+            host=host_b, wait_until='ACTIVE')
 
         host_sm_a = clients.NovaServiceManager(host_a, 'nova-compute',
                                                self.os_admin.services_client)
@@ -945,7 +959,7 @@ class NUMACPUDedicatedLiveMigrationTest(NUMALiveMigrationBase):
         # Live migrate shared server A to the compute node with shared
         # server B. Both servers are using shared vCPU's so migration
         # should be successful
-        self.live_migrate(shared_server_a['id'], 'ACTIVE',
+        self.live_migrate(self.os_admin, shared_server_a['id'], 'ACTIVE',
                           target_host=host_b)
 
         # Validate shared server A now has a shared cpuset that is a equal
@@ -962,7 +976,7 @@ class NUMACPUDedicatedLiveMigrationTest(NUMALiveMigrationBase):
         # Live migrate dedicated server A to the same host holding
         # dedicated server B. End result should be all 4 servers are on
         # the same host.
-        self.live_migrate(dedicated_server_a['id'], 'ACTIVE',
+        self.live_migrate(self.os_admin, dedicated_server_a['id'], 'ACTIVE',
                           target_host=host_b)
 
         # Dedicated server A should have a CPU pin set that is a subset of
@@ -1010,9 +1024,10 @@ class NUMARebuildTest(BasePinningTest):
         """
         flavor = self.create_flavor(vcpus=self.vcpus,
                                     extra_specs=self.prefer_thread_policy)
-        server = self.create_test_server(flavor=flavor['id'])
+        server = self.create_test_server(flavor=flavor['id'],
+                                         wait_until='ACTIVE')
         db_topo_orig = self._get_db_numa_topology(server['id'])
-        host = server['OS-EXT-SRV-ATTR:host']
+        host = self.get_host_for_server(server['id'])
         self.servers_client.rebuild_server(server['id'],
                                            self.image_ref_alt)['server']
         waiters.wait_for_server_status(self.servers_client,
@@ -1032,7 +1047,8 @@ class MixedCPUPolicyTest(BasePinningTest, numa_helper.NUMAHelperMixin):
         flavor = self.create_flavor(vcpus=self.vcpus,
                                     extra_specs=self.mixed_cpu_policy)
 
-        server = self.create_test_server(flavor=flavor['id'])
+        server = self.create_test_server(flavor=flavor['id'],
+                                         wait_until='ACTIVE')
         host = self.get_host_for_server(server['id'])
         host_sm = clients.NovaServiceManager(host, 'nova-compute',
                                              self.os_admin.services_client)

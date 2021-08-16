@@ -263,7 +263,8 @@ class VGPUTest(base.BaseWhiteboxComputeTest):
         server = self.create_test_server(
             flavor=flavor['id'],
             validatable=True,
-            validation_resources=validation_resources)
+            validation_resources=validation_resources,
+            wait_until='ACTIVE')
 
         # NOTE(jparker) Order of operations for clean attempts to remove
         # validation resources before server is removed. Because of this
@@ -439,7 +440,8 @@ class VGPUResizeInstance(VGPUTest):
     def test_vgpu_to_standard_resize(self):
         # Create a vGPU instance and get the vGPU resource utilization from
         # its compute host
-        server = self.create_test_server(flavor=self.vgpu_flavor['id'])
+        server = self.create_test_server(flavor=self.vgpu_flavor['id'],
+                                         wait_until='ACTIVE')
         host = self.get_host_for_server(server['id'])
         pre_resize_usage = self._get_vgpu_util_for_host(host)
         standard_flavor = self.create_flavor()

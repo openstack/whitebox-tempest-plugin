@@ -46,7 +46,8 @@ class VPMUTest(base.BaseWhiteboxComputeTest):
         self.assertEqual('off', pmu.get('state'))
 
     def test_rebuild_on_to_off(self):
-        server = self.create_test_server(image_id=self.on_image_id)
+        server = self.create_test_server(image_id=self.on_image_id,
+                                         wait_until='ACTIVE')
         self._assert_pmu_on(server)
         self.servers_client.rebuild_server(server['id'], self.off_image_id)
         waiters.wait_for_server_status(self.servers_client, server['id'],
@@ -54,7 +55,8 @@ class VPMUTest(base.BaseWhiteboxComputeTest):
         self._assert_pmu_off(server)
 
     def test_rebuild_off_to_on(self):
-        server = self.create_test_server(image_id=self.off_image_id)
+        server = self.create_test_server(image_id=self.off_image_id,
+                                         wait_until='ACTIVE')
         self._assert_pmu_off(server)
         self.servers_client.rebuild_server(server['id'], self.on_image_id)
         waiters.wait_for_server_status(self.servers_client, server['id'],
@@ -62,13 +64,15 @@ class VPMUTest(base.BaseWhiteboxComputeTest):
         self._assert_pmu_on(server)
 
     def test_resize_on_to_off(self):
-        server = self.create_test_server(flavor=self.on_flavor['id'])
+        server = self.create_test_server(flavor=self.on_flavor['id'],
+                                         wait_until='ACTIVE')
         self._assert_pmu_on(server)
         self.resize_server(server['id'], self.off_flavor['id'])
         self._assert_pmu_off(server)
 
     def test_resize_off_to_on(self):
-        server = self.create_test_server(flavor=self.off_flavor['id'])
+        server = self.create_test_server(flavor=self.off_flavor['id'],
+                                         wait_until='ACTIVE')
         self._assert_pmu_off(server)
         self.resize_server(server['id'], self.on_flavor['id'])
         self._assert_pmu_on(server)

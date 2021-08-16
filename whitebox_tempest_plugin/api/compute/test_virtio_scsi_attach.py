@@ -133,7 +133,8 @@ class VirtioSCSIDisk(base.BaseWhiteboxComputeTest):
         # image_meta from the BDMs.
         server = self.create_test_server(flavor=self.flavor['id'],
                                          block_device_mapping_v2=bdms,
-                                         image_id='')
+                                         image_id='',
+                                         wait_until='ACTIVE')
 
         disk_ctrl = self.get_scsi_disk_controllers(server_id=server['id'])
         self.assertEqual(len(disk_ctrl), 1,
@@ -168,7 +169,8 @@ class VirtioSCSIDisk(base.BaseWhiteboxComputeTest):
         Validate that all volumes attach correctly to the instance.
         """
         server = self.create_test_server(flavor=self.flavor['id'],
-                                         image_id=self.img_id)
+                                         image_id=self.img_id,
+                                         wait_until='ACTIVE')
         vol_ids = []
         # A virtio-scsi disk has already been attached to the server's disk
         # controller since hw_scsi_model of the image was already set to

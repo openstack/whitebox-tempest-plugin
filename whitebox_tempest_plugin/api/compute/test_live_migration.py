@@ -66,7 +66,7 @@ class LiveMigrationBase(base.BaseWhiteboxComputeTest,
         # The initial value of disk cache depends on config and the storage in
         # use. We can't guess it, so fetch it before we start.
         cache_type = root_disk_cache()
-        self.live_migrate(server_id, 'ACTIVE')
+        self.live_migrate(self.os_primary, server_id, 'ACTIVE')
 
         # Assert cache-mode has not changed during live migration
         self.assertEqual(cache_type, root_disk_cache())
@@ -78,9 +78,10 @@ class LiveMigrationBase(base.BaseWhiteboxComputeTest,
         """
         flavor = self.create_flavor(
             extra_specs={'hw:cpu_policy': 'dedicated'})
-        server = self.create_test_server(flavor=flavor['id'])
+        server = self.create_test_server(flavor=flavor['id'],
+                                         wait_until='ACTIVE')
         pinned_cpus_pre_migration = self.get_pinning_as_set(server['id'])
-        self.live_migrate(server['id'], 'ACTIVE')
+        self.live_migrate(self.os_primary, server['id'], 'ACTIVE')
         pinned_cpus_post_migration = self.get_pinning_as_set(server['id'])
         self.assertTrue(
             pinned_cpus_post_migration.isdisjoint(pinned_cpus_pre_migration),

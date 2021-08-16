@@ -107,7 +107,7 @@ class TestQEMUVolumeEncryption(base.BaseWhiteboxComputeTest):
 
         # Get volume details from qemu-img info with the previously generated
         # volume path
-        host = get_ctlplane_address(server['OS-EXT-SRV-ATTR:host'])
+        host = get_ctlplane_address(self.get_host_for_server(server['id']))
         qemu_img_client = QEMUImgClient(host)
         qemu_info = qemu_img_client.info(path)
 

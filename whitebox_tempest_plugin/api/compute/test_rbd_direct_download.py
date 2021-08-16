@@ -39,7 +39,7 @@ class TestRBDDirectDownload(base.BaseWhiteboxComputeTest):
             raise cls.skipException(skip_msg)
 
     def test_rbd_logs_and_conf(self):
-        base_server = self.create_test_server()
+        base_server = self.create_test_server(wait_until='ACTIVE')
         image = self.create_image_from_server(
             base_server['id'],
             name='base-server-img',
@@ -50,7 +50,13 @@ class TestRBDDirectDownload(base.BaseWhiteboxComputeTest):
         # pool to the local compute
         server = self.create_test_server(wait_until='ACTIVE',
                                          image_id=image['id'])
-        host = server['OS-EXT-SRV-ATTR:host']
+
+        # Grab image id from newly created server
+        detailed_server_data = \
+            self.os_admin.servers_client.show_server(server['id'])['server']
+        image_id = detailed_server_data['image']['id']
+
+        host = self.get_host_for_server(server['id'])
         host_sm = clients.NovaServiceManager(host, 'nova-compute',
                                              self.os_admin.services_client)
         rbd_pool = host_sm.get_conf_opt('glance', 'rbd_pool')
@@ -59,7 +65,7 @@ class TestRBDDirectDownload(base.BaseWhiteboxComputeTest):
         self.assertTrue(host_sm.get_conf_opt('glance', 'enable_rbd_download'))
         log_query_string = f"Attempting to export RBD image: " \
             f"[[]pool_name: {rbd_pool}[]] [[]image_uuid: " \
-            f"{server['image']['id']}[]]"
+            f"{image_id}[]]"
         host_ip = get_ctlplane_address(host)
         logs_client = clients.LogParserClient(host_ip)
         # Assert if log with specified image is found

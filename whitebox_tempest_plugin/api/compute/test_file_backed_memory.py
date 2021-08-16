@@ -55,7 +55,7 @@ class FileBackedMemory(base.BaseWhiteboxComputeTest):
             ('libvirt', 'file_backed_memory', self.size),
             ('DEFAULT', 'ram_allocation_ratio', '1')
         ):
-            server = self.create_test_server()
+            server = self.create_test_server(wait_until='ACTIVE')
             self._assert_shared_mode_and_file_type(server)
             self.resize_server(server['id'], self.new_flavor['id'])
             self._assert_shared_mode_and_file_type(server)
@@ -65,13 +65,13 @@ class FileBackedMemory(base.BaseWhiteboxComputeTest):
             ('libvirt', 'file_backed_memory', self.size),
             ('DEFAULT', 'ram_allocation_ratio', '1')
         ):
-            server = self.create_test_server()
+            server = self.create_test_server(wait_until='ACTIVE')
             self._assert_shared_mode_and_file_type(server)
-            self.live_migrate(server['id'], 'ACTIVE')
+            self.live_migrate(self.os_primary, server['id'], 'ACTIVE')
             self._assert_shared_mode_and_file_type(server)
 
     def test_live_migrate_non_file_backed_host_to_file_backed_host(self):
-        server = self.create_test_server()
+        server = self.create_test_server(wait_until='ACTIVE')
         dest = self.get_host_other_than(server['id'])
         dest_svc_mgr = clients.NovaServiceManager(
             dest, 'nova-compute', self.os_admin.services_client)

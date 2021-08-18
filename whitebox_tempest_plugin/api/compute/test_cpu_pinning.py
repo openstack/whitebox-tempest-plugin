@@ -1335,3 +1335,50 @@ class NUMARebuildTest(BasePinningTest):
         db_topo_rebuilt = self._get_db_numa_topology(server['id'])
         self.assertEqual(db_topo_orig, db_topo_rebuilt,
                          "NUMA topology doesn't match")
+
+
+class MixedCPUPolicyTest(BasePinningTest, numa_helper.NUMAHelperMixin):
+    vcpus = 2
+    mixed_cpu_policy = {'hw:cpu_policy': 'mixed',
+                        'hw:cpu_dedicated_mask': '^0'}
+
+    def test_shared_pinned_and_unpinned_guest(self):
+        flavor = self.create_flavor(vcpus=self.vcpus,
+                                    extra_specs=self.mixed_cpu_policy)
+
+        server = self.create_test_server(flavor=flavor['id'])
+        host = self.get_host_for_server(server['id'])
+        host_sm = clients.NovaServiceManager(host, 'nova-compute',
+                                             self.os_admin.services_client)
+
+        # Gather the current hosts cpu dedicated and shared set values
+        host_dedicated_cpus = host_sm.get_cpu_dedicated_set()
+        host_shared_cpus = host_sm.get_cpu_shared_set()
+
+        # Find the PCPU's currently mapped to core 0 of the guest
+        guest_shared_cpus = self.get_host_pcpus_for_guest_vcpu(server['id'], 0)
+
+        # Validate the PCPUs mapped to core 0 are a subset of the cpu shared
+        # set of the host
+        self.assertItemsEqual(guest_shared_cpus, host_shared_cpus,
+                              'Shared CPU Set %s of shared server %s is '
+                              'not equal to shared set of host %s' %
+                              (guest_shared_cpus, server['id'],
+                               host_shared_cpus))
+
+        # Find the PCPU pinned to core 1 of the guest
+        guest_dedicated_cpus = \
+            self.get_host_pcpus_for_guest_vcpu(server['id'], 1)
+
+        # Confirm only one PCPU is mapped to core 1 of the guest
+        self.assertEqual(1, len(guest_dedicated_cpus), 'Only one PCPU should '
+                         'be pinned to the guest CPU ID 1, but instead '
+                         'found %s' % guest_dedicated_cpus)
+
+        # Validate PCPU pinned to core 1 is a subset of the cpu dedicated set
+        # of the host
+        self.assertTrue(guest_dedicated_cpus.issubset(host_dedicated_cpus),
+                        'PCPU %s pinned to CPU id 1 of instance %s located on '
+                        'host %s is not a subset of the dedicated set %s' %
+                        (guest_dedicated_cpus, server['id'], host,
+                         host_dedicated_cpus))

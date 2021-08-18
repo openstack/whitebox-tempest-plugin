@@ -26,6 +26,7 @@ from tempest.lib import exceptions as tempest_libexc
 
 from whitebox_tempest_plugin.common import waiters
 from whitebox_tempest_plugin import exceptions
+from whitebox_tempest_plugin import hardware
 from whitebox_tempest_plugin import utils as whitebox_utils
 
 CONF = config.CONF
@@ -232,6 +233,16 @@ class NovaServiceManager(ServiceManager):
                                             self.service,
                                             'down')
         return result
+
+    def get_cpu_shared_set(self):
+        shared_set = self.get_conf_opt('compute', 'cpu_shared_set')
+        return hardware.parse_cpu_spec(shared_set)
+
+    def get_cpu_dedicated_set(self):
+        dedicated_set = self.get_conf_opt('compute', 'cpu_dedicated_set')
+        dedicated_set = (dedicated_set if dedicated_set is not None else
+                         self.get_conf_opt('DEFAULT', 'vcpu_pin_set'))
+        return hardware.parse_cpu_spec(dedicated_set)
 
 
 class NUMAClient(SSHClient):

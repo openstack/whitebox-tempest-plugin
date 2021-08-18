@@ -86,7 +86,7 @@
     vars:
       # NOTE(artom) We can't have this on the parent job, otherwise the two
       # -cpupinnig jobs will inherit it as well.
-      tempest_exclude_regex: test_live_migrate_and_reboot
+      tempest_exclude_regex: test_live_migrate_and_reboot|test_shared_pinned_and_unpinned_guest
 
 - job:
     name: whitebox-devstack-multinode-cpupinning
@@ -95,7 +95,7 @@
       Runs the CPU pinning tests on single-NUMA, non-SMT, nested virt VMs. Uses
       [compute]cpu_dedicated_set to configure host CPUs for pinning.
     vars:
-      tempest_test_regex: 'test_live_migrate_and_reboot'
+      tempest_test_regex: test_live_migrate_and_reboot|test_shared_pinned_and_unpinned_guest
       devstack_local_conf:
         post-config:
           $NOVA_CONF:

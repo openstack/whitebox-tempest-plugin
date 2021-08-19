@@ -221,7 +221,7 @@ class CPUPolicyTest(BasePinningTest):
             len(cpu_pinnings), self.vcpus,
             "CPU pinning was not applied to new instance.")
 
-        server = self.reboot_server(server['id'], 'HARD')
+        self.reboot_server(server['id'], 'HARD')
         cpu_pinnings = self.get_server_cpu_pinning(server['id'])
 
         # we don't actually assert that the same pinning information is used

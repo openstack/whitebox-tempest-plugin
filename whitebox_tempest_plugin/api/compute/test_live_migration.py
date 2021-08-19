@@ -158,7 +158,7 @@ class LiveMigrationAndReboot(LiveMigrationBase):
             # a hard reboot. This is only detectable through log parsing, so to
             # be 100% sure we got the soft reboot we wanted, we should probably
             # do that.
-            self.servers_client.reboot_server(server['id'], type='SOFT')
+            self.reboot_server(server['id'], type='SOFT')
 
             # Gather the server's pinned CPUs after the soft reboot
             pinned_cpus_post_reboot = self.get_pinning_as_set(server['id'])

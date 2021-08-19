@@ -37,6 +37,7 @@ from tempest.exceptions import BuildErrorException
 from tempest.lib import decorators
 
 from whitebox_tempest_plugin.api.compute import base
+from whitebox_tempest_plugin import hardware
 from whitebox_tempest_plugin.services import clients
 from whitebox_tempest_plugin import utils as whitebox_utils
 
@@ -65,7 +66,7 @@ class BasePinningTest(base.BaseWhiteboxComputeTest):
         cell_pins = {}
         for memnode in memnodes:
             cell_pins[int(memnode.get('cellid'))] = \
-                whitebox_utils.parse_cpu_spec(memnode.get('nodeset'))
+                hardware.parse_cpu_spec(memnode.get('nodeset'))
 
         return cell_pins
 
@@ -82,7 +83,7 @@ class BasePinningTest(base.BaseWhiteboxComputeTest):
         emulator_threads = set()
         for pin in emulatorpins:
             emulator_threads |= \
-                whitebox_utils.parse_cpu_spec(pin.get('cpuset'))
+                hardware.parse_cpu_spec(pin.get('cpuset'))
 
         return emulator_threads
 
@@ -413,7 +414,7 @@ class EmulatorExtraCPUTest(BasePinningTest):
         emulatorpins = root.findall('./cputune/emulatorpin')
         emulator_threads = set()
         for pin in emulatorpins:
-            emulator_threads |= whitebox_utils.parse_cpu_spec(
+            emulator_threads |= hardware.parse_cpu_spec(
                 pin.get('cpuset'))
 
         return emulator_threads
@@ -438,10 +439,10 @@ class EmulatorExtraCPUTest(BasePinningTest):
         if len(CONF.whitebox_hardware.cpu_topology[self.numa_to_use]) < 3:
             raise self.skipException('Test requires NUMA Node with 3 or more '
                                      'CPUs to run')
-        dedicated_set = self._get_cpu_spec(
+        dedicated_set = hardware.format_cpu_spec(
             CONF.whitebox_hardware.cpu_topology[self.numa_to_use][:2])
 
-        cpu_shared_set_str = self._get_cpu_spec(
+        cpu_shared_set_str = hardware.format_cpu_spec(
             CONF.whitebox_hardware.cpu_topology[self.numa_to_use][2:])
 
         hostname = self.list_compute_hosts()[0]
@@ -477,7 +478,7 @@ class EmulatorExtraCPUTest(BasePinningTest):
 
             # Confirm the emulator threads from server's A and B are both equal
             # to cpu_shared_set
-            cpu_shared_set = whitebox_utils.parse_cpu_spec(cpu_shared_set_str)
+            cpu_shared_set = hardware.parse_cpu_spec(cpu_shared_set_str)
             self.assertEqual(
                 emulator_threads_a, cpu_shared_set,
                 'Emulator threads for server A %s are not the same as CPU set '
@@ -504,7 +505,7 @@ class EmulatorExtraCPUTest(BasePinningTest):
             raise self.skipException('Test requires NUMA Node with 2 or more '
                                      'CPUs to run')
 
-        dedicated_set = self._get_cpu_spec(
+        dedicated_set = hardware.format_cpu_spec(
             CONF.whitebox_hardware.cpu_topology[self.numa_to_use][:2])
         hostname = self.list_compute_hosts()[0]
         host_sm = clients.NovaServiceManager(
@@ -575,7 +576,7 @@ class EmulatorExtraCPUTest(BasePinningTest):
                                      'CPUs to run')
         dedicated_set = \
             set(CONF.whitebox_hardware.cpu_topology[self.numa_to_use])
-        dedicated_set_str = self._get_cpu_spec(dedicated_set)
+        dedicated_set_str = hardware.format_cpu_spec(dedicated_set)
 
         hostname = self.list_compute_hosts()[0]
         host_sm = clients.NovaServiceManager(
@@ -652,7 +653,7 @@ class EmulatorExtraCPUTest(BasePinningTest):
         if len(CONF.whitebox_hardware.cpu_topology[self.numa_to_use]) < 2:
             raise self.skipException('Test requires NUMA Node with 2 or more '
                                      'CPUs to run')
-        dedicated_set = self._get_cpu_spec(
+        dedicated_set = hardware.format_cpu_spec(
             CONF.whitebox_hardware.cpu_topology[self.numa_to_use][:2])
 
         hostname = self.list_compute_hosts()[0]
@@ -805,7 +806,7 @@ class NUMALiveMigrationBase(BasePinningTest):
         """
         root = self.get_server_xml(server_id)
         cpuset = root.find('./vcpu').attrib.get('cpuset', None)
-        return whitebox_utils.parse_cpu_spec(cpuset)
+        return hardware.parse_cpu_spec(cpuset)
 
     def _get_hugepage_xml_element(self, server_id):
         """Gather and return all instances of the page element from XML element
@@ -872,9 +873,9 @@ class NUMALiveMigrationTest(NUMALiveMigrationBase):
                                               self.os_admin.services_client)
         with whitebox_utils.multicontext(
             host1_sm.config_options(('DEFAULT', 'vcpu_pin_set',
-                                     self._get_cpu_spec(topo_1[0]))),
+                                     hardware.format_cpu_spec(topo_1[0]))),
             host2_sm.config_options(('DEFAULT', 'vcpu_pin_set',
-                                     self._get_cpu_spec(topo_2[0])))
+                                     hardware.format_cpu_spec(topo_2[0])))
         ):
             # Boot 2 servers such that their vCPUs "fill" a NUMA node.
             specs = {'hw:cpu_policy': 'dedicated'}
@@ -920,7 +921,7 @@ class NUMALiveMigrationTest(NUMALiveMigrationBase):
             topo_a = numaclient_a.get_host_topology()
             with host_a_sm.config_options(
                 ('DEFAULT', 'vcpu_pin_set',
-                 self._get_cpu_spec(topo_a[0] + topo_a[1]))
+                 hardware.format_cpu_spec(topo_a[0] + topo_a[1]))
             ):
                 self.live_migrate(server_b['id'], host_a, 'ACTIVE')
 
@@ -1141,7 +1142,7 @@ class NUMACPUDedicatedLiveMigrationTest(NUMALiveMigrationBase):
             raise cls.skipException(msg)
 
     def test_collocation_migration(self):
-        cpu_list = self.get_all_cpus()
+        cpu_list = hardware.get_all_cpus()
         if len(cpu_list) < 4:
             raise self.skipException('Requires at least 4 pCPUs to run')
 
@@ -1165,16 +1166,18 @@ class NUMACPUDedicatedLiveMigrationTest(NUMALiveMigrationBase):
                                               self.os_admin.services_client)
 
         with whitebox_utils.multicontext(
-            host1_sm.config_options(('compute', 'cpu_dedicated_set',
-                                     self._get_cpu_spec(host1_dedicated_set)),
-                                    ('compute', 'cpu_shared_set',
-                                     self._get_cpu_spec(host1_shared_set))
-                                    ),
-            host2_sm.config_options(('compute', 'cpu_dedicated_set',
-                                     self._get_cpu_spec(host2_dedicated_set)),
-                                    ('compute', 'cpu_shared_set',
-                                     self._get_cpu_spec(host2_shared_set))
-                                    )
+            host1_sm.config_options(
+                ('compute', 'cpu_dedicated_set',
+                 hardware.format_cpu_spec(host1_dedicated_set)),
+                ('compute', 'cpu_shared_set',
+                 hardware.format_cpu_spec(host1_shared_set))
+            ),
+            host2_sm.config_options(
+                ('compute', 'cpu_dedicated_set',
+                 hardware.format_cpu_spec(host2_dedicated_set)),
+                ('compute', 'cpu_shared_set',
+                 hardware.format_cpu_spec(host2_shared_set))
+            )
         ):
             # Create a total of four instances, with each compute host holding
             # a server with a cpu_dedicated policy and a server that will

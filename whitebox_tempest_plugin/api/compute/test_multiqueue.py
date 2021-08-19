@@ -22,11 +22,7 @@ CONF = config.CONF
 
 class MultiqueueTest(base.BaseWhiteboxComputeTest):
 
-    @classmethod
-    def setup_credentials(cls):
-        cls.set_network_resources(network=True, subnet=True, router=True,
-                                  dhcp=True)
-        super(MultiqueueTest, cls).setup_credentials()
+    create_default_network = True
 
     def test_multiqueue(self):
         image_id = self.copy_default_image(hw_vif_multiqueue_enabled='true')

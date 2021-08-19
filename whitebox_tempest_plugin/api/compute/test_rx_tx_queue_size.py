@@ -16,9 +16,7 @@
 import testtools
 
 from oslo_log import log as logging
-from tempest.common import waiters
 from tempest import config
-from tempest.lib.common.utils import data_utils
 
 from whitebox_tempest_plugin.api.compute import base
 
@@ -28,49 +26,13 @@ LOG = logging.getLogger(__name__)
 
 class RxTxQueueSizeTest(base.BaseWhiteboxComputeTest):
 
-    @classmethod
-    def setup_clients(cls):
-        super(RxTxQueueSizeTest, cls).setup_clients()
-        cls.networks_client = cls.os_primary.networks_client
-        cls.subnets_client = cls.os_primary.subnets_client
-
-    @classmethod
-    def resource_setup(cls):
-        # Create a network, a subnet and a server with an interface on
-        # this network.
-        super(RxTxQueueSizeTest, cls).resource_setup()
-
-        name_net = data_utils.rand_name(cls.__class__.__name__)
-        LOG.debug("Creating network %s", name_net)
-        net = cls.networks_client.create_network(name=name_net)
-        cls.addClassResourceCleanup(cls.networks_client.delete_network,
-                                    net['network']['id'])
-
-        LOG.debug("Creating subnet for network %s", net['network']['id'])
-        subnet = cls.subnets_client.create_subnet(
-            network_id=net['network']['id'],
-            cidr='19.80.0.0/24',  # randomly copied from an existing test
-            ip_version=4)
-        cls.addClassResourceCleanup(cls.subnets_client.delete_subnet,
-                                    subnet['subnet']['id'])
-
-        name_server = data_utils.rand_name(cls.__class__.__name__ + "-server")
-        image_id = CONF.compute.image_ref
-        flavor = CONF.compute.flavor_ref
-        networks = [{'uuid': net['network']['id']}]
-        body = cls.servers_client.create_server(name=name_server,
-                                                imageRef=image_id,
-                                                flavorRef=flavor,
-                                                networks=networks)
-        cls.server_id = body['server']['id']
-        waiters.wait_for_server_status(cls.servers_client,
-                                       cls.server_id, "ACTIVE")
-        cls.addClassResourceCleanup(cls.delete_server, cls.server_id)
+    create_default_network = True
 
     @testtools.skipUnless(CONF.whitebox.rx_queue_size,
                           '`rx_queue_size` must be set')
     def test_rx_queue_size(self):
-        domain = self.get_server_xml(self.server_id)
+        server = self.create_test_server()
+        domain = self.get_server_xml(server['id'])
         interface_criteria = \
             "devices/interface[@type='%s']/driver[@name='vhost']"
         driver = domain.find(interface_criteria % 'ethernet')

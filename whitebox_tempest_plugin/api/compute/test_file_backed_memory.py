@@ -71,8 +71,7 @@ class FileBackedMemory(base.BaseWhiteboxComputeTest):
         ):
             server = self.create_test_server()
             self._assert_shared_mode_and_file_type(server)
-            server = self.resize_server(
-                server['id'], self.new_flavor['id'])
+            self.resize_server(server['id'], self.new_flavor['id'])
             self._assert_shared_mode_and_file_type(server)
 
     def test_live_migrate_file_backed_server(self):

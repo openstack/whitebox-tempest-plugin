@@ -65,14 +65,6 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
                                                       **extra_specs)
         return flavor
 
-    def resize_server(self, server_id, new_flavor_id, **kwargs):
-        # override the function to return the resized server
-        # TODO(stephenfin): Add this to upstream
-        super(BaseWhiteboxComputeTest, self).resize_server(
-            server_id, new_flavor_id, **kwargs)
-
-        return self.servers_client.show_server(server_id)['server']
-
     def copy_default_image(self, **kwargs):
         """Creates a new image by downloading the default image's bits and
         uploading them to a new image. Any kwargs are set as image properties

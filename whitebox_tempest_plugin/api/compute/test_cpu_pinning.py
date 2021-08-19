@@ -181,7 +181,7 @@ class CPUPolicyTest(BasePinningTest):
 
         flavor_b = self.create_flavor(vcpus=self.vcpus,
                                       extra_specs=self.shared_cpu_policy)
-        server = self.resize_server(server['id'], flavor_b['id'])
+        self.resize_server(server['id'], flavor_b['id'])
         cpu_pinnings = self.get_server_cpu_pinning(server['id'])
 
         self.assertEqual(
@@ -203,7 +203,7 @@ class CPUPolicyTest(BasePinningTest):
 
         flavor_b = self.create_flavor(vcpus=self.vcpus,
                                       extra_specs=self.dedicated_cpu_policy)
-        server = self.resize_server(server['id'], flavor_b['id'])
+        self.resize_server(server['id'], flavor_b['id'])
         cpu_pinnings = self.get_server_cpu_pinning(server['id'])
 
         self.assertEqual(

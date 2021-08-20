@@ -18,6 +18,7 @@ from tempest import exceptions as tempest_exc
 from tempest.lib.common.utils import data_utils
 
 from whitebox_tempest_plugin.api.compute import base
+from whitebox_tempest_plugin.api.compute import numa_helper
 from whitebox_tempest_plugin import hardware
 from whitebox_tempest_plugin.services import clients
 
@@ -217,7 +218,7 @@ class SRIOVBase(base.BaseWhiteboxComputeTest):
                 self.assertIn(pci_device['dev_type'], ['type-VF', 'type-PCI'])
 
 
-class SRIOVNumaAffinity(SRIOVBase):
+class SRIOVNumaAffinity(SRIOVBase, numa_helper.NUMAHelperMixin):
 
     # Test utilizes the optional host parameter for server creation introduced
     # in 2.74. It allows the guest to be scheduled to a specific compute host.

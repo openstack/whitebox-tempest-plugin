@@ -23,7 +23,6 @@ from tempest import config
 from tempest.lib.common.utils import data_utils
 from tempest.lib.common.utils import test_utils
 
-from whitebox_tempest_plugin import hardware
 from whitebox_tempest_plugin.services import clients
 from whitebox_tempest_plugin import utils as whitebox_utils
 
@@ -142,14 +141,6 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
         msg += "]"
         self.assertEqual(target_host, self.get_host_for_server(server_id),
                          msg)
-
-    def get_pinning_as_set(self, server_id):
-        pinset = set()
-        root = self.get_server_xml(server_id)
-        vcpupins = root.findall('./cputune/vcpupin')
-        for pin in vcpupins:
-            pinset |= hardware.parse_cpu_spec(pin.get('cpuset'))
-        return pinset
 
     # TODO(lyarwood): Refactor all of this into a common module between
     # tempest.api.{compute,volume} and tempest.scenario.manager where this

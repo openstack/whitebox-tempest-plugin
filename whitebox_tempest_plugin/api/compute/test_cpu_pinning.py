@@ -37,6 +37,7 @@ from tempest.exceptions import BuildErrorException
 from tempest.lib import decorators
 
 from whitebox_tempest_plugin.api.compute import base
+from whitebox_tempest_plugin.api.compute import numa_helper
 from whitebox_tempest_plugin import hardware
 from whitebox_tempest_plugin.services import clients
 from whitebox_tempest_plugin import utils as whitebox_utils
@@ -48,7 +49,8 @@ CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
 
-class BasePinningTest(base.BaseWhiteboxComputeTest):
+class BasePinningTest(base.BaseWhiteboxComputeTest,
+                      numa_helper.NUMAHelperMixin):
     shared_cpu_policy = {'hw:cpu_policy': 'shared'}
     dedicated_cpu_policy = {'hw:cpu_policy': 'dedicated'}
 

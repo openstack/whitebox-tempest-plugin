@@ -22,6 +22,7 @@ from tempest import config
 from tempest.lib import decorators
 
 from whitebox_tempest_plugin.api.compute import base
+from whitebox_tempest_plugin.api.compute import numa_helper
 from whitebox_tempest_plugin import hardware
 from whitebox_tempest_plugin.services import clients
 from whitebox_tempest_plugin import utils as whitebox_utils
@@ -83,7 +84,7 @@ class LiveMigrationTest(LiveMigrationBase):
         self.assertEqual(cache_type, root_disk_cache())
 
 
-class LiveMigrationAndReboot(LiveMigrationBase):
+class LiveMigrationAndReboot(LiveMigrationBase, numa_helper.NUMAHelperMixin):
 
     dedicated_cpu_policy = {'hw:cpu_policy': 'dedicated'}
 

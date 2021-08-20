@@ -487,7 +487,7 @@ class SRIOVMigration(SRIOVBase):
         )
 
         # Live migrate the server
-        self.live_migrate(server['id'], hostname2, 'ACTIVE')
+        self.live_migrate(server['id'], 'ACTIVE', target_host=hostname2)
 
         # Search the instace's XML for the SR-IOV network device element based
         # on the mac address and binding:vnic_type from port info
@@ -514,7 +514,7 @@ class SRIOVMigration(SRIOVBase):
                          'is %s' % pci_allocated_count)
 
         # Migrate server back to the original host
-        self.live_migrate(server['id'], hostname1, 'ACTIVE')
+        self.live_migrate(server['id'], 'ACTIVE', target_host=hostname1)
 
         # Again find the instance's network device element based on the mac
         # address and binding:vnic_type from the port info provided by ports

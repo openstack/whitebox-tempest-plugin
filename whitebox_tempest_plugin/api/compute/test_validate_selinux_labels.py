@@ -61,6 +61,5 @@ class SelinuxLabelsTest(base.BaseWhiteboxComputeTest):
     def test_live_migrate_with_label_check(self):
         server = self.create_test_server()
         self._assert_svirt_labels(server)
-        destination_host = self.get_host_other_than(server['id'])
-        self.live_migrate(server['id'], destination_host, 'ACTIVE')
+        self.live_migrate(server['id'], 'ACTIVE')
         self._assert_svirt_labels(server)

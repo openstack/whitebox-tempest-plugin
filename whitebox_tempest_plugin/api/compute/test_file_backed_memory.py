@@ -67,8 +67,7 @@ class FileBackedMemory(base.BaseWhiteboxComputeTest):
         ):
             server = self.create_test_server()
             self._assert_shared_mode_and_file_type(server)
-            destination_host = self.get_host_other_than(server['id'])
-            self.live_migrate(server['id'], destination_host, 'ACTIVE')
+            self.live_migrate(server['id'], 'ACTIVE')
             self._assert_shared_mode_and_file_type(server)
 
     def test_live_migrate_non_file_backed_host_to_file_backed_host(self):

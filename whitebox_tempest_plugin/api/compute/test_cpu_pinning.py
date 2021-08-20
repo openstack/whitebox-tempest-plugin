@@ -925,7 +925,7 @@ class NUMALiveMigrationTest(NUMALiveMigrationBase):
                 ('DEFAULT', 'vcpu_pin_set',
                  hardware.format_cpu_spec(topo_a[0] + topo_a[1]))
             ):
-                self.live_migrate(server_b['id'], host_a, 'ACTIVE')
+                self.live_migrate(server_b['id'], 'ACTIVE', target_host=host_a)
 
                 # They should have disjoint (non-null) CPU pins in their XML
                 pin_a = self.get_pinning_as_set(server_a['id'])
@@ -998,7 +998,7 @@ class NUMALiveMigrationTest(NUMALiveMigrationBase):
 
             # Live migrate server_b
             compute_a = self.get_host_other_than(server_b['id'])
-            self.live_migrate(server_b['id'], compute_a, 'ACTIVE')
+            self.live_migrate(server_b['id'], 'ACTIVE', target_host=compute_a)
 
             # They should have identical (non-null) emulator pins and disjoint
             # (non-null) CPU pins
@@ -1114,7 +1114,7 @@ class NUMALiveMigrationTest(NUMALiveMigrationBase):
 
         # Live migrate server_b
         compute_a = self.get_host_other_than(server_b['id'])
-        self.live_migrate(server_b['id'], compute_a, 'ACTIVE')
+        self.live_migrate(server_b['id'], 'ACTIVE', target_host=compute_a)
 
         # Assert hugepage XML element is still present and correct size for
         # server_b after live migration
@@ -1249,7 +1249,8 @@ class NUMACPUDedicatedLiveMigrationTest(NUMALiveMigrationBase):
             # Live migrate shared server A to the compute node with shared
             # server B. Both servers are using shared vCPU's so migration
             # should be successful
-            self.live_migrate(shared_server_a['id'], host2, 'ACTIVE')
+            self.live_migrate(shared_server_a['id'], 'ACTIVE',
+                              target_host=host2)
 
             # Validate shared server A now has a shared cpuset that is a equal
             # to it's new host's cpu_shared_set
@@ -1265,7 +1266,8 @@ class NUMACPUDedicatedLiveMigrationTest(NUMALiveMigrationBase):
             # Live migrate dedicated server A to the same host holding
             # dedicated server B. End result should be all 4 servers are on
             # the same host.
-            self.live_migrate(dedicated_server_a['id'], host2, 'ACTIVE')
+            self.live_migrate(dedicated_server_a['id'], 'ACTIVE',
+                              target_host=host2)
 
             # Dedicated server A should have a CPU pin set that is a subset of
             # it's new host's cpu_dedicated_set and should not intersect with

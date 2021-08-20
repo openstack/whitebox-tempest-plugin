@@ -29,7 +29,8 @@
           - compute
 
 - job:
-    name: whitebox-devstack-multinode
+    name: whitebox-devstack-multinode-base
+    abstract: true
     parent: tempest-multinode-full-py3
     nodeset: nested-virt-multinode
     description: |
@@ -79,12 +80,72 @@
       tempest:
         num_hugepages: 512
 
+- job:
+    name: whitebox-devstack-multinode
+    parent: whitebox-devstack-multinode-base
+    vars:
+      # NOTE(artom) We can't have this on the parent job, otherwise the two
+      # -cpupinnig jobs will inherit it as well.
+      tempest_exclude_regex: test_live_migrate_and_reboot
+
+- job:
+    name: whitebox-devstack-multinode-cpupinning
+    parent: whitebox-devstack-multinode-base
+    description: |
+      Runs the CPU pinning tests on single-NUMA, non-SMT, nested virt VMs. Uses
+      [compute]cpu_dedicated_set to configure host CPUs for pinning.
+    vars:
+      tempest_test_regex: 'test_live_migrate_and_reboot'
+      devstack_local_conf:
+        post-config:
+          $NOVA_CONF:
+            compute:
+              cpu_dedicated_set: '0-3'
+              cpu_shared_set: '4,5'
+    group-vars:
+      subnode:
+        devstack_local_conf:
+          post-config:
+            $NOVA_CONF:
+              compute:
+                cpu_dedicated_set: '4-7'
+                cpu_shared_set: '2,3'
+
+- job:
+    name: whitebox-devstack-multinode-cpupinninglegacy
+    parent: whitebox-devstack-multinode-base
+    description: |
+      Runs the CPU pinning tests on single-NUMA, non-SMT, nested virt VMs. Uses
+      [DEFAULT]vcpu_pin_set to configure host CPUs for pinning.
+    vars:
+      tempest_test_regex: 'test_live_migrate_and_reboot'
+      devstack_local_conf:
+        post-config:
+          $NOVA_CONF:
+            DEFAULT:
+              vcpu_pin_set: '0-3'
+            compute:
+              cpu_shared_set: '4,5'
+    group-vars:
+      subnode:
+        devstack_local_conf:
+          post-config:
+            $NOVA_CONF:
+              DEFAULT:
+                vcpu_pin_set: '4-7'
+              compute:
+                cpu_shared_set: '2,3'
+
 - project:
     templates:
       - openstack-python3-xena-jobs
     check:
       jobs:
         - whitebox-devstack-multinode
+        - whitebox-devstack-multinode-cpupinning
+        - whitebox-devstack-multinode-cpupinninglegacy
     gate:
       jobs:
         - whitebox-devstack-multinode
+        - whitebox-devstack-multinode-cpupinning
+        - whitebox-devstack-multinode-cpupinninglegacy

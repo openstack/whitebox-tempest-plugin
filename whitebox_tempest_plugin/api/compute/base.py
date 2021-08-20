@@ -126,21 +126,22 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
         xml = virshxml.dumpxml(server_instance_name)
         return ET.fromstring(xml)
 
-    def live_migrate(self, server_id, target_host, state):
-        self.admin_servers_client.live_migrate_server(
-            server_id, host=target_host, block_migration='auto')
+    def live_migrate(self, server_id, state, target_host=None):
+        orig_host = self.get_host_for_server(server_id)
+        self.admin_servers_client.live_migrate_server(server_id,
+                                                      block_migration='auto',
+                                                      host=target_host)
         waiters.wait_for_server_status(self.servers_client, server_id, state)
-        migration_list = (self.admin_migration_client.list_migrations()
-                          ['migrations'])
-
-        msg = ("Live Migration failed. Migrations list for Instance "
-               "%s: [" % server_id)
-        for live_migration in migration_list:
-            if (live_migration['instance_uuid'] == server_id):
-                msg += "\n%s" % live_migration
-        msg += "]"
-        self.assertEqual(target_host, self.get_host_for_server(server_id),
-                         msg)
+        if target_host:
+            self.assertEqual(
+                target_host, self.get_host_for_server(server_id),
+                'Live migration failed, instance %s is not '
+                'on target host %s' % (server_id, target_host))
+        else:
+            self.assertNotEqual(
+                orig_host, self.get_host_for_server(server_id),
+                'Live migration failed, '
+                'instance %s has not changed hosts' % server_id)
 
     # TODO(lyarwood): Refactor all of this into a common module between
     # tempest.api.{compute,volume} and tempest.scenario.manager where this

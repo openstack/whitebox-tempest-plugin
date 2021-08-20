@@ -1,34 +1,4 @@
 - nodeset:
-    name: multi-numa-multinode
-    nodes:
-      - name: controller
-        label: multi-numa-ubuntu-bionic
-      - name: compute
-        label: multi-numa-ubuntu-bionic
-    groups:
-      # Node where tests are executed and test results collected
-      - name: tempest
-        nodes:
-          - controller
-      # Nodes running the compute service
-      - name: compute
-        nodes:
-          - controller
-          - compute
-      # Nodes that are not the controller
-      - name: subnode
-        nodes:
-          - compute
-      # Switch node for multinode networking setup
-      - name: switch
-        nodes:
-          - controller
-      # Peer nodes for multinode networking setup
-      - name: peers
-        nodes:
-          - compute
-
-- nodeset:
     name: nested-virt-multinode
     nodes:
       - name: controller
@@ -59,29 +29,44 @@
           - compute
 
 - job:
-    name: whitebox-multinode-devstack-base
-    abstract: true
+    name: whitebox-devstack-multinode
     parent: tempest-multinode-full-py3
+    nodeset: nested-virt-multinode
     description: |
-        Base devstack multinode job.
+      Runs the entire test suite on single-NUMA, non-SMT, nested virt VMs.
     required-projects:
-        openstack/whitebox-tempest-plugin
+      openstack/whitebox-tempest-plugin
     pre-run: playbooks/whitebox/pre.yaml
     irrelevant-files:
       - ^test-requirements.txt$
     vars:
-        tox_envlist: all
-        tempest_concurrency: 1
-        tempest_test_regex: ^whitebox_tempest_plugin\.
-        devstack_plugins:
-            whitebox-tempest-plugin: https://opendev.org/openstack/whitebox-tempest-plugin.git
+      tox_envlist: all
+      tempest_concurrency: 1
+      tempest_test_regex: ^whitebox_tempest_plugin\.
+      devstack_plugins:
+        whitebox-tempest-plugin: https://opendev.org/openstack/whitebox-tempest-plugin.git
+      devstack_localrc:
+        MAX_COMPUTE_NODES: 2
+        LIBVIRT_TYPE: kvm
+        TEMPEST_PLUGINS: /opt/stack/whitebox-tempest-plugin
+        WHITEBOX_PRIVKEY_PATH: /home/tempest/.ssh/id_rsa
+        WHITEBOX_CPU_MODEL: kvm64
+        WHITEBOX_CPU_MODEL_EXTRA_FLAGS: vme,+ssse3,-mmx
+        WHITEBOX_CPU_TOPOLOGY: "0: [0,1,2,3,4,5,6,7]"
+      devstack_local_conf:
+        post-config:
+          $NOVA_CONF:
+            libvirt:
+              cpu_mode: custom
+              cpu_models: kvm64
+              cpu_model_extra_flags: vme,+ssse3,-mmx
+              virt_type: kvm
+              rx_queue_size: 1024
+    group-vars:
+      subnode:
+        num_hugepages: 2048
         devstack_localrc:
-            MAX_COMPUTE_NODES: 2
-            LIBVIRT_TYPE: kvm
-            TEMPEST_PLUGINS: /opt/stack/whitebox-tempest-plugin
-            WHITEBOX_PRIVKEY_PATH: /home/tempest/.ssh/id_rsa
-            WHITEBOX_CPU_MODEL: kvm64
-            WHITEBOX_CPU_MODEL_EXTRA_FLAGS: vme,+ssse3,-mmx
+          LIBVIRT_TYPE: kvm
         devstack_local_conf:
           post-config:
             $NOVA_CONF:
@@ -91,57 +76,15 @@
                 cpu_model_extra_flags: vme,+ssse3,-mmx
                 virt_type: kvm
                 rx_queue_size: 1024
-    group-vars:
-        subnode:
-            num_hugepages: 2048
-            devstack_localrc:
-                LIBVIRT_TYPE: kvm
-            devstack_local_conf:
-              post-config:
-                $NOVA_CONF:
-                  libvirt:
-                    cpu_mode: custom
-                    cpu_models: kvm64
-                    cpu_model_extra_flags: vme,+ssse3,-mmx
-                    virt_type: kvm
-                    rx_queue_size: 1024
-        tempest:
-            num_hugepages: 512
-
-- job:
-    name: whitebox-multinode-devstack
-    parent: whitebox-multinode-devstack-base
-    nodeset: nested-virt-multinode
-    description: |
-      Runs the entire test suite on single-NUMA, non-SMT, nested virt VMs.
-      Tests that need SMT and/or more than 1 NUMA node are skipped in the test
-      code itself.
-    vars:
-      tempest_test_regex: ^whitebox_tempest_plugin\.
-      devstack_localrc:
-        WHITEBOX_CPU_TOPOLOGY: "0: [0,1,2,3,4,5,6,7]"
-
-- job:
-    name: whitebox-multinode-multinuma-devstack
-    parent: whitebox-multinode-devstack-base
-    nodeset: multi-numa-multinode
-    voting: true
-    description: |
-      Runs specific tests that need SMT and/or more than 1 NUMA node.
-      Non-voting because there is currently only 1 provider of the `multi-numa`
-      label, and it's not super reliable.
-    vars:
-      tempest_test_regex: ^whitebox_tempest_plugin\.
-      devstack_localrc:
-        SMT_HOSTS: "{{ groups['compute'] | map('extract', hostvars, ['ansible_hostname']) | join(',') }}"
-        WHITEBOX_CPU_TOPOLOGY: "0: [0,1,2,3], 1: [4,5,6,7]"
+      tempest:
+        num_hugepages: 512
 
 - project:
     templates:
       - openstack-python3-xena-jobs
     check:
-        jobs:
-            - whitebox-multinode-devstack
+      jobs:
+        - whitebox-devstack-multinode
     gate:
-        jobs:
-            - whitebox-multinode-devstack
+      jobs:
+        - whitebox-devstack-multinode

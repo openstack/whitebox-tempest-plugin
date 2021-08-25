@@ -18,7 +18,7 @@ from tempest.lib import exceptions as lib_exc
 
 from whitebox_tempest_plugin.api.compute import base
 from whitebox_tempest_plugin.services import clients
-from whitebox_tempest_plugin import utils as whitebox_utils
+
 
 CONF = config.CONF
 
@@ -36,11 +36,8 @@ class FileBackedMemory(base.BaseWhiteboxComputeTest):
         super(FileBackedMemory, cls).skip_checks()
         if not CONF.whitebox.file_backed_memory_size:
             raise cls.skipException("file backed memory is not enabled")
-        if (CONF.compute.min_compute_nodes < 2 or
-                CONF.whitebox.max_compute_nodes > 2):
-            raise cls.skipException(
-                "Need exactly 2 compute nodes,"
-                "skipping file backed memory tests.")
+        if CONF.compute.min_compute_nodes < 2:
+            raise cls.skipException('Need at least 2 compute nodes.')
 
     def setUp(self):
         super(FileBackedMemory, self).setUp()
@@ -54,20 +51,9 @@ class FileBackedMemory(base.BaseWhiteboxComputeTest):
         self.assertEqual('shared', access_mode.get('mode'))
 
     def test_resize_file_backed_server_on_diff_host(self):
-        host1, host2 = self.list_compute_hosts()
-        host1_sm = clients.NovaServiceManager(host1, 'nova-compute',
-                                              self.os_admin.services_client)
-        host2_sm = clients.NovaServiceManager(host2, 'nova-compute',
-                                              self.os_admin.services_client)
-        with whitebox_utils.multicontext(
-            host1_sm.config_options(('libvirt',
-                                     'file_backed_memory', self.size),
-                                    ('DEFAULT',
-                                     'ram_allocation_ratio', '1')),
-            host2_sm.config_options(('libvirt',
-                                     'file_backed_memory', self.size),
-                                    ('DEFAULT',
-                                     'ram_allocation_ratio', '1'))
+        with self.config_all_computes(
+            ('libvirt', 'file_backed_memory', self.size),
+            ('DEFAULT', 'ram_allocation_ratio', '1')
         ):
             server = self.create_test_server()
             self._assert_shared_mode_and_file_type(server)
@@ -75,20 +61,9 @@ class FileBackedMemory(base.BaseWhiteboxComputeTest):
             self._assert_shared_mode_and_file_type(server)
 
     def test_live_migrate_file_backed_server(self):
-        host1, host2 = self.list_compute_hosts()
-        host1_sm = clients.NovaServiceManager(host1, 'nova-compute',
-                                              self.os_admin.services_client)
-        host2_sm = clients.NovaServiceManager(host2, 'nova-compute',
-                                              self.os_admin.services_client)
-        with whitebox_utils.multicontext(
-            host1_sm.config_options(('libvirt',
-                                     'file_backed_memory', self.size),
-                                    ('DEFAULT',
-                                     'ram_allocation_ratio', '1')),
-            host2_sm.config_options(('libvirt',
-                                     'file_backed_memory', self.size),
-                                    ('DEFAULT',
-                                     'ram_allocation_ratio', '1'))
+        with self.config_all_computes(
+            ('libvirt', 'file_backed_memory', self.size),
+            ('DEFAULT', 'ram_allocation_ratio', '1')
         ):
             server = self.create_test_server()
             self._assert_shared_mode_and_file_type(server)
@@ -97,15 +72,14 @@ class FileBackedMemory(base.BaseWhiteboxComputeTest):
             self._assert_shared_mode_and_file_type(server)
 
     def test_live_migrate_non_file_backed_host_to_file_backed_host(self):
-        server_1 = self.create_test_server()
-        destination_host = self.get_host_other_than(server_1['id'])
-        host1_sm = clients.NovaServiceManager(destination_host,
-                                              'nova-compute',
-                                              self.os_admin.services_client)
-        with host1_sm.config_options(('libvirt',
-                                      'file_backed_memory', self.size),
-                                     ('DEFAULT',
-                                      'ram_allocation_ratio', '1')):
+        server = self.create_test_server()
+        dest = self.get_host_other_than(server['id'])
+        dest_svc_mgr = clients.NovaServiceManager(
+            dest, 'nova-compute', self.os_admin.services_client)
+        with dest_svc_mgr.config_options(
+            ('libvirt', 'file_backed_memory', self.size),
+            ('DEFAULT', 'ram_allocation_ratio', '1')
+        ):
             self.assertRaises(lib_exc.BadRequest,
                               self.admin_servers_client.live_migrate_server,
-                              server_1['id'], host=destination_host)
+                              server['id'], host=dest)

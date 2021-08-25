@@ -27,6 +27,12 @@ from whitebox_tempest_plugin import hardware
 from whitebox_tempest_plugin.services import clients
 from whitebox_tempest_plugin import utils as whitebox_utils
 
+if six.PY2:
+    import contextlib2 as contextlib
+else:
+    import contextlib
+
+
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
@@ -99,6 +105,16 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
         services = \
             self.service_client.list_services(binary=binary_name)['services']
         return [service['host'] for service in services]
+
+    @contextlib.contextmanager
+    def config_all_computes(self, *options):
+        computes = self.list_compute_hosts()
+        svc_mgrs = [clients.NovaServiceManager(compute, 'nova-compute',
+                                               self.os_admin.services_client)
+                    for compute in computes]
+        ctxt_mgrs = [mgr.config_options(*options) for mgr in svc_mgrs]
+        with contextlib.ExitStack() as stack:
+            yield [stack.enter_context(mgr) for mgr in ctxt_mgrs]
 
     def get_server_xml(self, server_id):
         server = self.servers_client.show_server(server_id)

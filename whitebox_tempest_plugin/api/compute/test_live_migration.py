@@ -22,6 +22,7 @@ from tempest import config
 from tempest.lib import decorators
 
 from whitebox_tempest_plugin.api.compute import base
+from whitebox_tempest_plugin import hardware
 from whitebox_tempest_plugin.services import clients
 from whitebox_tempest_plugin import utils as whitebox_utils
 
@@ -107,7 +108,7 @@ class LiveMigrationAndReboot(LiveMigrationBase):
 
     def _migrate_and_reboot_instance(self, section, cpu_set_parameter):
         flavor_vcpu_size = 2
-        cpu_list = self.get_all_cpus()
+        cpu_list = hardware.get_all_cpus()
         if len(cpu_list) < 4:
             raise self.skipException('Requires 4 or more pCPUs to execute '
                                      'the test')
@@ -130,10 +131,12 @@ class LiveMigrationAndReboot(LiveMigrationBase):
                                               self.os_admin.services_client)
 
         with whitebox_utils.multicontext(
-            host1_sm.config_options((section, cpu_set_parameter,
-                                     self._get_cpu_spec(host1_dedicated_set))),
-            host2_sm.config_options((section, cpu_set_parameter,
-                                     self._get_cpu_spec(host2_dedicated_set)))
+            host1_sm.config_options(
+                (section, cpu_set_parameter,
+                 hardware.format_cpu_spec(host1_dedicated_set))),
+            host2_sm.config_options(
+                (section, cpu_set_parameter,
+                 hardware.format_cpu_spec(host2_dedicated_set)))
         ):
             # Create a server with a dedicated cpu policy
             server = self.create_test_server(

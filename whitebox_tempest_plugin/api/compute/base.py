@@ -23,6 +23,7 @@ from tempest import config
 from tempest.lib.common.utils import data_utils
 from tempest.lib.common.utils import test_utils
 
+from whitebox_tempest_plugin import hardware
 from whitebox_tempest_plugin.services import clients
 from whitebox_tempest_plugin import utils as whitebox_utils
 
@@ -142,28 +143,13 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
         self.assertEqual(target_host, self.get_host_for_server(server_id),
                          msg)
 
-    def get_all_cpus(self):
-        """Aggregate the dictionary values of [whitebox]/cpu_topology from
-        tempest.conf into a list of pCPU ids.
-        """
-        topology_dict = CONF.whitebox_hardware.cpu_topology
-        cpus = []
-        [cpus.extend(c) for c in topology_dict.values()]
-        return cpus
-
     def get_pinning_as_set(self, server_id):
         pinset = set()
         root = self.get_server_xml(server_id)
         vcpupins = root.findall('./cputune/vcpupin')
         for pin in vcpupins:
-            pinset |= whitebox_utils.parse_cpu_spec(pin.get('cpuset'))
+            pinset |= hardware.parse_cpu_spec(pin.get('cpuset'))
         return pinset
-
-    def _get_cpu_spec(self, cpu_list):
-        """Returns a libvirt-style CPU spec from the provided list of integers. For
-        example, given [0, 2, 3], returns "0,2,3".
-        """
-        return ','.join(map(str, cpu_list))
 
     # TODO(lyarwood): Refactor all of this into a common module between
     # tempest.api.{compute,volume} and tempest.scenario.manager where this

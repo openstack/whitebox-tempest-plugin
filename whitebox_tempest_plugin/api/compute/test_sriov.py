@@ -18,6 +18,7 @@ from tempest import exceptions as tempest_exc
 from tempest.lib.common.utils import data_utils
 
 from whitebox_tempest_plugin.api.compute import base
+from whitebox_tempest_plugin import hardware
 from whitebox_tempest_plugin.services import clients
 
 from oslo_log import log as logging
@@ -287,7 +288,7 @@ class SRIOVNumaAffinity(SRIOVBase):
         cpu_dedicated_set = \
             CONF.whitebox_hardware.cpu_topology[affinity_node] + \
             CONF.whitebox_hardware.cpu_topology[second_node]
-        cpu_dedicated_str = self._get_cpu_spec(cpu_dedicated_set)
+        cpu_dedicated_str = hardware.format_cpu_spec(cpu_dedicated_set)
 
         host_sm = clients.NovaServiceManager(host,
                                              'nova-compute',
@@ -376,7 +377,7 @@ class SRIOVNumaAffinity(SRIOVBase):
         # Node
         cpu_dedicated_set = CONF.whitebox_hardware.cpu_topology[
             str(CONF.whitebox_hardware.physnet_numa_affinity)]
-        cpu_dedicated_str = self._get_cpu_spec(cpu_dedicated_set)
+        cpu_dedicated_str = hardware.format_cpu_spec(cpu_dedicated_set)
         host_sm = clients.NovaServiceManager(host, 'nova-compute',
                                              self.os_admin.services_client)
 

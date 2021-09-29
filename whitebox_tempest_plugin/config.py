@@ -310,5 +310,13 @@ compute_features_group_opts = [
                 help="If false, skip standard uefi boot tests"),
     cfg.BoolOpt('uefi_secure_boot',
                 default=False,
-                help="If false, skip uefi secure boot tests")
+                help="If false, skip uefi secure boot tests"),
+    cfg.BoolOpt('vtpm_device_supported',
+                default=False,
+                help='vTPM device support for guest instances to store '
+                     'secrets. Requires these flags set in nova.conf'
+                     '[libvirt]/swtpm_enabled=True'
+                     '[libvirt]/swtpm_user=tss'
+                     '[libvirt]/swtpm_group=tss'
+                     '[key_manager]/backend=barbican')
 ]

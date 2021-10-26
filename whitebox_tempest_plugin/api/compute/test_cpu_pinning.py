@@ -34,7 +34,6 @@ from tempest.common import utils
 from tempest.common import waiters
 from tempest import config
 from tempest.exceptions import BuildErrorException
-from tempest.lib import decorators
 
 from whitebox_tempest_plugin.api.compute import base
 from whitebox_tempest_plugin.api.compute import numa_helper
@@ -72,6 +71,8 @@ class BasePinningTest(base.BaseWhiteboxComputeTest,
 
         return cell_pins
 
+    # TODO(jparker): Need to clean up this method and similar helper methods.
+    # This should either end up in numa_helper or the base compute test class
     def get_server_emulator_threads(self, server_id):
         """Get the host CPU numbers to which the server's emulator threads are
         pinned.
@@ -430,7 +431,6 @@ class EmulatorThreadTest(BasePinningTest, numa_helper.NUMAHelperMixin):
             self.get_server_emulator_threads(server['id'])
 
         # Confirm the emulator threads from the server is equal to the host's
-        # cpu_shared_set
         self.assertEqual(
             cpu_shared_set, emulator_threads,
             'Emulator threads for server %s is not the same as CPU set '
@@ -643,184 +643,112 @@ class NUMALiveMigrationTest(NUMALiveMigrationBase):
         if not compute.is_scheduler_filter_enabled('DifferentHostFilter'):
             raise cls.skipException('DifferentHostFilter required.')
 
-    @decorators.skip_because(bug='2007395', bug_type='storyboard')
-    def test_cpu_pinning(self):
-        host1, host2 = self.list_compute_hosts()
-        ctlplane1, ctlplane2 = [whitebox_utils.get_ctlplane_address(host) for
-                                host in [host1, host2]]
+    def test_cpu_pinning_and_emulator_threads(self):
+        dedicated_cpus_per_numa = \
+            CONF.whitebox_hardware.dedicated_cpus_per_numa
+        if dedicated_cpus_per_numa < 2:
+            msg = ('Need at least 2 or more pCPUs per NUMA allocated to the '
+                   'cpu_dedicated_set of the compute host')
+            raise self.skipException(msg)
 
-        numaclient_1 = clients.NUMAClient(ctlplane1)
-        numaclient_2 = clients.NUMAClient(ctlplane2)
+        shared_cpus_per_numa = \
+            CONF.whitebox_hardware.dedicated_cpus_per_numa
+        if shared_cpus_per_numa == 0:
+            raise self.skipException(
+                'Need at least 1 or more pCPUs per NUMA allocated to the '
+                'cpu_shared_set of the compute host')
 
-        # Get hosts's topology
-        topo_1 = numaclient_1.get_host_topology()
-        topo_2 = numaclient_2.get_host_topology()
+        # Boot 2 servers such that their vCPUs "fill" a NUMA node.
+        specs = {'hw:cpu_policy': 'dedicated',
+                 'hw:emulator_threads_policy': 'share'}
+        flavor = self.create_flavor(vcpus=(int(dedicated_cpus_per_numa / 2)),
+                                    extra_specs=specs)
+        server_a = self.create_test_server(flavor=flavor['id'])
+        # TODO(artom) As of 2.68 we can no longer force a live-migration,
+        # and having the different_host hint in the RequestSpec will
+        # prevent live migration. Start enabling/disabling
+        # DifferentHostFilter as needed?
+        server_b = self.create_test_server(
+            flavor=flavor['id'],
+            scheduler_hints={'different_host': server_a['id']})
 
-        # Need at least 2 NUMA nodes per host
-        if len(topo_1) < 2 or len(topo_2) < 2:
-            raise self.skipException('At least 2 NUMA nodes per host required')
+        # Iterate over both guests and confirm their pinned vCPUs and emulator
+        # threads are correct
+        for server in [server_a, server_b]:
+            # Determine the compute host of the guest
+            host = self.get_host_for_server(server['id'])
+            host_sm = clients.NovaServiceManager(host, 'nova-compute',
+                                                 self.os_admin.services_client)
 
-        # All NUMA nodes need to have same number of CPUs
-        cpus_per_node = self._get_cpus_per_node(topo_1.values(),
-                                                topo_2.values())
-        if len(cpus_per_node) != 1:
-            raise self.skipException('NUMA nodes must have same number of '
-                                     'CPUs')
+            # Gather the cpu_dedicated_set and cpu_shared_set configured for
+            # the compute host
+            cpu_dedicated_set = host_sm.get_cpu_dedicated_set()
+            cpu_shared_set = host_sm.get_cpu_shared_set()
 
-        # Set both hosts's vcpu_pin_set to the CPUs in the first NUMA node to
-        # force instances to land there
-        host1_sm = clients.NovaServiceManager(host1, 'nova-compute',
-                                              self.os_admin.services_client)
-        host2_sm = clients.NovaServiceManager(host2, 'nova-compute',
-                                              self.os_admin.services_client)
-        with whitebox_utils.multicontext(
-            host1_sm.config_options(('DEFAULT', 'vcpu_pin_set',
-                                     hardware.format_cpu_spec(topo_1[0]))),
-            host2_sm.config_options(('DEFAULT', 'vcpu_pin_set',
-                                     hardware.format_cpu_spec(topo_2[0])))
-        ):
-            # Boot 2 servers such that their vCPUs "fill" a NUMA node.
-            specs = {'hw:cpu_policy': 'dedicated'}
-            flavor = self.create_flavor(vcpus=cpus_per_node.pop(),
-                                        extra_specs=specs)
-            server_a = self.create_test_server(flavor=flavor['id'])
-            # TODO(artom) As of 2.68 we can no longer force a live-migration,
-            # and having the different_host hint in the RequestSpec will
-            # prevent live migration. Start enabling/disabling
-            # DifferentHostFilter as needed?
-            server_b = self.create_test_server(
-                flavor=flavor['id'],
-                scheduler_hints={'different_host': server_a['id']})
+            # Check the nova cells DB and gather the pCPU mapping for the
+            # guest. Confirm the pCPUs allocated to the guest as documented in
+            # the DB are a subset of the cpu_dedicated_set configured on the
+            # host
+            db_topo = self._get_db_numa_topology(server['id'])
+            pcpus = self._get_pcpus_from_cpu_pins(
+                self._get_cpu_pins_from_db_topology(db_topo))
+            self.assertTrue(pcpus.issubset(cpu_dedicated_set))
 
-            # At this point we expect CPU pinning in the database to be
-            # identical for both servers
-            db_topo_a = self._get_db_numa_topology(server_a['id'])
-            db_pins_a = self._get_cpu_pins_from_db_topology(db_topo_a)
-            db_topo_b = self._get_db_numa_topology(server_b['id'])
-            db_pins_b = self._get_cpu_pins_from_db_topology(db_topo_b)
-            self.assertEqual(db_pins_a, db_pins_b,
-                             'Expected servers to have identical CPU pins, '
-                             'instead have %s and %s' % (db_pins_a,
-                                                         db_pins_b))
-
-            # They should have identical (non-null) CPU pins
-            pin_a = self.get_pinning_as_set(server_a['id'])
-            pin_b = self.get_pinning_as_set(server_b['id'])
-            self.assertTrue(pin_a and pin_b,
-                            'Pinned servers are actually unpinned: '
-                            '%s, %s' % (pin_a, pin_b))
+            # Gather the emulator threads configured on the guest. Verify the
+            # emulator threads on the guest are a subset of the cpu_shared_set
+            # configured on the compute host.
+            emulator_threads = self.get_server_emulator_threads(server['id'])
             self.assertEqual(
-                pin_a, pin_b,
-                'Pins should be identical: %s, %s' % (pin_a, pin_b))
+                cpu_shared_set, emulator_threads,
+                'Emulator threads for server %s is not the same as CPU set '
+                '%s' % (emulator_threads, cpu_shared_set))
 
-            # Live migrate server_b to server_a's compute, adding the second
-            # NUMA node's CPUs to vcpu_pin_set
-            host_a = self.get_host_other_than(server_b['id'])
-            host_a_addr = whitebox_utils.get_ctlplane_address(host_a)
-            host_a_sm = clients.NovaServiceManager(
-                host_a, 'nova-compute', self.os_admin.services_client)
-            numaclient_a = clients.NUMAClient(host_a_addr)
-            topo_a = numaclient_a.get_host_topology()
-            with host_a_sm.config_options(
-                ('DEFAULT', 'vcpu_pin_set',
-                 hardware.format_cpu_spec(topo_a[0] + topo_a[1]))
-            ):
-                self.live_migrate(server_b['id'], 'ACTIVE', target_host=host_a)
+            # Gather the cpu pin set for the guest and confirm it is a subset
+            # of its respective compute host
+            guest_pin_set = self.get_pinning_as_set(server['id'])
+            self.assertTrue(
+                guest_pin_set.issubset(cpu_dedicated_set),
+                'Server %s\'s cpu dedicated set is not a subset of the '
+                'compute host\'s cpu dedicated set %s'.format(
+                    guest_pin_set, cpu_dedicated_set))
 
-                # They should have disjoint (non-null) CPU pins in their XML
-                pin_a = self.get_pinning_as_set(server_a['id'])
-                pin_b = self.get_pinning_as_set(server_b['id'])
-                self.assertTrue(pin_a and pin_b,
-                                'Pinned servers are actually unpinned: '
-                                '%s, %s' % (pin_a, pin_b))
-                self.assertTrue(pin_a.isdisjoint(pin_b),
-                                'Pins overlap: %s, %s' % (pin_a, pin_b))
+        # Migrate server B to the same compute host as server A
+        host_a = self.get_host_for_server(server_a['id'])
+        self.live_migrate(server_b['id'], 'ACTIVE', target_host=host_a)
 
-                # Same for their topologies in the database
-                db_topo_a = self._get_db_numa_topology(server_a['id'])
-                pcpus_a = self._get_pcpus_from_cpu_pins(
-                    self._get_cpu_pins_from_db_topology(db_topo_a))
-                db_topo_b = self._get_db_numa_topology(server_b['id'])
-                pcpus_b = self._get_pcpus_from_cpu_pins(
-                    self._get_cpu_pins_from_db_topology(db_topo_b))
-                self.assertTrue(pcpus_a and pcpus_b)
-                self.assertTrue(
-                    pcpus_a.isdisjoint(pcpus_b),
-                    'Expected servers to have disjoint CPU pins in the '
-                    'database, instead have %s and %s' % (pcpus_a, pcpus_b))
+        # After migration, guests should have disjoint (non-null) CPU pins in
+        # their XML
+        pin_a = self.get_pinning_as_set(server_a['id'])
+        pin_b = self.get_pinning_as_set(server_b['id'])
+        self.assertTrue(pin_a and pin_b,
+                        'Pinned servers are actually unpinned: '
+                        '%s, %s' % (pin_a, pin_b))
+        self.assertTrue(pin_a.isdisjoint(pin_b),
+                        'Pins overlap: %s, %s' % (pin_a, pin_b))
 
-                # NOTE(artom) At this point we have to manually delete both
-                # servers before the config_options() context manager reverts
-                # any config changes it made. This is Nova bug 1836945.
-                self.delete_server(server_a['id'])
-                self.delete_server(server_b['id'])
+        # Same for their topologies in the database
+        db_topo_a = self._get_db_numa_topology(server_a['id'])
+        pcpus_a = self._get_pcpus_from_cpu_pins(
+            self._get_cpu_pins_from_db_topology(db_topo_a))
+        db_topo_b = self._get_db_numa_topology(server_b['id'])
+        pcpus_b = self._get_pcpus_from_cpu_pins(
+            self._get_cpu_pins_from_db_topology(db_topo_b))
+        self.assertTrue(pcpus_a and pcpus_b)
+        self.assertTrue(
+            pcpus_a.isdisjoint(pcpus_b),
+            'Expected servers to have disjoint CPU pins in the '
+            'database, instead have %s and %s' % (pcpus_a, pcpus_b))
 
-    def test_emulator_threads(self):
-        # Need 4 CPUs on each host
-        host1, host2 = self.list_compute_hosts()
-        ctlplane1, ctlplane2 = [whitebox_utils.get_ctlplane_address(host) for
-                                host in [host1, host2]]
-
-        for host in [ctlplane1, ctlplane2]:
-            numaclient = clients.NUMAClient(host)
-            num_cpus = numaclient.get_num_cpus()
-            if num_cpus < 4:
-                raise self.skipException('%s has %d CPUs, need 4',
-                                         host,
-                                         num_cpus)
-
-        host1_sm = clients.NovaServiceManager(host1, 'nova-compute',
-                                              self.os_admin.services_client)
-        host2_sm = clients.NovaServiceManager(host2, 'nova-compute',
-                                              self.os_admin.services_client)
-        with whitebox_utils.multicontext(
-            host1_sm.config_options(('DEFAULT', 'vcpu_pin_set', '0,1'),
-                                    ('compute', 'cpu_shared_set', '2')),
-            host2_sm.config_options(('DEFAULT', 'vcpu_pin_set', '0,1'),
-                                    ('compute', 'cpu_shared_set', '3'))
-        ):
-            # Boot two servers
-            specs = {'hw:cpu_policy': 'dedicated',
-                     'hw:emulator_threads_policy': 'share'}
-            flavor = self.create_flavor(vcpus=1, extra_specs=specs)
-            server_a = self.create_test_server(flavor=flavor['id'])
-            server_b = self.create_test_server(
-                flavor=flavor['id'],
-                scheduler_hints={'different_host': server_a['id']})
-
-            # They should have different (non-null) emulator pins
-            threads_a = self.get_server_emulator_threads(server_a['id'])
-            threads_b = self.get_server_emulator_threads(server_b['id'])
-            self.assertTrue(threads_a and threads_b,
-                            'Emulator threads should be pinned, are unpinned: '
-                            '%s, %s' % (threads_a, threads_b))
-            self.assertTrue(threads_a.isdisjoint(threads_b))
-
-            # Live migrate server_b
-            compute_a = self.get_host_other_than(server_b['id'])
-            self.live_migrate(server_b['id'], 'ACTIVE', target_host=compute_a)
-
-            # They should have identical (non-null) emulator pins and disjoint
-            # (non-null) CPU pins
-            threads_a = self.get_server_emulator_threads(server_a['id'])
-            threads_b = self.get_server_emulator_threads(server_b['id'])
-            self.assertTrue(threads_a and threads_b,
-                            'Emulator threads should be pinned, are unpinned: '
-                            '%s, %s' % (threads_a, threads_b))
-            self.assertEqual(threads_a, threads_b)
-            pin_a = self.get_pinning_as_set(server_a['id'])
-            pin_b = self.get_pinning_as_set(server_b['id'])
-            self.assertTrue(pin_a and pin_b,
-                            'Pinned servers are actually unpinned: '
-                            '%s, %s' % (pin_a, pin_b))
-            self.assertTrue(pin_a.isdisjoint(pin_b),
-                            'Pins overlap: %s, %s' % (pin_a, pin_b))
-
-            # NOTE(artom) At this point we have to manually delete both
-            # servers before the config_options() context manager reverts
-            # any config changes it made. This is Nova bug 1836945.
-            self.delete_server(server_a['id'])
-            self.delete_server(server_b['id'])
+        # Guests emulator threads should still be configured for both guests.
+        # Since they are on the same compute host the guest's emulator threads
+        # should be the same.
+        threads_a = self.get_server_emulator_threads(server_a['id'])
+        threads_b = self.get_server_emulator_threads(server_b['id'])
+        self.assertTrue(threads_a and threads_b,
+                        'Emulator threads should be pinned, are unpinned: '
+                        '%s, %s' % (threads_a, threads_b))
+        self.assertEqual(threads_a, threads_b, 'After live migration emulator '
+                         'threads for both servers should be the same')
 
     def test_hugepages(self):
         host_a, host_b = [whitebox_utils.get_ctlplane_address(host) for host in

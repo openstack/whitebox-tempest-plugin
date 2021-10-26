@@ -31,6 +31,8 @@ function configure {
     iniset $TEMPEST_CONFIG whitebox-database host $DATABASE_HOST
 
     iniset $TEMPEST_CONFIG whitebox-hardware cpu_topology "$WHITEBOX_CPU_TOPOLOGY"
+    iniset $TEMPEST_CONFIG whitebox-hardware dedicated_cpus_per_numa "$WHITEBOX_DEDICATED_CPUS_PER_NUMA"
+    iniset $TEMPEST_CONFIG whitebox-hardware shared_cpus_per_numa "$WHITEBOX_SHARED_CPUS_PER_NUMA"
 
     iniset $TEMPEST_CONFIG compute-feature-enabled virtio_rng "$COMPUTE_FEATURE_VIRTIO_RNG"
     iniset $TEMPEST_CONFIG compute-feature-enabled rbd_download "$COMPUTE_FEATURE_RBD_DOWNLOAD"

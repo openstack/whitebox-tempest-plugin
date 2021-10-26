@@ -29,6 +29,23 @@ class NUMAHelperMixin(object):
             pinset |= hardware.parse_cpu_spec(pin.get('cpuset'))
         return pinset
 
+    def get_server_emulator_threads(self, server_id):
+        """Get the host CPU numbers to which the server's emulator threads are
+        pinned.
+
+        :param server_id: The instance UUID to look up.
+        :return emulator_threads: A set of host CPU numbers.
+        """
+        root = self.get_server_xml(server_id)
+
+        emulatorpins = root.findall('./cputune/emulatorpin')
+        emulator_threads = set()
+        for pin in emulatorpins:
+            emulator_threads |= hardware.parse_cpu_spec(
+                pin.get('cpuset'))
+
+        return emulator_threads
+
     def get_host_pcpus_for_guest_vcpu(self, server_id, instance_cpu_id):
         """Search the xml vcpu element of the provided instance for its cpuset.
         Convert cpuset found into a set of integers.

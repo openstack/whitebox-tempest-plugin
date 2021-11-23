@@ -113,7 +113,11 @@ general_opts = [
     cfg.IntOpt(
         'rx_queue_size',
         help='The queue size set in the [libvirt]/rx_queue_size config option '
-             'on the compute hosts.')
+             'on the compute hosts.'),
+    cfg.StrOpt(
+        'default_video_model',
+        default=None,
+        help='The expected default video display for the guest')
 ]
 
 nova_compute_group = cfg.OptGroup(

@@ -14,8 +14,12 @@
 #    under the License.
 
 from tempest.common import waiters
+from tempest import config
+import testtools
 
 from whitebox_tempest_plugin.api.compute import base
+
+CONF = config.CONF
 
 
 class HwVideoModelTest(base.BaseWhiteboxComputeTest):
@@ -58,3 +62,10 @@ class HwVideoModelTest(base.BaseWhiteboxComputeTest):
         waiters.wait_for_server_status(self.servers_client, server['id'],
                                        'ACTIVE')
         self._assert_hw_video_type(server, 'none')
+
+    @testtools.skipUnless(CONF.whitebox.default_video_model,
+                          'Requires expected default video model')
+    def test_default_hw_device(self):
+        expected_video_model = CONF.whitebox.default_video_model
+        server = self.create_test_server()
+        self._assert_hw_video_type(server, expected_video_model)

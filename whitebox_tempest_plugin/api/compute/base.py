@@ -92,11 +92,10 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
             yield [stack.enter_context(mgr) for mgr in ctxt_mgrs]
 
     def get_server_xml(self, server_id):
-        server = self.os_admin.servers_client.show_server(server_id)
-        host = server['server']['OS-EXT-SRV-ATTR:host']
+        server = self.os_admin.servers_client.show_server(server_id)['server']
+        host = server['OS-EXT-SRV-ATTR:host']
         cntrlplane_addr = whitebox_utils.get_ctlplane_address(host)
-        server_instance_name = self.os_admin.servers_client.show_server(
-            server_id)['server']['OS-EXT-SRV-ATTR:instance_name']
+        server_instance_name = server['OS-EXT-SRV-ATTR:instance_name']
 
         virshxml = clients.VirshXMLClient(cntrlplane_addr)
         xml = virshxml.dumpxml(server_instance_name)

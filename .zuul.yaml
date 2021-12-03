@@ -29,8 +29,7 @@
           - compute
 
 - job:
-    name: whitebox-devstack-multinode-base
-    abstract: true
+    name: whitebox-devstack-multinode
     parent: tempest-multinode-full-py3
     nodeset: nested-virt-multinode
     description: |
@@ -57,6 +56,9 @@
       devstack_local_conf:
         post-config:
           $NOVA_CONF:
+            compute:
+              cpu_dedicated_set: '0-3'
+              cpu_shared_set: '4,5'
             libvirt:
               cpu_mode: custom
               cpu_models: Nehalem
@@ -71,6 +73,9 @@
         devstack_local_conf:
           post-config:
             $NOVA_CONF:
+              compute:
+                cpu_dedicated_set: '4-7'
+                cpu_shared_set: '2,3'
               libvirt:
                 cpu_mode: custom
                 cpu_models: Nehalem
@@ -81,64 +86,8 @@
         num_hugepages: 512
 
 - job:
-    name: whitebox-devstack-multinode
-    parent: whitebox-devstack-multinode-base
-    vars:
-      # NOTE(artom) We can't have this on the parent job, otherwise the two
-      # -cpupinnig jobs will inherit it as well.
-      tempest_exclude_regex: 'test_live_migrate_and_reboot|test_shared_pinned_and_unpinned_guest|^whitebox_tempest_plugin.api.compute.test_cpu_pinning.EmulatorThreadTest|test_cpu_pinning_and_emulator_threads|test_collocation_migration'
-
-- job:
-    name: whitebox-devstack-multinode-cpupinning
-    parent: whitebox-devstack-multinode-base
-    description: |
-      Runs the CPU pinning tests on single-NUMA, non-SMT, nested virt VMs. Uses
-      [compute]cpu_dedicated_set to configure host CPUs for pinning.
-    vars:
-      tempest_test_regex: 'test_live_migrate_and_reboot|test_shared_pinned_and_unpinned_guest|^whitebox_tempest_plugin.api.compute.test_cpu_pinning.EmulatorThreadTest|test_cpu_pinning_and_emulator_threads|test_collocation_migration'
-      devstack_local_conf:
-        post-config:
-          $NOVA_CONF:
-            compute:
-              cpu_dedicated_set: '0-3'
-              cpu_shared_set: '4,5'
-    group-vars:
-      subnode:
-        devstack_local_conf:
-          post-config:
-            $NOVA_CONF:
-              compute:
-                cpu_dedicated_set: '4-7'
-                cpu_shared_set: '2,3'
-
-- job:
-    name: whitebox-devstack-multinode-cpupinninglegacy
-    parent: whitebox-devstack-multinode-base
-    description: |
-      Runs the CPU pinning tests on single-NUMA, non-SMT, nested virt VMs. Uses
-      [DEFAULT]vcpu_pin_set to configure host CPUs for pinning.
-    vars:
-      tempest_test_regex: 'test_live_migrate_and_reboot|^whitebox_tempest_plugin.api.compute.test_cpu_pinning.EmulatorThreadTest'
-      devstack_local_conf:
-        post-config:
-          $NOVA_CONF:
-            DEFAULT:
-              vcpu_pin_set: '0-3'
-            compute:
-              cpu_shared_set: '4,5'
-    group-vars:
-      subnode:
-        devstack_local_conf:
-          post-config:
-            $NOVA_CONF:
-              DEFAULT:
-                vcpu_pin_set: '4-7'
-              compute:
-                cpu_shared_set: '2,3'
-
-- job:
     name: whitebox-devstack-ceph-compute-local-ephemeral
-    parent: whitebox-devstack-multinode-base
+    parent: whitebox-devstack-multinode
     nodeset: nested-virt-multinode
     description: |
       Runs test_rbd_direct_download test on single-NUMA, non-SMT, nested virt
@@ -148,7 +97,7 @@
       storage. It also enables the direct download of images via rbd into
       the local imagecache for Nova.
     required-projects:
-        - openstack/devstack-plugin-ceph
+      - openstack/devstack-plugin-ceph
     irrelevant-files:
       - ^whitebox_tempest_plugin/api/compute/(?!test_rbd_direct_download).*py$
     vars:
@@ -190,13 +139,8 @@
     check:
       jobs:
         - whitebox-devstack-multinode
-        - whitebox-devstack-multinode-cpupinning
-        - whitebox-devstack-multinode-cpupinninglegacy
-        # TODO(amodi): Add a periodic job for below
         - whitebox-devstack-ceph-compute-local-ephemeral
     gate:
       jobs:
         - whitebox-devstack-multinode
-        - whitebox-devstack-multinode-cpupinning
-        - whitebox-devstack-multinode-cpupinninglegacy
         - whitebox-devstack-ceph-compute-local-ephemeral

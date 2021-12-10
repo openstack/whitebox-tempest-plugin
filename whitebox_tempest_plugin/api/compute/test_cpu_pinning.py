@@ -139,8 +139,6 @@ class CPUPolicyTest(BasePinningTest):
                                     extra_specs=self.shared_cpu_policy)
         self.create_test_server(flavor=flavor['id'], wait_until='ACTIVE')
 
-    @testtools.skipUnless(CONF.whitebox.max_compute_nodes < 2,
-                          'Single compute node required.')
     def test_cpu_dedicated(self):
         """Ensure an instance with 'dedicated' pinning policy work.
 
@@ -152,8 +150,9 @@ class CPUPolicyTest(BasePinningTest):
                                     extra_specs=self.dedicated_cpu_policy)
         server_a = self.create_test_server(flavor=flavor['id'],
                                            wait_until='ACTIVE')
-        server_b = self.create_test_server(flavor=flavor['id'],
-                                           wait_until='ACTIVE')
+        server_b = self.create_test_server(
+            flavor=flavor['id'], scheduler_hints={'same_host': server_a['id']},
+            wait_until='ACTIVE')
         cpu_pinnings_a = self.get_server_cpu_pinning(server_a['id'])
         cpu_pinnings_b = self.get_server_cpu_pinning(server_b['id'])
 

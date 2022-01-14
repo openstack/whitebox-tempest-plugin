@@ -612,14 +612,6 @@ class NUMALiveMigrationBase(BasePinningTest):
         cpuset = root.find('./vcpu').attrib.get('cpuset', None)
         return hardware.parse_cpu_spec(cpuset)
 
-    def _get_hugepage_xml_element(self, server_id):
-        """Gather and return all instances of the page element from XML element
-        'memoryBacking/hugepages' in a given server's domain.
-        """
-        root = self.get_server_xml(server_id)
-        huge_pages = root.findall('.memoryBacking/hugepages/page')
-        return huge_pages
-
     def _validate_hugepage_elements(self, server_id, pagesize):
         """Analyze the hugepage xml element(s) from a provided instance. Expect
         to find only one hugepage element in the domain. Return boolean result

@@ -133,7 +133,12 @@ general_opts = [
         'libvirt_hw_machine_type',
         default='pc',
         choices=["pc", "q35"],
-        help='The machine type configured for the nova computes')
+        help='The machine type configured for the nova computes'),
+    cfg.IntOpt(
+        'hugepage_guest_ram_size',
+        default=64,
+        help="RAM size in MB to use when launching the guests backed "
+             "by hugepages."),
 ]
 
 nova_compute_group = cfg.OptGroup(
@@ -224,6 +229,12 @@ hardware_opts = [
              '<List of CPUs in that node>. For example, if NUMA node 0 has '
              'CPUs 0 and 1, and NUMA node 1 has CPUs 2 and 3, the value to '
              'set would be `0: [0,1], 1: [2, 3]`.'),
+    cfg.Opt(
+        'configured_hugepage_sizes',
+        type=types.List(types.Integer()),
+        default=[],
+        help='List of configured hugepage sizes available in kB in the '
+             'environment e.g. 2048,1048576'),
     cfg.IntOpt(
         'dedicated_cpus_per_numa',
         default=0,

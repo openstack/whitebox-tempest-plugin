@@ -69,8 +69,9 @@ class VGPUTest(base.BaseWhiteboxComputeTest):
             vcpus=2,
             disk=CONF.whitebox.flavor_volume_size,
             is_public='True')['flavor']
-        cls.flavors_client.set_flavor_extra_spec(cls.vgpu_flavor['id'],
-                                                 **extra_specs)
+        cls.os_admin.flavors_client.set_flavor_extra_spec(
+            cls.vgpu_flavor['id'],
+            **extra_specs)
 
         cls.addClassResourceCleanup(
             cls.admin_flavors_client.wait_for_resource_deletion,

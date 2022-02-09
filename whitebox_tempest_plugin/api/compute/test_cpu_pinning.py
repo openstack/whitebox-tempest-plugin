@@ -34,6 +34,7 @@ from tempest.common import utils
 from tempest.common import waiters
 from tempest import config
 from tempest.exceptions import BuildErrorException
+from tempest.lib import decorators
 
 from whitebox_tempest_plugin.api.compute import base
 from whitebox_tempest_plugin.api.compute import numa_helper
@@ -766,6 +767,7 @@ class NUMALiveMigrationTest(NUMALiveMigrationBase):
         self.assertEqual(threads_a, threads_b, 'After live migration emulator '
                          'threads for both servers should be the same')
 
+    @decorators.skip_because(bug='2009853', bug_type='storyboard')
     def test_hugepages(self):
         host_a, host_b = [whitebox_utils.get_ctlplane_address(host) for host in
                           self.list_compute_hosts()]

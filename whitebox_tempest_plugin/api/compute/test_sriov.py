@@ -19,7 +19,6 @@ from tempest.lib.common.utils import data_utils
 
 from whitebox_tempest_plugin.api.compute import base
 from whitebox_tempest_plugin.api.compute import numa_helper
-from whitebox_tempest_plugin import hardware
 from whitebox_tempest_plugin.services import clients
 
 from oslo_log import log as logging
@@ -237,21 +236,27 @@ class SRIOVNumaAffinity(SRIOVBase, numa_helper.NUMAHelperMixin):
             raise cls.skipException('Tests are designed for vnic types '
                                     'direct or macvtap')
         if getattr(CONF.whitebox_hardware,
-                   'sriov_physnet', None) is None:
-            raise cls.skipException('Requires sriov_physnet parameter '
-                                    'to be set in order to execute test '
-                                    'cases.')
-        if getattr(CONF.whitebox_hardware,
                    'physnet_numa_affinity', None) is None:
             raise cls.skipException('Requires physnet_numa_affinity parameter '
                                     'to be set in order to execute test '
                                     'cases.')
+        if getattr(CONF.whitebox_hardware,
+                   'dedicated_cpus_per_numa', None) is None:
+            raise cls.skipException('Requires dedicated_cpus_per_numa '
+                                    'parameter to be set in order to execute '
+                                    'test cases.')
         if len(CONF.whitebox_hardware.cpu_topology) < 2:
             raise cls.skipException('Requires 2 or more NUMA nodes to '
                                     'execute test.')
 
     def setUp(self):
         super(SRIOVNumaAffinity, self).setUp()
+
+        self.dedicated_cpus_per_numa = \
+            CONF.whitebox_hardware.dedicated_cpus_per_numa
+
+        self.affinity_node = str(CONF.whitebox_hardware.physnet_numa_affinity)
+
         network = self._create_sriov_net()
         self._create_sriov_subnet(network['network']['id'])
         self.port_a = self._create_sriov_port(
@@ -261,110 +266,103 @@ class SRIOVNumaAffinity(SRIOVBase, numa_helper.NUMAHelperMixin):
             net=network,
             vnic_type=CONF.network.port_vnic_type)
 
+    def _get_dedicated_cpus_from_numa_node(self, numa_node, cpu_dedicated_set):
+        cpu_ids = set(CONF.whitebox_hardware.cpu_topology.get(numa_node))
+        dedicated_cpus = cpu_dedicated_set.intersection(cpu_ids)
+        return dedicated_cpus
+
     def test_sriov_affinity_preferred(self):
         """Validate instance will schedule to NUMA without nic affinity
 
-        1. Create a list of pCPUs based on the PCPUs of two NUMA Nodes, one
-        of the nodes should have affinity with the SR-IOV physnet
-        2. Create a flavor with the preferred NUMA policy and
-        hw:cpu_policy=dedicated. The flavor vcpu size will be equal to the
-        number of pCPUs of the NUMA Node with affinity to the
-        physnet. This should result in any deployed instances using this
-        flavor 'filling' its respective NUMA Node completely.
-        3. Launch two instances that incorporate the preferred policy and along
-        with an SR-IOV port
+        1. Create flavors with preferred NUMA policy and
+        hw:cpu_policy=dedicated. The first flavor vcpu size will be equal to
+        the number of dedicated PCPUs of the NUMA Node with affinity to the
+        physnet. This should result in any deployed instance using this flavor
+        'filling' the NUMA Node completely. The second flavor will have a vcpu
+        size equal the PCPUs of another NUMA node without affinity
+        2. Launch an instance using the flavor and determine the host it lands
+        on.
+        3. Launch a second instance and target it to the same host as the
+        first instance.
         4. Validate both instances are deployed
         5. Validate xml description of SR-IOV interface is correct for both
         servers
         """
-        host = self.list_compute_hosts()[0]
 
-        # Gather all NUMA nodes from the provided cpu_topology in tempest.conf.
-        numa_nodes = CONF.whitebox_hardware.cpu_topology.keys()
-        # Get the NUMA Node that has affinity with the sriov physnet
-        affinity_node = str(CONF.whitebox_hardware.physnet_numa_affinity)
-        # Get a second node that does not have affinity with the physnet
-        second_node = list(filter(lambda x: x != affinity_node, numa_nodes))[0]
-        # Create a cpu_dedicated_set comprised of the PCPU's of both NUMA Nodes
-        cpu_dedicated_set = \
-            CONF.whitebox_hardware.cpu_topology[affinity_node] + \
-            CONF.whitebox_hardware.cpu_topology[second_node]
-        cpu_dedicated_str = hardware.format_cpu_spec(cpu_dedicated_set)
+        flavor = self.create_flavor(
+            vcpus=self.dedicated_cpus_per_numa,
+            extra_specs=self.preferred
+        )
 
-        host_sm = clients.NovaServiceManager(host,
-                                             'nova-compute',
+        server_a = self.create_test_server(
+            flavor=flavor['id'],
+            networks=[{'port': self.port_a['port']['id']}],
+            wait_until='ACTIVE'
+        )
+
+        host = self.get_host_for_server(server_a['id'])
+
+        server_b = self.create_test_server(
+            flavor=flavor['id'],
+            clients=self.os_admin,
+            networks=[{'port': self.port_b['port']['id']}],
+            host=host,
+            wait_until='ACTIVE'
+        )
+
+        host_sm = clients.NovaServiceManager(host, 'nova-compute',
                                              self.os_admin.services_client)
+        cpu_dedicated_set = host_sm.get_cpu_dedicated_set()
+        cpu_pins_a = self.get_pinning_as_set(server_a['id'])
+        pcpus_with_affinity = self._get_dedicated_cpus_from_numa_node(
+            self.affinity_node, cpu_dedicated_set)
+        self.assertEqual(
+            cpu_pins_a, pcpus_with_affinity, 'Expected pCPUs for server A, '
+            'id: %s to be equal to %s but instead are %s' %
+            (server_a['id'], pcpus_with_affinity, cpu_pins_a))
 
-        with host_sm.config_options(('compute', 'cpu_dedicated_set',
-                                    cpu_dedicated_str)):
+        cpu_pins_b = self.get_pinning_as_set(server_b['id'])
 
-            flavor = self.create_flavor(
-                vcpus=len(CONF.whitebox_hardware.cpu_topology['0']),
-                extra_specs=self.preferred
+        self.assertTrue(
+            cpu_pins_b.issubset(set(cpu_dedicated_set)),
+            'Expected pCPUs for server B id: %s to be subset of %s but '
+            'instead are %s' % (server_b['id'], cpu_dedicated_set, cpu_pins_b))
+
+        self.assertTrue(
+            cpu_pins_a.isdisjoint(cpu_pins_b),
+            'Cpus %s for server A %s are not disjointed with Cpus %s of '
+            'server B %s' % (cpu_pins_a, server_a['id'], cpu_pins_b,
+                             server_b['id']))
+
+        # Validate servers A and B have correct sr-iov interface
+        # information in the xml. Its type and vlan should be accurate.
+        net_vlan = \
+            CONF.network_feature_enabled.provider_net_base_segmentation_id
+        for server, port in zip([server_a, server_b],
+                                [self.port_a, self.port_b]):
+            interface_xml_element = self._get_xml_interface_device(
+                server['id'],
+                port['port']['id']
             )
-            server_a = self.create_test_server(
-                flavor=flavor['id'],
-                networks=[{'port': self.port_a['port']['id']}],
-                clients=self.os_admin,
-                host=host,
-                wait_until='ACTIVE',
-            )
-            server_b = self.create_test_server(
-                flavor=flavor['id'],
-                networks=[{'port': self.port_b['port']['id']}],
-                clients=self.os_admin,
-                host=host,
-                wait_until='ACTIVE',
-            )
-            cpu_pins_a = self.get_pinning_as_set(server_a['id'])
-            cpu_pins_b = self.get_pinning_as_set(server_b['id'])
+            self._validate_port_xml_vlan_tag(
+                interface_xml_element,
+                net_vlan)
 
-            for cpu_pin_values, server in zip([cpu_pins_a, cpu_pins_b],
-                                              [server_a, server_b]):
-                self.assertTrue(cpu_pin_values.issubset(
-                                set(cpu_dedicated_set)),
-                                'Expected pCPUs for server %s '
-                                'to be subset of %s but instead are %s' %
-                                (server['id'], cpu_dedicated_set,
-                                 cpu_pin_values))
-
-            self.assertTrue(cpu_pins_a.isdisjoint(cpu_pins_b),
-                            'Cpus %s for server A %s are not disjointed with '
-                            'Cpus %s of server B %s' % (cpu_pins_a,
-                                                        server_a['id'],
-                                                        cpu_pins_b,
-                                                        server_b['id']))
-
-            # Validate servers A and B have correct sr-iov interface
-            # information in the xml. Its type and vlan should be accurate.
-            net_vlan = \
-                CONF.network_feature_enabled.provider_net_base_segmentation_id
-            for server, port in zip([server_a, server_b],
-                                    [self.port_a, self.port_b]):
-                interface_xml_element = self._get_xml_interface_device(
-                    server['id'],
-                    port['port']['id']
-                )
-                self._validate_port_xml_vlan_tag(
-                    interface_xml_element,
-                    net_vlan)
-
-            # NOTE(jparker) At this point we have to manually delete both
-            # servers before the config_option() context manager reverts
-            # any config changes it made. This is Nova bug 1836945.
-            self.delete_server(server_a['id'])
-            self.delete_server(server_b['id'])
+        self.os_admin.servers_client.delete_server(server_a['id'])
+        self.os_admin.servers_client.delete_server(server_b['id'])
 
     def test_sriov_affinity_required(self):
         """Validate instance will not schedule to NUMA without nic affinity
 
-        1. Create a cpu_dedicated_set based on just the PCPU's of the NUMA
-        Node with affinity to the test's assocaiated SR-IOV physnet
-        2. Create a flavor with required NUMA policy and
-        hw:cpu_policy=dedicated. The flavor vcpu size will be equal to the
-        number of pCPUs of the NUMA Node with affinity to the
+        1. Pick a single compute host and gather its cpu_dedicated_set
+        configuration. Determine which of these dedicated PCPU's have affinity
+        and do not have affinity with the SRIOV physnet.
+        2. Create flavors with required NUMA policy and
+        hw:cpu_policy=dedicated. THe first flavor vcpu size will be equal to
+        the number of dedicated PCPUs of the NUMA Node with affinity to the
         physnet. This should result in any deployed instance using this flavor
-        'filling' the NUMA Node completely.
+        'filling' the NUMA Node completely. The second flavor will have a vcpu
+        size equal the PCPUs of another NUMA node without affinity
         3. Launch two instances with the flavor and an SR-IOV interface
         4. Validate only the first instance is created successfully and the
         second should fail to deploy
@@ -374,65 +372,59 @@ class SRIOVNumaAffinity(SRIOVBase, numa_helper.NUMAHelperMixin):
         it's NUMA affinity and assert the instance's dedicated pCPU's are all
         from the same NUMA.
         """
-
-        host = self.list_compute_hosts()[0]
         # Create a cpu_dedicated_set comprised of the PCPU's of just this NUMA
         # Node
-        cpu_dedicated_set = CONF.whitebox_hardware.cpu_topology[
-            str(CONF.whitebox_hardware.physnet_numa_affinity)]
-        cpu_dedicated_str = hardware.format_cpu_spec(cpu_dedicated_set)
+
+        flavor = self.create_flavor(
+            vcpus=self.dedicated_cpus_per_numa,
+            extra_specs=self.required
+        )
+
+        server_a = self.create_test_server(
+            flavor=flavor['id'],
+            networks=[{'port': self.port_a['port']['id']}],
+            wait_until='ACTIVE')
+
+        host = self.get_host_for_server(server_a['id'])
+
+        # With server A 'filling' pCPUs from the NUMA Node with SR-IOV
+        # NIC affinity, and with NUMA policy set to required, creation
+        # of server B should fail
+        self.assertRaises(tempest_exc.BuildErrorException,
+                          self.create_test_server,
+                          flavor=flavor['id'],
+                          networks=[{'port': self.port_b['port']['id']}],
+                          clients=self.os_admin,
+                          host=host,
+                          wait_until='ACTIVE')
+
         host_sm = clients.NovaServiceManager(host, 'nova-compute',
                                              self.os_admin.services_client)
+        cpu_dedicated_set = host_sm.get_cpu_dedicated_set()
+        pcpus_with_affinity = self._get_dedicated_cpus_from_numa_node(
+            self.affinity_node, cpu_dedicated_set)
+        cpu_pins_a = self.get_pinning_as_set(server_a['id'])
 
-        with host_sm.config_options(('compute', 'cpu_dedicated_set',
-                                    cpu_dedicated_str)):
+        # Compare the cpu pin set from server A with the expected PCPU's
+        # from the NUMA Node with affinity to SR-IOV NIC that was gathered
+        # earlier from from cpu_topology
+        self.assertEqual(
+            cpu_pins_a, pcpus_with_affinity, 'Expected pCPUs for server %s '
+            'to be equal to %s but instead are %s' % (server_a['id'],
+                                                      pcpus_with_affinity,
+                                                      cpu_pins_a))
 
-            flavor = self.create_flavor(vcpus=len(cpu_dedicated_set),
-                                        extra_specs=self.required)
+        # Validate server A has correct sr-iov interface information
+        # in the xml. Its type and vlan should be accurate.
+        net_vlan = \
+            CONF.network_feature_enabled.provider_net_base_segmentation_id
+        interface_xml_element = self._get_xml_interface_device(
+            server_a['id'],
+            self.port_a['port']['id']
+        )
+        self._validate_port_xml_vlan_tag(interface_xml_element, net_vlan)
 
-            server_a = self.create_test_server(
-                flavor=flavor['id'],
-                networks=[{'port': self.port_a['port']['id']}],
-                clients=self.os_admin,
-                host=host,
-                wait_until='ACTIVE',
-            )
-
-            # With server A 'filling' pCPUs from the NUMA Node with SR-IOV
-            # NIC affinity, and with NUMA policy set to required, creation
-            # of server B should fail
-            self.assertRaises(tempest_exc.BuildErrorException,
-                              self.create_test_server,
-                              flavor=flavor['id'],
-                              networks=[{'port': self.port_b['port']['id']}],
-                              clients=self.os_admin,
-                              host=host,
-                              wait_until='ACTIVE')
-
-            # Validate server A has correct sr-iov interface information
-            # in the xml. Its type and vlan should be accurate.
-            net_vlan = \
-                CONF.network_feature_enabled.provider_net_base_segmentation_id
-            interface_xml_element = self._get_xml_interface_device(
-                server_a['id'],
-                self.port_a['port']['id']
-            )
-            self._validate_port_xml_vlan_tag(interface_xml_element, net_vlan)
-
-            # Compare the cpu pin set from server A with the expected PCPU's
-            # from the NUMA Node with affinity to SR-IOV NIC that was gathered
-            # earlier from from cpu_topology
-            cpu_pins_a = self.get_pinning_as_set(server_a['id'])
-            self.assertEqual(cpu_pins_a, set(cpu_dedicated_set),
-                             'Server %s pCPUs expected to be %s but '
-                             'instead are %s' % (server_a['id'],
-                                                 cpu_dedicated_set,
-                                                 cpu_pins_a))
-
-            # NOTE(jparker) At this point we have to manually delete the
-            # server before the config_option() context manager reverts
-            # any config changes it made. This is Nova bug 1836945.
-            self.delete_server(server_a['id'])
+        self.os_admin.servers_client.delete_server(server_a['id'])
 
 
 class SRIOVMigration(SRIOVBase):
@@ -487,8 +479,8 @@ class SRIOVMigration(SRIOVBase):
             clients=self.os_admin,
             flavor=flavor['id'],
             networks=[{'port': port['port']['id']}],
-            host=hostname1
-        )
+            host=hostname1,
+            wait_until='ACTIVE')
 
         # Live migrate the server
         self.live_migrate(self.os_admin, server['id'], 'ACTIVE',
@@ -550,7 +542,7 @@ class SRIOVMigration(SRIOVBase):
         # for class have finalized. Deleting server to free up port
         # allocations so they do not impact other live migration tests from
         # this test class.
-        self.delete_server(server['id'])
+        self.os_admin.servers_client.delete_server(server['id'])
 
     def test_sriov_direct_live_migration(self):
         """Verify sriov live migration using direct type ports

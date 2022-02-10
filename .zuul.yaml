@@ -90,9 +90,8 @@
         num_hugepages: 512
 
 - job:
-    name: whitebox-devstack-ceph-compute-local-ephemeral
-    parent: whitebox-devstack-multinode
-    nodeset: nested-virt-multinode
+    name: whitebox-devstack-ceph-multinode
+    parent: devstack-plugin-ceph-multinode-tempest-py3
     description: |
       Runs test_rbd_direct_download test on single-NUMA, non-SMT, nested virt
       VMs with ceph plugin enabled.
@@ -100,17 +99,22 @@
       The job uses the default qcow2 file based imagebackend for ephemeral
       storage. It also enables the direct download of images via rbd into
       the local imagecache for Nova.
+    voting: true
     required-projects:
-      - openstack/devstack-plugin-ceph
+      openstack/whitebox-tempest-plugin
+    pre-run: playbooks/whitebox/pre.yaml
     irrelevant-files:
       - ^whitebox_tempest_plugin/api/compute/(?!test_rbd_direct_download).*py$
     vars:
+      tox_envlist: all
+      tempest_concurrency: 1
       devstack_plugins:
-        devstack-plugin-ceph: https://opendev.org/openstack/devstack-plugin-ceph
+        whitebox-tempest-plugin: https://opendev.org/openstack/whitebox-tempest-plugin.git
       tempest_test_regex: '^whitebox_tempest_plugin.api.compute.test_rbd_direct_download'
       devstack_localrc:
         COMPUTE_FEATURE_RBD_DOWNLOAD: True
-        CINDER_CEPH_UUID: d531d2d4-3937-429c-b0c2-658fe41e82ab
+        TEMPEST_PLUGINS: /opt/stack/whitebox-tempest-plugin
+        WHITEBOX_PRIVKEY_PATH: /home/tempest/.ssh/id_rsa
       devstack_local_conf:
         post-config:
           $NOVA_CPU_CONF:
@@ -123,9 +127,6 @@
               images_type: default
     group-vars:
       subnode:
-        devstack_localrc:
-          REMOTE_CEPH: true
-          CINDER_CEPH_UUID: d531d2d4-3937-429c-b0c2-658fe41e82ab
         devstack_local_conf:
           post-config:
             $NOVA_CPU_CONF:
@@ -143,8 +144,8 @@
     check:
       jobs:
         - whitebox-devstack-multinode
-        - whitebox-devstack-ceph-compute-local-ephemeral
+        - whitebox-devstack-ceph-multinode
     gate:
       jobs:
         - whitebox-devstack-multinode
-        - whitebox-devstack-ceph-compute-local-ephemeral
+        - whitebox-devstack-ceph-multinode

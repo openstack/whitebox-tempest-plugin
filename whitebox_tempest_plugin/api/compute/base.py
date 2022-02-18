@@ -38,6 +38,31 @@ LOG = logging.getLogger(__name__)
 
 class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
 
+    def create_test_server(self, *args, **kwargs):
+        """Whitebox is able to completely fill its compute hosts because it
+        runs with things like PCI devices and dedicated CPUs. Because of that
+        we cannot wait for the class cleanup to run after the test *class*
+        (which is what Tempest does by default), we need to run cleanup after
+        every test *method* to make sure subsequent tests have enough
+        resources. This wrapper does that.
+        """
+
+        def _admin_delete_server(server_id):
+            """The server may have been created by an admin client. Use the
+            admin client to delete it.
+            """
+            try:
+                self.os_admin.servers_client.delete_server(server_id)
+                waiters.wait_for_server_termination(
+                    self.os_admin.servers_client, server_id)
+            except Exception:
+                LOG.exception('Failed to delete server %s', server_id)
+
+        server = super(BaseWhiteboxComputeTest, self).create_test_server(
+            *args, **kwargs)
+        self.addCleanup(_admin_delete_server, server['id'])
+        return server
+
     def create_flavor(self, ram=64, vcpus=2,
                       disk=CONF.whitebox.flavor_volume_size, name=None,
                       is_public='True', extra_specs=None, **kwargs):

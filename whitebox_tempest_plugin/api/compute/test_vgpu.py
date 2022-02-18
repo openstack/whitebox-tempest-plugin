@@ -17,7 +17,6 @@ from tempest.common.utils.linux import remote_client
 from tempest.common import waiters
 from tempest import config
 from tempest.lib.common.utils import data_utils
-from tempest.lib.common.utils import test_utils
 from whitebox_tempest_plugin.api.compute import base
 
 from oslo_log import log as logging
@@ -267,15 +266,6 @@ class VGPUTest(base.BaseWhiteboxComputeTest):
             validation_resources=validation_resources,
             wait_until='ACTIVE')
 
-        # NOTE(jparker) Order of operations for clean attempts to remove
-        # validation resources before server is removed. Because of this
-        # cleanup of validation fails since the server is still present.
-        # Need to explicitly add cleanup of server first in order to remove
-        # validations at end of test.
-        self.addCleanup(waiters.wait_for_server_termination,
-                        self.servers_client, server['id'])
-        self.addCleanup(test_utils.call_and_ignore_notfound_exc,
-                        self.servers_client.delete_server, server['id'])
         return server
 
 

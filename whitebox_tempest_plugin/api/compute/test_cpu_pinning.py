@@ -446,8 +446,6 @@ class EmulatorThreadTest(BasePinningTest, numa_helper.NUMAHelperMixin):
             'Emulator threads for server %s is not the same as CPU set '
             '%s' % (emulator_threads, cpu_shared_set))
 
-        self.delete_server(server['id'])
-
     def test_policy_share_cpu_shared_unset(self):
         """With policy set to share and cpu_share_set unset, emulator threads
         should float over the instance's pCPUs.
@@ -501,9 +499,6 @@ class EmulatorThreadTest(BasePinningTest, numa_helper.NUMAHelperMixin):
                 'Different server pins overlap: %s and %s' % (cpu_pins_a,
                                                               cpu_pins_b))
 
-            self.delete_server(server_a['id'])
-            self.delete_server(server_b['id'])
-
     def test_policy_isolate(self):
         """With policy isolate, cpu_shared_set is ignored, and emulator threads
         should be pinned to a pCPU distinct from the instance's pCPUs.
@@ -552,8 +547,6 @@ class EmulatorThreadTest(BasePinningTest, numa_helper.NUMAHelperMixin):
             emulator_threads.issubset(cpu_dedicated_set), 'Emulator thread '
             'value %s is not a subset of cpu dedicated set %s' %
             (emulator_threads, cpu_dedicated_set))
-
-        self.delete_server(server['id'])
 
     def test_emulator_no_extra_cpu(self):
         """Create a flavor that consumes all available pCPUs for the guest.

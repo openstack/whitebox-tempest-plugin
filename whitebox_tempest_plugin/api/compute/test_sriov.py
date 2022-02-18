@@ -348,9 +348,6 @@ class SRIOVNumaAffinity(SRIOVBase, numa_helper.NUMAHelperMixin):
                 interface_xml_element,
                 net_vlan)
 
-        self.os_admin.servers_client.delete_server(server_a['id'])
-        self.os_admin.servers_client.delete_server(server_b['id'])
-
     def test_sriov_affinity_required(self):
         """Validate instance will not schedule to NUMA without nic affinity
 
@@ -423,8 +420,6 @@ class SRIOVNumaAffinity(SRIOVBase, numa_helper.NUMAHelperMixin):
             self.port_a['port']['id']
         )
         self._validate_port_xml_vlan_tag(interface_xml_element, net_vlan)
-
-        self.os_admin.servers_client.delete_server(server_a['id'])
 
 
 class SRIOVMigration(SRIOVBase):
@@ -537,12 +532,6 @@ class SRIOVMigration(SRIOVBase):
         self.assertEqual(pci_allocated_count, 1, 'Total allocated pci devices '
                          'after second migration should be 1 but instead '
                          'is %s' % pci_allocated_count)
-
-        # Resource cleanup does not take into effect until all test methods
-        # for class have finalized. Deleting server to free up port
-        # allocations so they do not impact other live migration tests from
-        # this test class.
-        self.os_admin.servers_client.delete_server(server['id'])
 
     def test_sriov_direct_live_migration(self):
         """Verify sriov live migration using direct type ports

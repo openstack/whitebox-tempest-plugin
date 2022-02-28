@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from tempest.common import compute
 from tempest import config
 from tempest import exceptions as tempest_exc
 from tempest.lib.common.utils import data_utils
@@ -77,7 +78,8 @@ class SRIOVBase(base.BaseWhiteboxComputeTest):
         net_dict = {
             'provider:network_type': 'vlan',
             'provider:physical_network': physical_net,
-            'provider:segmentation_id': vlan_id
+            'provider:segmentation_id': vlan_id,
+            'shared': True
         }
         net = self.os_admin.networks_client.create_network(
             name=name_net,
@@ -116,10 +118,10 @@ class SRIOVBase(base.BaseWhiteboxComputeTest):
         by neutron ports client
         """
         vnic_params = {'binding:vnic_type': vnic_type}
-        port = self.os_admin.ports_client.create_port(
+        port = self.os_primary.ports_client.create_port(
             network_id=net['network']['id'],
             **vnic_params)
-        self.addCleanup(self.os_admin.ports_client.delete_port,
+        self.addCleanup(self.os_primary.ports_client.delete_port,
                         port['port']['id'])
         return port
 
@@ -134,7 +136,7 @@ class SRIOVBase(base.BaseWhiteboxComputeTest):
         :return xml_network_deivce: The xml network device delement that match
         the port search criteria
         """
-        port_info = self.os_admin.ports_client.show_port(port_id)
+        port_info = self.os_primary.ports_client.show_port(port_id)
         interface_type = self._get_expected_xml_interface_type(port_info)
         root = self.get_server_xml(server_id)
         mac = port_info['port']['mac_address']
@@ -248,6 +250,8 @@ class SRIOVNumaAffinity(SRIOVBase, numa_helper.NUMAHelperMixin):
         if len(CONF.whitebox_hardware.cpu_topology) < 2:
             raise cls.skipException('Requires 2 or more NUMA nodes to '
                                     'execute test.')
+        if not compute.is_scheduler_filter_enabled('SameHostFilter'):
+            raise cls.skipException('SameHostFilter required.')
 
     def setUp(self):
         super(SRIOVNumaAffinity, self).setUp()
@@ -304,9 +308,8 @@ class SRIOVNumaAffinity(SRIOVBase, numa_helper.NUMAHelperMixin):
 
         server_b = self.create_test_server(
             flavor=flavor['id'],
-            clients=self.os_admin,
             networks=[{'port': self.port_b['port']['id']}],
-            host=host,
+            scheduler_hints={'same_host': server_a['id']},
             wait_until='ACTIVE'
         )
 
@@ -391,8 +394,7 @@ class SRIOVNumaAffinity(SRIOVBase, numa_helper.NUMAHelperMixin):
                           self.create_test_server,
                           flavor=flavor['id'],
                           networks=[{'port': self.port_b['port']['id']}],
-                          clients=self.os_admin,
-                          host=host,
+                          scheduler_hints={'same_host': server_a['id']},
                           wait_until='ACTIVE')
 
         host_sm = clients.NovaServiceManager(host, 'nova-compute',
@@ -437,9 +439,8 @@ class SRIOVMigration(SRIOVBase):
     @classmethod
     def skip_checks(cls):
         super(SRIOVMigration, cls).skip_checks()
-        if (CONF.compute.min_compute_nodes < 2 or
-                CONF.whitebox.max_compute_nodes > 2):
-            raise cls.skipException('Exactly 2 compute nodes required.')
+        if (CONF.compute.min_compute_nodes < 2):
+            raise cls.skipException('Need 2 or more compute nodes.')
 
     def _get_pci_status_count(self, status):
         """Return the number of pci devices that match the status argument
@@ -462,7 +463,6 @@ class SRIOVMigration(SRIOVBase):
         """
         net_vlan = \
             CONF.network_feature_enabled.provider_net_base_segmentation_id
-        hostname1, hostname2 = self.list_compute_hosts()
         flavor = self.create_flavor()
 
         port = self._create_sriov_port(
@@ -471,15 +471,14 @@ class SRIOVMigration(SRIOVBase):
         )
 
         server = self.create_test_server(
-            clients=self.os_admin,
             flavor=flavor['id'],
             networks=[{'port': port['port']['id']}],
-            host=hostname1,
             wait_until='ACTIVE')
 
+        host = self.get_host_for_server(server['id'])
+
         # Live migrate the server
-        self.live_migrate(self.os_admin, server['id'], 'ACTIVE',
-                          target_host=hostname2)
+        self.live_migrate(self.os_admin, server['id'], 'ACTIVE')
 
         # Search the instace's XML for the SR-IOV network device element based
         # on the mac address and binding:vnic_type from port info
@@ -507,7 +506,7 @@ class SRIOVMigration(SRIOVBase):
 
         # Migrate server back to the original host
         self.live_migrate(self.os_admin, server['id'], 'ACTIVE',
-                          target_host=hostname1)
+                          target_host=host)
 
         # Again find the instance's network device element based on the mac
         # address and binding:vnic_type from the port info provided by ports

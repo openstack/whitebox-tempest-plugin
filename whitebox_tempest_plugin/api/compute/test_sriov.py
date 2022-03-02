@@ -452,7 +452,7 @@ class SRIOVMigration(SRIOVBase):
         db = CONF.whitebox_database.nova_cell1_db_name
         with db_client.cursor(db) as cursor:
             cursor.execute('select COUNT(*) from pci_devices WHERE '
-                           'status = "%s"' % status)
+                           'status REGEXP "%s"' % status)
             data = cursor.fetchall()
         return data[0]['COUNT(*)']
 
@@ -461,6 +461,11 @@ class SRIOVMigration(SRIOVBase):
 
         :param vnic_type: str, vnic_type to use when creating sr-iov port
         """
+        if CONF.compute_feature_enabled.sriov_hotplug:
+            pci_device_status_regex = 'allocated'
+        else:
+            pci_device_status_regex = 'allocated|claimed'
+
         net_vlan = \
             CONF.network_feature_enabled.provider_net_base_segmentation_id
         flavor = self.create_flavor()
@@ -499,7 +504,8 @@ class SRIOVMigration(SRIOVBase):
 
         # Validate the total allocation of pci devices is one and only one
         # after instance migration
-        pci_allocated_count = self._get_pci_status_count('allocated')
+        pci_allocated_count = self._get_pci_status_count(
+            pci_device_status_regex)
         self.assertEqual(pci_allocated_count, 1, 'Total allocated pci devices '
                          'after first migration should be 1 but instead '
                          'is %s' % pci_allocated_count)
@@ -527,7 +533,8 @@ class SRIOVMigration(SRIOVBase):
 
         # Confirm total port allocations still remains one after final
         # migration
-        pci_allocated_count = self._get_pci_status_count('allocated')
+        pci_allocated_count = self._get_pci_status_count(
+            pci_device_status_regex)
         self.assertEqual(pci_allocated_count, 1, 'Total allocated pci devices '
                          'after second migration should be 1 but instead '
                          'is %s' % pci_allocated_count)

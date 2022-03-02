@@ -259,5 +259,8 @@ compute_features_group_opts = [
                 help="If false, skip virtio rng tests"),
     cfg.BoolOpt('rbd_download',
                 default=False,
-                help="If false, skip rbd direct download tests")
+                help="If false, skip rbd direct download tests"),
+    cfg.BoolOpt('sriov_hotplug',
+                default=True,
+                help="Sriov hotplugging is supported in the deployment")
 ]

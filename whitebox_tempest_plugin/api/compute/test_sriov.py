@@ -108,7 +108,7 @@ class SRIOVBase(base.BaseWhiteboxComputeTest):
         )
         return subnet
 
-    def _create_sriov_port(self, net, vnic_type):
+    def _create_sriov_port(self, net, vnic_type, numa_affinity_policy=None):
         """Create an sr-iov port based on the provided vnic type
 
         :param net: dictionary with network details
@@ -118,6 +118,8 @@ class SRIOVBase(base.BaseWhiteboxComputeTest):
         by neutron ports client
         """
         vnic_params = {'binding:vnic_type': vnic_type}
+        if numa_affinity_policy:
+            vnic_params['numa_affinity_policy'] = numa_affinity_policy
         port = self.os_primary.ports_client.create_port(
             network_id=net['network']['id'],
             **vnic_params)
@@ -261,58 +263,40 @@ class SRIOVNumaAffinity(SRIOVBase, numa_helper.NUMAHelperMixin):
 
         self.affinity_node = str(CONF.whitebox_hardware.physnet_numa_affinity)
 
-        network = self._create_sriov_net()
-        self._create_sriov_subnet(network['network']['id'])
-        self.port_a = self._create_sriov_port(
-            net=network,
-            vnic_type=CONF.network.port_vnic_type)
-        self.port_b = self._create_sriov_port(
-            net=network,
-            vnic_type=CONF.network.port_vnic_type)
+        self.network = self._create_sriov_net()
+        self._create_sriov_subnet(self.network['network']['id'])
+        self.flavor = self.create_flavor(
+            vcpus=self.dedicated_cpus_per_numa,
+            extra_specs={'hw:cpu_policy': 'dedicated'}
+        )
 
     def _get_dedicated_cpus_from_numa_node(self, numa_node, cpu_dedicated_set):
         cpu_ids = set(CONF.whitebox_hardware.cpu_topology.get(numa_node))
         dedicated_cpus = cpu_dedicated_set.intersection(cpu_ids)
         return dedicated_cpus
 
-    def test_sriov_affinity_preferred(self):
-        """Validate instance will schedule to NUMA without nic affinity
-
-        1. Create flavors with preferred NUMA policy and
-        hw:cpu_policy=dedicated. The first flavor vcpu size will be equal to
-        the number of dedicated PCPUs of the NUMA Node with affinity to the
-        physnet. This should result in any deployed instance using this flavor
-        'filling' the NUMA Node completely. The second flavor will have a vcpu
-        size equal the PCPUs of another NUMA node without affinity
-        2. Launch an instance using the flavor and determine the host it lands
-        on.
-        3. Launch a second instance and target it to the same host as the
-        first instance.
-        4. Validate both instances are deployed
-        5. Validate xml description of SR-IOV interface is correct for both
-        servers
-        """
-
-        flavor = self.create_flavor(
-            vcpus=self.dedicated_cpus_per_numa,
-            extra_specs=self.preferred
-        )
-
+    def _preferred_test_procedure(self, flavor, port_a, port_b, image_id):
         server_a = self.create_test_server(
             flavor=flavor['id'],
-            networks=[{'port': self.port_a['port']['id']}],
+            networks=[{'port': port_a['port']['id']}],
+            image_id=image_id,
             wait_until='ACTIVE'
         )
 
+        # Determine the host that guest A lands on and use that information
+        # to force guest B to land on the same host
         host = self.get_host_for_server(server_a['id'])
-
         server_b = self.create_test_server(
             flavor=flavor['id'],
-            networks=[{'port': self.port_b['port']['id']}],
+            networks=[{'port': port_b['port']['id']}],
             scheduler_hints={'same_host': server_a['id']},
+            image_id=image_id,
             wait_until='ACTIVE'
         )
 
+        # Determine the pCPUs that have affinity with the host's SR-IOV port.
+        # Then confirm the first instance's pCPUs match the pCPUs from the
+        # NUMA node with affinity to the SR-IOV port.
         host_sm = clients.NovaServiceManager(host, 'nova-compute',
                                              self.os_admin.services_client)
         cpu_dedicated_set = host_sm.get_cpu_dedicated_set()
@@ -324,13 +308,15 @@ class SRIOVNumaAffinity(SRIOVBase, numa_helper.NUMAHelperMixin):
             'id: %s to be equal to %s but instead are %s' %
             (server_a['id'], pcpus_with_affinity, cpu_pins_a))
 
+        # Find the pinned pCPUs used by server B. They are not expected to have
+        # affinity so just confirm they are a subset of the host's
+        # cpu_dedicated_set. Also confirm pCPUs are not resued between guest A
+        # and B
         cpu_pins_b = self.get_pinning_as_set(server_b['id'])
-
         self.assertTrue(
             cpu_pins_b.issubset(set(cpu_dedicated_set)),
             'Expected pCPUs for server B id: %s to be subset of %s but '
             'instead are %s' % (server_b['id'], cpu_dedicated_set, cpu_pins_b))
-
         self.assertTrue(
             cpu_pins_a.isdisjoint(cpu_pins_b),
             'Cpus %s for server A %s are not disjointed with Cpus %s of '
@@ -342,7 +328,7 @@ class SRIOVNumaAffinity(SRIOVBase, numa_helper.NUMAHelperMixin):
         net_vlan = \
             CONF.network_feature_enabled.provider_net_base_segmentation_id
         for server, port in zip([server_a, server_b],
-                                [self.port_a, self.port_b]):
+                                [port_a, port_b]):
             interface_xml_element = self._get_xml_interface_device(
                 server['id'],
                 port['port']['id']
@@ -351,52 +337,31 @@ class SRIOVNumaAffinity(SRIOVBase, numa_helper.NUMAHelperMixin):
                 interface_xml_element,
                 net_vlan)
 
-    def test_sriov_affinity_required(self):
-        """Validate instance will not schedule to NUMA without nic affinity
-
-        1. Pick a single compute host and gather its cpu_dedicated_set
-        configuration. Determine which of these dedicated PCPU's have affinity
-        and do not have affinity with the SRIOV physnet.
-        2. Create flavors with required NUMA policy and
-        hw:cpu_policy=dedicated. THe first flavor vcpu size will be equal to
-        the number of dedicated PCPUs of the NUMA Node with affinity to the
-        physnet. This should result in any deployed instance using this flavor
-        'filling' the NUMA Node completely. The second flavor will have a vcpu
-        size equal the PCPUs of another NUMA node without affinity
-        3. Launch two instances with the flavor and an SR-IOV interface
-        4. Validate only the first instance is created successfully and the
-        second should fail to deploy
-        5. Validate xml description of sr-iov interface is correct for first
-        server
-        6. Based on the VF pci address provided to the first instance, validate
-        it's NUMA affinity and assert the instance's dedicated pCPU's are all
-        from the same NUMA.
-        """
-        # Create a cpu_dedicated_set comprised of the PCPU's of just this NUMA
-        # Node
-
-        flavor = self.create_flavor(
-            vcpus=self.dedicated_cpus_per_numa,
-            extra_specs=self.required
-        )
+    def _required_test_procedure(self, flavor, port_a, port_b, image_id):
 
         server_a = self.create_test_server(
             flavor=flavor['id'],
-            networks=[{'port': self.port_a['port']['id']}],
-            wait_until='ACTIVE')
+            networks=[{'port': port_a['port']['id']}],
+            image_id=image_id,
+            wait_until='ACTIVE'
+        )
 
+        # Determine the host that guest A lands on and use that information
+        # to force guest B to land on the same host. With server A 'filling'
+        # pCPUs from the NUMA Node with SR-IOV NIC affinity, and with NUMA
+        # policy set to required, creation of server B should fail
         host = self.get_host_for_server(server_a['id'])
-
-        # With server A 'filling' pCPUs from the NUMA Node with SR-IOV
-        # NIC affinity, and with NUMA policy set to required, creation
-        # of server B should fail
         self.assertRaises(tempest_exc.BuildErrorException,
                           self.create_test_server,
                           flavor=flavor['id'],
-                          networks=[{'port': self.port_b['port']['id']}],
+                          networks=[{'port': port_b['port']['id']}],
                           scheduler_hints={'same_host': server_a['id']},
+                          image_id=image_id,
                           wait_until='ACTIVE')
 
+        # Determine the pCPUs that have affinity with the host's SR-IOV port.
+        # Then confirm the first instance's pCPUs match the pCPUs from the
+        # NUMA node with affinity to the SR-IOV port.
         host_sm = clients.NovaServiceManager(host, 'nova-compute',
                                              self.os_admin.services_client)
         cpu_dedicated_set = host_sm.get_cpu_dedicated_set()
@@ -419,9 +384,310 @@ class SRIOVNumaAffinity(SRIOVBase, numa_helper.NUMAHelperMixin):
             CONF.network_feature_enabled.provider_net_base_segmentation_id
         interface_xml_element = self._get_xml_interface_device(
             server_a['id'],
-            self.port_a['port']['id']
+            port_a['port']['id']
         )
         self._validate_port_xml_vlan_tag(interface_xml_element, net_vlan)
+
+
+class SRIOVNumaAffinityWithFlavor(SRIOVNumaAffinity):
+
+    def test_sriov_affinity_preferred_with_flavor(self):
+        """Validate preferred NUMA affinity with flavor level configuration
+
+        1. Create a flavor with preferred NUMA policy and
+        hw:cpu_policy=dedicated. The flavor vcpu size will be equal to
+        the number of dedicated PCPUs of the NUMA Node with affinity to the
+        physnet. This should result in any deployed instance using this flavor
+        'filling' the NUMA Node completely.
+        2. Launch two instances with the flavor and an SR-IOV port. The second
+        server should be 'forced' to schedule on the same host as the first
+        instance.
+        3. Validate both instances are deployed
+        4. Validate the first instance has CPU affinity with the same NUMA node
+        as the attached SR-IOV interface
+        5. Validate xml description of SR-IOV interface is correct for both
+        servers
+        """
+
+        flavor = self.create_flavor(
+            vcpus=self.dedicated_cpus_per_numa,
+            extra_specs=self.preferred
+        )
+        port_a = self._create_sriov_port(
+            net=self.network,
+            vnic_type=CONF.network.port_vnic_type)
+        port_b = self._create_sriov_port(
+            net=self.network,
+            vnic_type=CONF.network.port_vnic_type)
+        self._preferred_test_procedure(flavor, port_a, port_b, self.image_ref)
+
+    def test_sriov_affinity_required_with_flavor(self):
+        """Validate required NUMA affinity with flavor level configuration
+
+        1. Pick a single compute host and gather its cpu_dedicated_set
+        configuration. Determine which of these dedicated PCPU's have affinity
+        and do not have affinity with the SRIOV physnet.
+        2. Create flavor with required NUMA policy and
+        hw:cpu_policy=dedicated. The vcpu size of the flavor will be equal to
+        the number of dedicated PCPUs of the NUMA Node with affinity to the
+        physnet. This should result in any deployed instance using this flavor
+        'filling' the NUMA Node completely.
+        3. Launch two instances with the flavor and an SR-IOV port. The second
+        server should be 'forced' to schedule on the same host as the first
+        instance.
+        4. Validate only the first instance is created successfully and the
+        second should fail to deploy
+        5. Validate the first instance has CPU affinity with the same NUMA node
+        as the attached SR-IOV interface
+        6. Validate xml description of sr-iov interface is correct for first
+        server
+        7. Based on the VF pci address provided to the first instance, validate
+        it's NUMA affinity and assert the instance's dedicated pCPU's are all
+        from the same NUMA.
+        """
+        # Create a cpu_dedicated_set comprised of the PCPU's of just this NUMA
+        # Node
+
+        flavor = self.create_flavor(
+            vcpus=self.dedicated_cpus_per_numa,
+            extra_specs=self.required
+        )
+        port_a = self._create_sriov_port(
+            net=self.network,
+            vnic_type=CONF.network.port_vnic_type)
+        port_b = self._create_sriov_port(
+            net=self.network,
+            vnic_type=CONF.network.port_vnic_type)
+        self._required_test_procedure(flavor, port_a, port_b, self.image_ref)
+
+
+class SRIOVNumaAffinityWithImagePolicy(SRIOVNumaAffinity):
+
+    @classmethod
+    def skip_checks(cls):
+        super(SRIOVNumaAffinityWithImagePolicy, cls).skip_checks()
+        if not CONF.compute_feature_enabled.supports_image_level_numa_affinity:
+            raise cls.skipException('Deployment requires support for image '
+                                    'level configuration of NUMA affinity '
+                                    'policy.')
+
+    def test_sriov_affinity_preferred_with_image(self):
+        """Validate preferred NUMA affinity with image level configuration
+
+        1. Pick a single compute host and gather its cpu_dedicated_set
+        configuration. Determine which of these dedicated PCPU's have affinity
+        and do not have affinity with the SRIOV physnet.
+        2. Create an image with preferred NUMA affinity policy metadata. Also
+        use a flavor with hw:cpu_policy=dedicated and a vCPU size equal to
+        number of pCPUs per NUMA.
+        3. Launch two instances with the flavor, image, and an SR-IOV
+        port. The second guest should be 'forced' to schedule on the same host
+        as the first instance.
+        4. Validate both instances are created successfully with the first
+        having NUMA affinity with the SR-IOV port
+        5. Validate xml description of SR-IOV interface is correct for both
+        guests
+        """
+        image_id = self.copy_default_image(
+            hw_pci_numa_affinity_policy='preferred')
+        port_a = self._create_sriov_port(
+            net=self.network,
+            vnic_type=CONF.network.port_vnic_type)
+        port_b = self._create_sriov_port(
+            net=self.network,
+            vnic_type=CONF.network.port_vnic_type)
+        self._preferred_test_procedure(
+            self.flavor, port_a, port_b, image_id)
+
+    def test_sriov_affinity_required_with_image(self):
+        """Validate required NUMA affinity with image level configuration
+
+        1. Pick a single compute host and gather its cpu_dedicated_set
+        configuration. Determine which of these dedicated PCPU's have affinity
+        and do not have affinity with the SRIOV physnet.
+        2. Create an image with required NUMA affinity policy metadata. Also
+        use a flavor with hw:cpu_policy=dedicated and a vCPU size equal to
+        number of pCPUs per NUMA.
+        3. Launch two instances with the flavor, image, and an SR-IOV
+        port. The second guest should be 'forced' to schedule on the same host
+        as the first instance.
+        4. Validate only the first instance is created successfully and the
+        second should fail to deploy
+        5. Validate the first instance has CPU affinity with the same NUMA node
+        as the attached SR-IOV interface
+        6. Validate xml description of sr-iov interface is correct for first
+        guest
+        """
+        image_id = self.copy_default_image(
+            hw_pci_numa_affinity_policy='required')
+        port_a = self._create_sriov_port(
+            net=self.network,
+            vnic_type=CONF.network.port_vnic_type)
+        port_b = self._create_sriov_port(
+            net=self.network,
+            vnic_type=CONF.network.port_vnic_type)
+        self._required_test_procedure(
+            self.flavor, port_a, port_b, image_id)
+
+
+class SRIOVNumaAffinityWithPortPolicy(SRIOVNumaAffinity):
+
+    @classmethod
+    def skip_checks(cls):
+        super(SRIOVNumaAffinityWithPortPolicy, cls).skip_checks()
+        if not CONF.compute_feature_enabled.supports_port_level_numa_affinity:
+            raise cls.skipException('Deployment requires support for per port '
+                                    'level configuration of NUMA affinity '
+                                    'policy.')
+
+    def test_sriov_affinity_preferred_with_port_policy(self):
+        """Validate preferred NUMA affinity with port level configuration
+
+        1. Create a flavor with hw:cpu_policy=dedicated. The flavor
+        vcpu size will be equal to the number of dedicated PCPUs of the
+        NUMA Node with affinity to the physnet. This should result in any
+        deployed instance using this flavor 'filling' the NUMA Node completely.
+        2. Create two ports that have the preferred numa affinity policy.
+        3. Launch two instances using the flavor and ports, with the second
+        instance being 'forced' to schedule to the same host as the first
+        4. Validate both instances are created successfully with the first
+        having NUMA affinity with the SR-IOV port
+        5. Validate xml description of SR-IOV interface is correct for both
+        guests
+        """
+
+        port_a = self._create_sriov_port(
+            net=self.network,
+            vnic_type=CONF.network.port_vnic_type,
+            numa_affinity_policy='preferred')
+        port_b = self._create_sriov_port(
+            net=self.network,
+            vnic_type=CONF.network.port_vnic_type,
+            numa_affinity_policy='preferred')
+        self._preferred_test_procedure(
+            self.flavor, port_a, port_b, self.image_ref)
+
+    def test_sriov_mixed_affinity_port_policies(self):
+        """Validate mixed NUMA affinity policy with port level configuration
+
+        1. Create a flavor with hw:cpu_policy=dedicated. The flavor
+        vcpu size will be equal to the number of dedicated PCPUs of the
+        NUMA Node with affinity to the physnet. This should result in any
+        deployed instance using this flavor 'filling' the NUMA Node completely.
+        2. Create two ports one with the required numa affinity policy and one
+        with the preferred numa policy
+        3. Launch an instance with the port using the required policy
+        3. Launch a second instance and target it to the same host as the
+        first instance with the port using the preferred policy.
+        4. Validate both instances are created successfully with the first
+        having NUMA affinity with the SR-IOV port
+        5. Validate xml description of SR-IOV interface is correct for both
+        guests
+        """
+
+        port_a = self._create_sriov_port(
+            net=self.network,
+            vnic_type=CONF.network.port_vnic_type,
+            numa_affinity_policy='required')
+        port_b = self._create_sriov_port(
+            net=self.network,
+            vnic_type=CONF.network.port_vnic_type,
+            numa_affinity_policy='preferred')
+        self._preferred_test_procedure(
+            self.flavor, port_a, port_b, self.image_ref)
+
+    def test_sriov_affinity_required_with_port_policy(self):
+        """Validate required NUMA affinity with port level configuration
+
+        1. Create a flavor with hw:cpu_policy=dedicated. The flavor
+        vcpu size will be equal to the number of dedicated PCPUs of the
+        NUMA Node with affinity to the physnet. This should result in any
+        deployed instance using this flavor 'filling' the NUMA Node completely.
+        2. Create two ports that have the required numa affinity policy.
+        3. Launch two instances using the flavor, the 'required' policy ports
+        and target the same host.
+        4. Validate only the first instance is created successfully and the
+        second should fail to deploy
+        5. Confirm the first instance has NUMA affinity with its SR-IOV port
+        6. Validate xml description of sr-iov interface is correct for first
+        guest
+        """
+
+        port_a = self._create_sriov_port(
+            net=self.network,
+            vnic_type=CONF.network.port_vnic_type,
+            numa_affinity_policy='required')
+        port_b = self._create_sriov_port(
+            net=self.network,
+            vnic_type=CONF.network.port_vnic_type,
+            numa_affinity_policy='required')
+        self._required_test_procedure(
+            self.flavor, port_a, port_b, self.image_ref)
+
+    def test_sriov_affinity_port_policy_precedence_flavor(self):
+        """Validate port policy precedence over flavor NUMA affinity policy
+
+        1. Create a flavor with required NUMA policy and
+        hw:cpu_policy=dedicated. The first flavor vcpu size will be equal to
+        the number of dedicated PCPUs of the NUMA Node with affinity to the
+        physnet. This should result in any deployed instance using this flavor
+        'filling' the NUMA Node completely.
+        2. Create two ports that have the preferred numa affinity policy.
+        3. Launch an instance using the flavor and the first port. Determine
+        the host it lands on.
+        4. Launch a second instance with the same flavor and the second port
+        and target it to the same host as the first instance.
+        4. Validate both instances are deployed
+        5. Confirm the first instance has NUMA affinity with its SR-IOV port
+        6. Validate xml description of SR-IOV interface is correct for both
+        instances
+        """
+
+        required_flavor = self.create_flavor(
+            vcpus=self.dedicated_cpus_per_numa,
+            extra_specs=self.required)
+        port_a = self._create_sriov_port(
+            net=self.network,
+            vnic_type=CONF.network.port_vnic_type,
+            numa_affinity_policy='preferred')
+        port_b = self._create_sriov_port(
+            net=self.network,
+            vnic_type=CONF.network.port_vnic_type,
+            numa_affinity_policy='preferred')
+        self._preferred_test_procedure(
+            required_flavor, port_a, port_b, self.image_ref)
+
+    def test_sriov_affinity_port_policy_precedence_image(self):
+        """Validate port policy precedence over image NUMA affinity policy
+
+        1. Create a flavor with hw:cpu_policy=dedicated and a vCPU size will be
+        equal to the number of dedicated PCPUs of the NUMA Node with affinity
+        to the physnet. This should result in any deployed instance using this
+        flavor 'filling' the NUMA Node completely.
+        2. Create an image with required numa affinity policy
+        3. Create two ports that have the preferred numa affinity policy.
+        4. Launch an instance using the flavor, image, and the first port.
+        Determine the host it lands on.
+        5. Launch a second instance with the same flavor and the second port
+        and target it to the same host as the first instance.
+        6. Validate both instances are deployed and first guest has affinity
+        with attach SR-IOV port.
+        7. Validate xml description of SR-IOV interface is correct for both
+        guests
+        """
+
+        image_id = self.copy_default_image(
+            hw_pci_numa_affinity_policy='required')
+        port_a = self._create_sriov_port(
+            net=self.network,
+            vnic_type=CONF.network.port_vnic_type,
+            numa_affinity_policy='preferred')
+        port_b = self._create_sriov_port(
+            net=self.network,
+            vnic_type=CONF.network.port_vnic_type,
+            numa_affinity_policy='preferred')
+        self._preferred_test_procedure(
+            self.flavor, port_a, port_b, image_id)
 
 
 class SRIOVMigration(SRIOVBase):

@@ -173,6 +173,11 @@ libvirt_opts = [
         help='Similar to the mask_command option, this config options sets '
              'the command to unmask libvirt. If set, it will be run before '
              'every start command.'),
+    cfg.StrOpt(
+        'libvirt_container_name',
+        default="nova_libvirt",
+        help='The container name to use when needing to interact with the '
+             'respective virsh command of the compute host'),
 ]
 
 database_group = cfg.OptGroup(

@@ -59,17 +59,24 @@ class SSHClient(object):
 class VirshXMLClient(SSHClient):
     """A client to obtain libvirt XML from a remote host."""
 
+    def __init__(self, ctlplane_address):
+        super(VirshXMLClient, self).__init__(ctlplane_address)
+        self.container_name = CONF.whitebox_libvirt.libvirt_container_name
+
     def dumpxml(self, domain):
         command = 'virsh dumpxml %s' % domain
-        return self.execute(command, container_name='nova_libvirt', sudo=True)
+        return self.execute(
+            command, container_name=self.container_name, sudo=True)
 
     def capabilities(self):
         command = 'virsh capabilities'
-        return self.execute(command, container_name='nova_libvirt', sudo=True)
+        return self.execute(
+            command, container_name=self.container_name, sudo=True)
 
     def domblklist(self, server_id):
         command = 'virsh domblklist %s' % server_id
-        return self.execute(command, container_name='nova_libvirt', sudo=True)
+        return self.execute(
+            command, container_name=self.container_name, sudo=True)
 
 
 class LogParserClient(SSHClient):

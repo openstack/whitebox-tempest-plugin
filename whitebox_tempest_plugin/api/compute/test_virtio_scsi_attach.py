@@ -155,7 +155,7 @@ class VirtioSCSIDisk(base.BaseWhiteboxComputeTest):
         attached_serial_ids = self.get_attached_serial_ids(scsi_disks)
 
         # Assert that the attached volume ids are present as serials
-        self.assertItemsEqual(attached_volume_ids, attached_serial_ids)
+        self.assertCountEqual(attached_volume_ids, attached_serial_ids)
 
     @testtools.skipUnless(CONF.whitebox.available_cinder_storage >
                           (CONF.whitebox.flavor_volume_size + disks_to_create),
@@ -200,7 +200,7 @@ class VirtioSCSIDisk(base.BaseWhiteboxComputeTest):
         attached_serial_ids = self.get_attached_serial_ids(scsi_disks)
 
         # Assert that the volumes IDs we attached are listed as attached
-        self.assertItemsEqual(vol_ids, attached_volume_ids)
+        self.assertCountEqual(vol_ids, attached_volume_ids)
 
         # Assert that the volume IDs we attached are present in the serials
-        self.assertItemsEqual(vol_ids, attached_serial_ids)
+        self.assertCountEqual(vol_ids, attached_serial_ids)

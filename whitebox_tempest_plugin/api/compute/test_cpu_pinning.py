@@ -30,7 +30,6 @@ import xml.etree.ElementTree as ET
 
 from oslo_serialization import jsonutils
 from tempest.common import compute
-from tempest.common import utils
 from tempest.common import waiters
 from tempest import config
 from tempest.exceptions import BuildErrorException
@@ -126,13 +125,6 @@ class BasePinningTest(base.BaseWhiteboxComputeTest,
 class CPUPolicyTest(BasePinningTest):
     """Validate CPU policy support."""
     vcpus = 2
-
-    @classmethod
-    def skip_checks(cls):
-        super(CPUPolicyTest, cls).skip_checks()
-        if not utils.is_extension_enabled('OS-FLV-EXT-DATA', 'compute'):
-            msg = "OS-FLV-EXT-DATA extension not enabled."
-            raise cls.skipException(msg)
 
     def test_cpu_shared(self):
         """Ensure an instance with an explicit 'shared' policy work."""
@@ -393,9 +385,6 @@ class EmulatorThreadTest(BasePinningTest, numa_helper.NUMAHelperMixin):
     @classmethod
     def skip_checks(cls):
         super(EmulatorThreadTest, cls).skip_checks()
-        if not utils.is_extension_enabled('OS-FLV-EXT-DATA', 'compute'):
-            msg = "OS-FLV-EXT-DATA extension not enabled."
-            raise cls.skipException(msg)
         if getattr(CONF.whitebox_hardware, 'cpu_topology', None) is None:
             msg = "cpu_topology in whitebox-hardware is not present"
             raise cls.skipException(msg)

@@ -934,7 +934,7 @@ class NUMACPUDedicatedLiveMigrationTest(NUMALiveMigrationBase):
                                    (host_sm_a, host_sm_b)):
             cpu_shared_set = host_sm.get_cpu_shared_set()
             server_shared_cpus = self._get_shared_cpuset(server['id'])
-            self.assertItemsEqual(
+            self.assertCountEqual(
                 server_shared_cpus, cpu_shared_set, 'Shared CPU Set %s of '
                 'shared server %s is not equal to shared set of %s' %
                 (server_shared_cpus, server['id'], cpu_shared_set))
@@ -951,7 +951,7 @@ class NUMACPUDedicatedLiveMigrationTest(NUMALiveMigrationBase):
         # Nova bug 1869804 has been addressed
         shared_set_a = self._get_shared_cpuset(shared_server_a['id'])
         host_a_shared_set = host_sm_a.get_cpu_shared_set()
-        self.assertItemsEqual(
+        self.assertCountEqual(
             shared_set_a, host_a_shared_set, 'After migration of server %s, '
             'shared CPU set %s is not equal to new shared set %s' %
             (shared_server_a['id'], shared_set_a, host_a_shared_set))
@@ -1045,7 +1045,7 @@ class MixedCPUPolicyTest(BasePinningTest, numa_helper.NUMAHelperMixin):
 
         # Validate the PCPUs mapped to core 0 are a subset of the cpu shared
         # set of the host
-        self.assertItemsEqual(guest_shared_cpus, host_shared_cpus,
+        self.assertCountEqual(guest_shared_cpus, host_shared_cpus,
                               'Shared CPU Set %s of shared server %s is '
                               'not equal to shared set of host %s' %
                               (guest_shared_cpus, server['id'],

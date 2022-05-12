@@ -94,10 +94,14 @@ class LogParserClient(SSHClient):
 class QEMUImgClient(SSHClient):
     """A client to get QEMU image info in json format"""
 
+    def __init__(self, ctlplane_address):
+        super(QEMUImgClient, self).__init__(ctlplane_address)
+        self.container_name = CONF.whitebox_libvirt.libvirt_container_name
+
     def info(self, path):
         command = 'qemu-img info --output=json --force-share %s' % path
         output = self.execute(
-            command, container_name='nova_libvirt', sudo=True)
+            command, container_name=self.container_name, sudo=True)
         return json.loads(output)
 
 

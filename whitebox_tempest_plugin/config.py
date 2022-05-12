@@ -127,7 +127,7 @@ nova_compute_group = cfg.OptGroup(
 nova_compute_opts = [
     cfg.StrOpt(
         'config_path',
-        help='Path to the configration file for the nova-compute service.'),
+        help='Path to the configuration file for the nova-compute service.'),
     cfg.StrOpt(
         'start_command',
         help='Command to start the nova-compute service, without any '

@@ -23,7 +23,7 @@ tested in CI.
 
 Some tests have specific hardware requirements. These should be documented as
 config options, and tests are expected to skip if their hardware requirements
-are not declared in the configration.
+are not declared in the configuration.
 
 Install, configure and run
 --------------------------

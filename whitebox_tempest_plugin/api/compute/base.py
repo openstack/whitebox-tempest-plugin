@@ -63,7 +63,7 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
         self.addCleanup(_admin_delete_server, server['id'])
         return server
 
-    def create_flavor(self, ram=64, vcpus=2,
+    def create_flavor(self, ram=CONF.whitebox.flavor_ram_size, vcpus=2,
                       disk=CONF.whitebox.flavor_volume_size, name=None,
                       is_public='True', extra_specs=None, **kwargs):
         flavor = super(BaseWhiteboxComputeTest, self).create_flavor(

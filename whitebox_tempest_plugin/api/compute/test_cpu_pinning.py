@@ -877,7 +877,7 @@ class NUMACPUDedicatedLiveMigrationTest(NUMALiveMigrationBase):
                 'cpu_dedicated_set of the compute host')
 
         shared_cpus_per_numa = \
-            CONF.whitebox_hardware.dedicated_cpus_per_numa
+            CONF.whitebox_hardware.shared_cpus_per_numa
         if shared_cpus_per_numa == 0:
             raise cls.skipException(
                 'Need at least 1 or more pCPU\'s per NUMA allocated to the '
@@ -1026,6 +1026,14 @@ class MixedCPUPolicyTest(BasePinningTest, numa_helper.NUMAHelperMixin):
     mixed_cpu_policy = {'hw:cpu_policy': 'mixed',
                         'hw:cpu_dedicated_mask': '^0'}
 
+    @classmethod
+    def skip_checks(cls):
+        super(MixedCPUPolicyTest, cls).skip_checks()
+        if CONF.whitebox_hardware.shared_cpus_per_numa == 0:
+            raise cls.skipException(
+                'Need at least 1 or more pCPU\'s per NUMA allocated to the '
+                'cpu_shared_set of the compute host')
+
     def test_shared_pinned_and_unpinned_guest(self):
         flavor = self.create_flavor(vcpus=self.vcpus,
                                     extra_specs=self.mixed_cpu_policy)
@@ -1044,12 +1052,19 @@ class MixedCPUPolicyTest(BasePinningTest, numa_helper.NUMAHelperMixin):
         guest_shared_cpus = self.get_host_pcpus_for_guest_vcpu(server['id'], 0)
 
         # Validate the PCPUs mapped to core 0 are a subset of the cpu shared
-        # set of the host
-        self.assertCountEqual(guest_shared_cpus, host_shared_cpus,
-                              'Shared CPU Set %s of shared server %s is '
-                              'not equal to shared set of host %s' %
-                              (guest_shared_cpus, server['id'],
-                               host_shared_cpus))
+        # set of the host and number of shared CPUs are accurate to what
+        # is expected for the NUMA node
+        self.assertEqual(
+            CONF.whitebox_hardware.shared_cpus_per_numa,
+            len(guest_shared_cpus),
+            'Number of Shared CPUs allocated to guest should be %s but '
+            'instead found %s' % (CONF.whitebox_hardware.shared_cpus_per_numa,
+                                  len(guest_shared_cpus)))
+        self.assertTrue(
+            guest_shared_cpus.issubset(host_shared_cpus),
+            'Shared CPUs allocated to guest %s is not a subset of the shared '
+            'CPUs that compute host is expected to provide %s' %
+            (guest_shared_cpus, host_shared_cpus))
 
         # Find the PCPU pinned to core 1 of the guest
         guest_dedicated_cpus = \

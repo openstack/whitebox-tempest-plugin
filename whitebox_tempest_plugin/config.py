@@ -87,6 +87,10 @@ general_opts = [
         'flavor_volume_size',
         default=1,
         help="volume size for flavor used in whitebox test"),
+    cfg.IntOpt(
+        'flavor_ram_size',
+        default=64,
+        help='Default ram size to use when creating guest flavor'),
     cfg.StrOpt(
         'cpu_model',
         help='The CPU model set in the [libvirt]/cpu_models config option '

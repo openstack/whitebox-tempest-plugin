@@ -64,7 +64,7 @@ class VGPUTest(base.BaseWhiteboxComputeTest):
         extra_specs = {"resources:VGPU": str(cls.vgpu_amount_per_instance)}
         cls.vgpu_flavor = cls.admin_flavors_client.create_flavor(
             name=flavor_name,
-            ram=64,
+            ram=CONF.whitebox.flavor_ram_size,
             vcpus=2,
             disk=CONF.whitebox.flavor_volume_size,
             is_public='True')['flavor']

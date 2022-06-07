@@ -182,17 +182,23 @@ class VGPUTest(base.BaseWhiteboxComputeTest):
         pci_address = get_pci_address(domain, bus, slot, func)
         return pci_address
 
-    def _assert_vendor_id_in_guest(self, pci_address, linux_client):
+    def _assert_vendor_id_in_guest(self, linux_client, expected_device_count):
         """Confirm vgpu vendor id is present in server instance sysfs
 
         :param pci_address: str when searching the guest's pci devices use
         provided pci_address value to parse for vendor id
         """
-        cmd = "cat /sys/bus/pci/devices/%s/vendor" % pci_address
+        cmd = "grep -nr 0x%s /sys/bus/pci/devices/*/vendor | grep -E " \
+              "'[0-9a-e]{4}:[0-9a-e]{2}:[0-9a-e]{2}.[0-9a-e]{1}' | wc -l" % \
+              CONF.whitebox_hardware.vgpu_vendor_id
         sys_out = linux_client.exec_command(cmd)
-        self.assertIn(CONF.whitebox_hardware.vgpu_vendor_id, sys_out,
-                      "Vendor ID %s not found in output %s" %
-                      (CONF.whitebox_hardware.vgpu_vendor_id, sys_out))
+        self.assertIsNotNone(
+            sys_out, 'Unable to find vendor id %s when checking the guest' %
+            CONF.whitebox_hardware.vgpu_vendor_id)
+        self.assertEqual(
+            expected_device_count, int(sys_out), 'Should only find %s vGPU '
+            'device in guest but instead found %s' %
+            (expected_device_count, int(sys_out)))
 
     def _cold_migrate_server(self, server_id, target_host, revert=False):
         """Cold migrate a server with the option to revert the migration
@@ -245,13 +251,8 @@ class VGPUTest(base.BaseWhiteboxComputeTest):
         if expected_device_count == 0:
             return
 
-        # Determine the pci address of the vgpu hostdev element and use this
-        # address to search for the vendor id in the guest sysfs
-        for vgpu_xml_element in vgpu_devices:
-            pci_address = self._get_pci_addr_from_device(vgpu_xml_element)
-
-            # Validate the vendor id is present in guest instance
-            self._assert_vendor_id_in_guest(pci_address, linux_client)
+        # Validate the vendor id is present in guest instance
+        self._assert_vendor_id_in_guest(linux_client, expected_device_count)
 
     def create_validateable_instance(self, flavor, validation_resources):
         """Create a validateable instance based on provided flavor

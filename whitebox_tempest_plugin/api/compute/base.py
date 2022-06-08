@@ -73,6 +73,12 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
                                                                **extra_specs)
         return flavor
 
+    def reboot_server(self, server_id, type):
+        """Reboot a server and wait for it to be ACTIVE."""
+        self.servers_client.reboot_server(server_id, type=type)
+        waiters.wait_for_server_status(
+            self.servers_client, server_id, 'ACTIVE')
+
     def copy_default_image(self, **kwargs):
         """Creates a new image by downloading the default image's bits and
         uploading them to a new image. Any kwargs are set as image properties

@@ -12,14 +12,19 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+import testtools
+import time
 
 from tempest.common import compute
+from tempest.common.utils.linux import remote_client
 from tempest import config
 from tempest import exceptions as tempest_exc
 from tempest.lib.common.utils import data_utils
+from tempest.lib import exceptions as lib_exc
 
 from whitebox_tempest_plugin.api.compute import base
 from whitebox_tempest_plugin.api.compute import numa_helper
+from whitebox_tempest_plugin import hardware
 from whitebox_tempest_plugin.services import clients
 
 from oslo_log import log as logging
@@ -127,6 +132,39 @@ class SRIOVBase(base.BaseWhiteboxComputeTest):
                         port['port']['id'])
         return port
 
+    def _validate_pf_pci_address_in_xml(self, port_id, host_dev_xml):
+        """Validates pci address matches between port info and guest XML
+
+        :param server_id: str, id of the instance to analyze
+        :param host_dev_xml: eTree XML, host dev xml element
+        """
+        binding_profile = self._get_port_attribute(port_id, 'binding:profile')
+        pci_addr_element = host_dev_xml.find("./source/address")
+        pci_address = hardware.get_pci_address_from_xml_device(
+            pci_addr_element)
+        self.assertEqual(
+            pci_address,
+            binding_profile['pci_slot'], 'PCI device found in XML %s'
+            'does not match what is tracked in binding profile for port %s' %
+            (pci_address, binding_profile))
+
+    def _get_xml_pf_device(self, server_id):
+        """Returns xml hostdev element from the provided server id
+
+        :param server_id: str, id of the instance to analyze
+        :return xml_network_deivce: The xml hostdev device element that matches
+        the device search criteria
+        """
+        root = self.get_server_xml(server_id)
+        hostdev_list = root.findall(
+            "./devices/hostdev[@type='pci']"
+        )
+        self.assertEqual(len(hostdev_list), 1, 'Expect to find one '
+                         'and only one instance of hostdev device but '
+                         'instead found %d instances' %
+                         len(hostdev_list))
+        return hostdev_list[0]
+
     def _get_xml_interface_device(self, server_id, port_id):
         """Returns xml interface element that matches provided port mac
         and interface type. It is technically possible to have multiple ports
@@ -135,7 +173,7 @@ class SRIOVBase(base.BaseWhiteboxComputeTest):
 
         :param server_id: str, id of the instance to analyze
         :param port_id: str, port id to request from the ports client
-        :return xml_network_deivce: The xml network device delement that match
+        :return xml_network_deivce: The xml network device element that matches
         the port search criteria
         """
         port_info = self.os_primary.ports_client.show_port(port_id)
@@ -814,3 +852,274 @@ class SRIOVMigration(SRIOVBase):
         """Verify sriov live migration using macvtap type ports
         """
         self._base_test_live_migration(vnic_type='macvtap')
+
+
+class SRIOVAttachAndDetach(SRIOVBase):
+
+    def setUp(self):
+        super(SRIOVAttachAndDetach, self).setUp()
+        self.sriov_network = self._create_sriov_net()
+        self._create_sriov_subnet(self.sriov_network['network']['id'])
+
+    @classmethod
+    def skip_checks(cls):
+        super(SRIOVAttachAndDetach, cls).skip_checks()
+        if not CONF.compute_feature_enabled.sriov_hotplug:
+            raise cls.skipException('Deployment requires support for SR-IOV '
+                                    'NIC hot-plugging')
+        if (CONF.whitebox_hardware.sriov_nic_vendor_id is None):
+            msg = "CONF.whitebox_hardware.sriov_nic_vendor_id needs to be set."
+            raise cls.skipException(msg)
+
+    @classmethod
+    def setup_credentials(cls):
+        cls.prepare_instance_network()
+        super(SRIOVAttachAndDetach, cls).setup_credentials()
+
+    def wait_for_port_detach(self, port_id):
+        """Waits for the port's device_id to be unset.
+        :param port_id: The id of the port being detached.
+        :returns: The final port dict from the show_port response.
+        """
+        port = self.os_primary.ports_client.show_port(port_id)['port']
+        device_id = port['device_id']
+        start = int(time.time())
+
+        # NOTE(mriedem): Nova updates the port's device_id to '' rather than
+        # None, but it's not contractual so handle Falsey either way.
+        while device_id:
+            time.sleep(self.build_interval)
+            port = self.os_primary.ports_client.show_port(port_id)['port']
+            device_id = port['device_id']
+
+            timed_out = int(time.time()) - start >= self.build_timeout
+
+            if device_id and timed_out:
+                message = ('Port %s failed to detach (device_id %s) within '
+                           'the required time (%s s).' %
+                           (port_id, device_id, self.build_timeout))
+                raise lib_exc.TimeoutException(message)
+
+        return port
+
+    def _check_device_in_guest(self, linux_client, product_id):
+        """Check attached SR-IOV NIC is present in guest
+
+        """
+        vendor = CONF.whitebox_hardware.sriov_nic_vendor_id
+        cmd = "lspci -nn  | grep {0}:{1} | wc -l".format(vendor, product_id)
+        sys_out = linux_client.exec_command(cmd)
+        self.assertIsNotNone(
+            sys_out, 'Unable to find vendor id %s when checking the guest' %
+            'sriov vendor id')
+        self.assertEqual(
+            1, int(sys_out), 'Should only find 1 pci device '
+            'device in guest but instead found %s' %
+            int(sys_out))
+
+    def _create_ssh_client(self, server, validation_resources):
+        """Create an ssh client to execute commands on the guest instance
+
+        :param server: the ssh client will be setup to interface with the
+        provided server instance
+        :param valdiation_resources: necessary validation information to setup
+        an ssh session
+        :return linux_client: the ssh client that allows for guest command
+        execution
+        """
+        linux_client = remote_client.RemoteClient(
+            self.get_server_ip(server, validation_resources),
+            self.image_ssh_user,
+            self.image_ssh_password,
+            validation_resources['keypair']['private_key'],
+            server=server,
+            servers_client=self.servers_client)
+        linux_client.validate_authentication()
+        return linux_client
+
+    def create_server_and_ssh(self):
+        """Create a validateable instance based on provided flavor
+
+        :param flavor: dict, attributes describing flavor
+        :param validation_resources: dict, parameters necessary to setup ssh
+        client and validate the guest
+        """
+        validation_resources = self.get_test_validation_resources(
+            self.os_primary)
+        server = self.create_test_server(
+            validatable=True,
+            validation_resources=validation_resources,
+            wait_until='ACTIVE')
+        linux_client = self._create_ssh_client(server, validation_resources)
+        return (server, linux_client)
+
+    def _validate_port_data_after_attach(self, pre_attached_port,
+                                         after_attached):
+        """Compare the port data before and after being attached to a guest
+
+        :param pre_attached_port: dict, the current interface data for
+        attached port
+        :param after_attached: dict, original port data when first created
+        """
+        net_id = self.sriov_network.get('network').get('id')
+        port_id = pre_attached_port['port']['id']
+        port_ip_addr = pre_attached_port['port']['fixed_ips'][0]['ip_address']
+        port_mac_addr = pre_attached_port['port']['mac_address']
+        self.assertEqual(after_attached['port_id'], port_id)
+        self.assertEqual(after_attached['net_id'], net_id)
+        self.assertEqual(
+            after_attached['fixed_ips'][0]['ip_address'], port_ip_addr)
+        # When using a physical SR-IOV port the originally created port's
+        # mac address will be updated to the physical device's mac address
+        # on the host. Original port mac should no longer match updated
+        # host mac
+        if pre_attached_port['port']['binding:vnic_type'] == 'direct-physical':
+            self.assertNotEqual(after_attached['mac_addr'], port_mac_addr)
+        else:
+            # When not using physical, the port's mac should remain
+            # consistent
+            self.assertEqual(after_attached['mac_addr'], port_mac_addr)
+
+    def _base_test_attach_and_detach_sriov_port(self, vnic_type):
+        """Validate sr-iov interface can be attached/detached with guests
+
+        1. Create and sr-iov port based on the provided vnic_type
+        2. Launch two guests with UC access via SSH
+        3. Iterate over both guests doing the following steps:
+           3a. Attach the interface to the guest
+           3b. Check the return information about the attached interface
+           matches the expected port information
+           3c. Confirm port information is correct in guest XML.
+           3d. Verify NIC is present from within the guest by checking for
+           a pci device with matching vendor/device id
+           3e. Confirm the pci address associated with the port matches what
+           is in Nova DB.
+           3f. Detach the interface and wait for it to be available
+        """
+
+        # Gather SR-IOV network vlan, create two guests, and create an SR-IOV
+        # port based on the provided vnic_type
+        net_vlan = \
+            CONF.network_feature_enabled.provider_net_base_segmentation_id
+        servers = [self.create_server_and_ssh(),
+                   self.create_server_and_ssh()]
+        port = self._create_sriov_port(
+            net=self.sriov_network,
+            vnic_type=vnic_type
+        )
+
+        # Iterate over both servers, attaching the sr-iov port, checking the
+        # the attach was successful from an API, XML, and guest level and
+        # then detach the interface from the guest
+        for server, linux_client in servers:
+            iface = self.interfaces_client.create_interface(
+                server['id'],
+                port_id=port['port']['id'])['interfaceAttachment']
+
+            # Validate the original port information with what is currently
+            # report after the attach
+            self._validate_port_data_after_attach(port, iface)
+            interface_xml_element = self._get_xml_interface_device(
+                server['id'],
+                port['port']['id']
+            )
+
+            # Confirm mac address for the port in the domain XML match the
+            # mac address reported for the port
+            self.assertEqual(
+                iface['mac_addr'],
+                interface_xml_element.find('mac').attrib.get('address'))
+
+            # Verify the port's VLAN tag is present in the XML
+            self._validate_port_xml_vlan_tag(interface_xml_element,
+                                             net_vlan)
+
+            # Confirm the vendor and vf product id are present in the guest
+            self._check_device_in_guest(
+                linux_client,
+                CONF.whitebox_hardware.sriov_vf_product_id)
+
+            # Validate the port mappings are correct in the nova DB
+            self._verify_neutron_port_binding(
+                server['id'],
+                port['port']['id']
+            )
+            self.interfaces_client.delete_interface(
+                server['id'], port['port']['id'])
+            self.wait_for_port_detach(port['port']['id'])
+
+    @testtools.skipUnless(CONF.whitebox_hardware.sriov_vf_product_id,
+                          "Requires sriov NIC's VF ID")
+    def test_sriov_direct_attach_detach_port(self):
+        """Verify sriov direct port can be attached/detached from live guest
+        """
+        self._base_test_attach_and_detach_sriov_port(vnic_type='direct')
+
+    @testtools.skipUnless(CONF.whitebox_hardware.sriov_vf_product_id,
+                          "Requires sriov NIC's VF ID")
+    def test_sriov_macvtap_attach_detach_port(self):
+        """Verify sriov macvtap port can be attached/detached from live guest
+        """
+        self._base_test_attach_and_detach_sriov_port(vnic_type='macvtap')
+
+    @testtools.skipUnless(CONF.whitebox_hardware.sriov_pf_product_id,
+                          "Requires sriov NIC's PF ID")
+    def test_sriov_direct_physical_attach_detach_port(self):
+        """Verify sriov direct-physical port attached/detached from guest
+
+        1. Create and sr-iov port based on the provided vnic_type
+        2. Launch two guests accessable by the UC via SSH. Test creates two
+        guests to validate the same port can be attached/removed from multiple
+        guests
+        3. Iterate over both guests doing the following steps:
+           3a. Attach the interface to the guest
+           3b. Check the return information about the attached interface
+           matches the expected port information
+           3c. Verify NIC is present from within the guest by checking for
+           a pci device with matching vendor/device id
+           3d. Confirm the pci address associated with the port matches what
+           is in Nova DB.
+           3e. Detach the interface and wait for it to be available
+        """
+
+        # Create two guests and create an SR-IOV port with vnic_type
+        # direct-physical
+        servers = [self.create_server_and_ssh(),
+                   self.create_server_and_ssh()]
+        port = self._create_sriov_port(
+            net=self.sriov_network,
+            vnic_type='direct-physical'
+        )
+
+        # Iterate over both servers, attaching the sr-iov port, checking the
+        # the attach was successful from an API, XML, and guest level and
+        # then detach the interface from the guest
+        for server, linux_client in servers:
+            iface = self.interfaces_client.create_interface(
+                server['id'],
+                port_id=port['port']['id'])['interfaceAttachment']
+
+            # Confirm the port information currently reported after the attach
+            # match the original information for the port
+            self._validate_port_data_after_attach(port, iface)
+
+            # Validate the PCI address of the physical interface is present
+            # for the host dev XML element in the guest
+            host_dev_xml = self._get_xml_pf_device(server['id'])
+            self._validate_pf_pci_address_in_xml(
+                port['port']['id'], host_dev_xml)
+
+            # Verify the the interface's vendor ID and the phsyical device ID
+            # are present in the guest
+            self._check_device_in_guest(
+                linux_client,
+                CONF.whitebox_hardware.sriov_pf_product_id)
+
+            # Confirm the nova db mappings for the port are correct
+            self._verify_neutron_port_binding(
+                server['id'],
+                port['port']['id']
+            )
+            self.interfaces_client.delete_interface(
+                server['id'], port['port']['id'])
+            self.wait_for_port_detach(port['port']['id'])

@@ -108,3 +108,17 @@ def get_pci_address(domain, bus, slot, func):
     :return: A string of the form "<domain>:<bus>:<slot>.<function>".
     """
     return '%s:%s:%s.%s' % (domain, bus, slot, func)
+
+
+def get_pci_address_from_xml_device(pci_addr_element):
+    """Return pci address value from provided domain device xml element
+    :param xml_element: Etree XML element device from guest instance
+    :return str: the pci address found from the xml element in the format
+    sys:bus:slot:function
+    """
+    domain = pci_addr_element.get('domain').replace('0x', '')
+    bus = pci_addr_element.get('bus').replace('0x', '')
+    slot = pci_addr_element.get('slot').replace('0x', '')
+    func = pci_addr_element.get('function').replace('0x', '')
+    pci_address = get_pci_address(domain, bus, slot, func)
+    return pci_address

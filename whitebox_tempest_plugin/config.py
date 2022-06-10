@@ -226,6 +226,21 @@ hardware_opts = [
         default=None,
         help='The vendor id of the underlying vgpu hardware of the compute. '
              'An example with Nvidia would be 10de'),
+    cfg.StrOpt(
+        'sriov_nic_vendor_id',
+        default=None,
+        help='The vendor id of the underlying sriov nic port of the compute. '
+             'An example with Intel would be 8086'),
+    cfg.StrOpt(
+        'sriov_vf_product_id',
+        default=None,
+        help='The product/device id of the underlying sriov VF port for the '
+             'NIC. An example with Intel would be 154c'),
+    cfg.StrOpt(
+        'sriov_pf_product_id',
+        default=None,
+        help='The product/device id of the underlying sriov PF port of the '
+             'NIC. An example with Intel would be 1572'),
     cfg.ListOpt(
         'smt_hosts',
         default=[],

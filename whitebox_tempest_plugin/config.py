@@ -271,5 +271,13 @@ compute_features_group_opts = [
                 help="If false, skip rbd direct download tests"),
     cfg.BoolOpt('sriov_hotplug',
                 default=True,
-                help="Sriov hotplugging is supported in the deployment")
+                help="Sriov hotplugging is supported in the deployment"),
+    cfg.BoolOpt('supports_image_level_numa_affinity',
+                default=True,
+                help="Deployment supports SR-IOV NUMA affinity policy "
+                "scheduling base on image properties"),
+    cfg.BoolOpt('supports_port_level_numa_affinity',
+                default=True,
+                help="Deployment supports port level configuration of "
+                "NUMA affinity policy for SR-IOV NIC's")
 ]

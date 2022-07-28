@@ -563,6 +563,115 @@ class SRIOVNumaAffinityWithPortPolicy(SRIOVNumaAffinity):
             self.flavor, port_a, port_b, image_id)
 
 
+class SRIOVNumaAffinityWithSocketPolicy(SRIOVNumaAffinity):
+
+    socket_specs = {'hw:cpu_policy': 'dedicated',
+                    'hw:pci_numa_affinity_policy': 'socket'}
+
+    @classmethod
+    def skip_checks(cls):
+        super(SRIOVNumaAffinity, cls).skip_checks()
+        if getattr(CONF.whitebox_hardware,
+                   'socket_topology', None) is None:
+            raise cls.skipException('Requires socket_topology parameter '
+                                    'to be set in order to execute test '
+                                    'cases.')
+        if getattr(CONF.whitebox_hardware,
+                   'socket_affinity', None) is None:
+            raise cls.skipException('Requires socket_affinity parameter '
+                                    'to be set in order to execute test '
+                                    'cases.')
+
+    def _get_cpu_ids_with_socket_affinity(self, host_dedicated_set):
+        pcpu_ids_with_socket_affinity = []
+        socket_affinity = str(CONF.whitebox_hardware.socket_affinity)
+        numa_nodes = \
+            CONF.whitebox_hardware.socket_topology[socket_affinity]
+        for numa in numa_nodes:
+            pcpu_ids_with_socket_affinity += \
+                self._get_dedicated_cpus_from_numa_node(
+                    str(numa), host_dedicated_set)
+        return pcpu_ids_with_socket_affinity
+
+    def _socket_test_procedure(self, flavor, port_a, port_b, image_id):
+        server_a = self.create_test_server(
+            flavor=flavor['id'],
+            networks=[{'port': port_a['port']['id']}],
+            image_id=image_id,
+            wait_until='ACTIVE'
+        )
+
+        # Determine the host that guest A lands on and use that information
+        # to force guest B to land on the same host
+        host = self.get_host_for_server(server_a['id'])
+        server_b = self.create_test_server(
+            flavor=flavor['id'],
+            networks=[{'port': port_b['port']['id']}],
+            scheduler_hints={'same_host': server_a['id']},
+            image_id=image_id,
+            wait_until='ACTIVE'
+        )
+
+        # Determine the pCPUs that have affinity with the host's SR-IOV port.
+        # Then confirm the first instance's pCPUs match the pCPUs from the
+        # NUMA node with affinity to the SR-IOV port.
+        host_sm = clients.NovaServiceManager(host, 'nova-compute',
+                                             self.os_admin.services_client)
+        cpu_dedicated_set = host_sm.get_cpu_dedicated_set()
+        cpu_pins_a = self.get_pinning_as_set(server_a['id'])
+        pcpus_with_affinity = self._get_dedicated_cpus_from_numa_node(
+            self.affinity_node, cpu_dedicated_set)
+        self.assertEqual(
+            cpu_pins_a, pcpus_with_affinity, 'Expected pCPUs for server A, '
+            'id: %s to be equal to %s but instead are %s' %
+            (server_a['id'], pcpus_with_affinity, cpu_pins_a))
+
+        # Find the pinned pCPUs used by server B. Confirm that while they will
+        # not be comprised of pCPUs from the NUMA with affinity to the SR-IOV
+        # port, it still has pCPUs from the same socket.
+        cpu_pins_b = self.get_pinning_as_set(server_b['id'])
+        pcpus_on_socket = self._get_cpu_ids_with_socket_affinity(
+            cpu_dedicated_set)
+        self.assertTrue(
+            cpu_pins_b.issubset(set(pcpus_on_socket)),
+            'Expected pCPUs for server B id: %s to be subset of %s but '
+            'instead are %s' % (server_b['id'], pcpus_on_socket, cpu_pins_b))
+        self.assertTrue(
+            cpu_pins_a.isdisjoint(cpu_pins_b),
+            'Cpus %s for server A %s are not disjointed with Cpus %s of '
+            'server B %s' % (cpu_pins_a, server_a['id'], cpu_pins_b,
+                             server_b['id']))
+
+        # Validate servers A and B have correct sr-iov interface
+        # information in the xml. Its type and vlan should be accurate.
+        net_vlan = CONF.whitebox_hardware.sriov_vlan_id
+        for server, port in zip([server_a, server_b],
+                                [port_a, port_b]):
+            interface_xml_element = self._get_xml_interface_device(
+                server['id'],
+                port['port']['id']
+            )
+            self._validate_port_xml_vlan_tag(
+                interface_xml_element,
+                net_vlan)
+
+    def test_sriov_affinity_socket_policy(self):
+        socket_flavor = self.create_flavor(
+            vcpus=self.dedicated_cpus_per_numa,
+            extra_specs=self.socket_specs)
+
+        port_a = self._create_port_from_vnic_type(
+            net=self.network,
+            vnic_type=CONF.network.port_vnic_type)
+
+        port_b = self._create_port_from_vnic_type(
+            net=self.network,
+            vnic_type=CONF.network.port_vnic_type)
+
+        self._socket_test_procedure(
+            socket_flavor, port_a, port_b, self.image_ref)
+
+
 class SRIOVMigration(SRIOVBase):
 
     # Test utilizes the optional host parameter for server creation introduced

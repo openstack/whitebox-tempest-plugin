@@ -291,7 +291,20 @@ hardware_opts = [
         default=None,
         help='Dictionary mapping of the vGPU custom traits to the unique '
              'subsystem id that corresponds with the vGPU device e.g. '
-             'CUSTOM_NVIDIA_11:nvidia-319,CUSTOM_NVIDIA_12:nvidia-320')
+             'CUSTOM_NVIDIA_11:nvidia-319,CUSTOM_NVIDIA_12:nvidia-320'),
+    cfg.IntOpt(
+        'socket_affinity',
+        default=None,
+        help="The socket ID that has affinity to the NIC connected to the "
+             "physnet defined in 'sriov_physnet'"),
+    cfg.Opt(
+        'socket_topology',
+        default=None,
+        type=types.Dict(types.List(types.Integer(), bounds=True)),
+        help='Host Socket topology, as a dictionary of <Socket ID>:'
+             '<List of NUMA node IDs>. For example, if Socket 0 has '
+             'NUMA nodes 0 and 1, and Socket 1 NUMA nodes 2 and 3, the value '
+             'to set would be `0: [0,1], 1: [2, 3]`.')
 ]
 
 compute_features_group_opts = [

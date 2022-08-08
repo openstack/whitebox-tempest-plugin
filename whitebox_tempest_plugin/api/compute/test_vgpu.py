@@ -136,6 +136,25 @@ class VGPUTest(base.BaseWhiteboxComputeTest):
                        if x != rp_uuid]
         return child_uuids
 
+    def _get_vgpu_inventories_for_deployment(self):
+        """Gathers the vGPU inventories from deployment
+
+        :return inventories: dict, a dictionary mapping every rp_uuid with its
+        current vGPU inventory
+        """
+        hostnames = self.list_compute_hosts()
+        inventories = {}
+        for hostname in hostnames:
+            rp_uuid = self._get_rp_uuid_from_hostname(hostname)
+            rp_children = self._get_all_children_of_resource_provider(
+                rp_uuid=rp_uuid)
+            for rp_uuid in rp_children:
+                inventory = self.os_admin.resource_providers_client.\
+                    list_resource_provider_inventories(rp_uuid)
+                if 'VGPU' in [*inventory.get('inventories').keys()]:
+                    inventories[rp_uuid] = inventory.get('inventories')
+        return inventories
+
     def _get_usage_for_resource_class_vgpu(self, rp_uuids):
         """Total usage of resource class vGPU from provided list of RP UUIDs
 
@@ -269,12 +288,32 @@ class VGPUTest(base.BaseWhiteboxComputeTest):
 
         return server
 
+    def _validate_final_vgpu_rp_inventory(
+            self, starting_rp_vgpu_inventory, end_rp_vgpu_inventory):
+        """Validate that starting rp vgpu inventory matches the inventory after
+        testing
 
-class VGPUSanity(VGPUTest):
+        :param starting_rp_vgpu_inventory dict, vgpu resource provider
+        inventories before test execution
+        :param end_rp_vgpu_inventory dict, vgpu resource provider inventories
+        after test execution
+        """
+        for rp_uuid in starting_rp_vgpu_inventory.keys():
+            self.assertEqual(
+                starting_rp_vgpu_inventory.get(rp_uuid),
+                end_rp_vgpu_inventory.get(rp_uuid), 'The inventories have '
+                'changed for RP %s between the start %s and the end %s' %
+                (rp_uuid, starting_rp_vgpu_inventory.get(rp_uuid),
+                 end_rp_vgpu_inventory.get(rp_uuid)))
+
+
+class VGPUSmoke(VGPUTest):
     def test_boot_instance_with_vgpu(self):
         """Test creating an instance with a vGPU resource"""
         # Confirm vGPU guest XML contains correct number of vgpu devices. Then
         # confirm the vgpu vendor id is present in the sysfs for the guest
+        starting_rp_vgpu_inventory = \
+            self._get_vgpu_inventories_for_deployment()
         validation_resources = self.get_test_validation_resources(
             self.os_primary)
         server = self.create_validateable_instance(
@@ -285,6 +324,15 @@ class VGPUSanity(VGPUTest):
             server,
             linux_client=linux_client,
             expected_device_count=self.vgpu_amount_per_instance)
+
+        # Delete the guest and confirm the inventory reverts back to the
+        # original amount
+        self.os_admin.servers_client.delete_server(server['id'])
+        waiters.wait_for_server_termination(
+            self.os_admin.servers_client, server['id'])
+        end_rp_vgpu_inventory = self._get_vgpu_inventories_for_deployment()
+        self._validate_final_vgpu_rp_inventory(
+            starting_rp_vgpu_inventory, end_rp_vgpu_inventory)
 
 
 class VGPUColdMigration(VGPUTest):
@@ -305,6 +353,8 @@ class VGPUColdMigration(VGPUTest):
             raise cls.skipException(msg)
 
     def test_vgpu_cold_migration(self):
+        starting_rp_vgpu_inventory = \
+            self._get_vgpu_inventories_for_deployment()
         validation_resources = self.get_test_validation_resources(
             self.os_primary)
         server = self.create_validateable_instance(
@@ -353,7 +403,18 @@ class VGPUColdMigration(VGPUTest):
             'instead found %d' %
             (dest_host, expected_dest_usage, post_dest_usage))
 
+        # Delete the guest and confirm the inventory reverts back to the
+        # original amount
+        self.os_admin.servers_client.delete_server(server['id'])
+        waiters.wait_for_server_termination(
+            self.os_admin.servers_client, server['id'])
+        end_rp_vgpu_inventory = self._get_vgpu_inventories_for_deployment()
+        self._validate_final_vgpu_rp_inventory(
+            starting_rp_vgpu_inventory, end_rp_vgpu_inventory)
+
     def test_revert_vgpu_cold_migration(self):
+        starting_rp_vgpu_inventory = \
+            self._get_vgpu_inventories_for_deployment()
         validation_resources = self.get_test_validation_resources(
             self.os_primary)
         server = self.create_validateable_instance(
@@ -409,6 +470,15 @@ class VGPUColdMigration(VGPUTest):
             server,
             linux_client=linux_client,
             expected_device_count=self.vgpu_amount_per_instance)
+
+        # Delete the guest and confirm the inventory reverts back to the
+        # original amount
+        self.os_admin.servers_client.delete_server(server['id'])
+        waiters.wait_for_server_termination(
+            self.os_admin.servers_client, server['id'])
+        end_rp_vgpu_inventory = self._get_vgpu_inventories_for_deployment()
+        self._validate_final_vgpu_rp_inventory(
+            starting_rp_vgpu_inventory, end_rp_vgpu_inventory)
 
 
 class VGPUResizeInstance(VGPUTest):

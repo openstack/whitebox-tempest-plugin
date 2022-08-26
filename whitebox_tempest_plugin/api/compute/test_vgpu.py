@@ -25,19 +25,6 @@ CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
 
-def get_pci_address(domain, bus, slot, func):
-    """Assembles PCI address components into a fully-specified PCI address.
-
-    NOTE(jparker): This has been lifted from nova.pci.utils with no
-    adjustments
-
-    Does not validate that the components are valid hex or wildcard values.
-    :param domain, bus, slot, func: Hex or wildcard strings.
-    :return: A string of the form "<domain>:<bus>:<slot>.<function>".
-    """
-    return '%s:%s:%s.%s' % (domain, bus, slot, func)
-
-
 class VGPUTest(base.BaseWhiteboxComputeTest):
 
     # NOTE(jparker) as of Queens all hypervisors that support vGPUs accept
@@ -185,21 +172,6 @@ class VGPUTest(base.BaseWhiteboxComputeTest):
         resource_usage_count = \
             self._get_usage_for_resource_class_vgpu(rp_children)
         return resource_usage_count
-
-    def _get_pci_addr_from_device(self, xml_element):
-        """Return pci address value from provided domain device xml element
-
-        :param xml_element: Etree XML element device from guest instance
-        :return str: the pci address found from the xml element in the format
-        sys:bus:slot:function
-        """
-        pci_addr_element = xml_element.find(".address[@type='pci']")
-        domain = pci_addr_element.get('domain').replace('0x', '')
-        bus = pci_addr_element.get('bus').replace('0x', '')
-        slot = pci_addr_element.get('slot').replace('0x', '')
-        func = pci_addr_element.get('function').replace('0x', '')
-        pci_address = get_pci_address(domain, bus, slot, func)
-        return pci_address
 
     def _assert_vendor_id_in_guest(self, linux_client, expected_device_count):
         """Confirm vgpu vendor id is present in server instance sysfs

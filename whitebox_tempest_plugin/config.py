@@ -294,5 +294,11 @@ compute_features_group_opts = [
     cfg.BoolOpt('supports_port_level_numa_affinity',
                 default=True,
                 help="Deployment supports port level configuration of "
-                "NUMA affinity policy for SR-IOV NIC's")
+                "NUMA affinity policy for SR-IOV NIC's"),
+    cfg.BoolOpt('uefi_boot',
+                default=True,
+                help="If false, skip standard uefi boot tests"),
+    cfg.BoolOpt('uefi_secure_boot',
+                default=False,
+                help="If false, skip uefi secure boot tests")
 ]

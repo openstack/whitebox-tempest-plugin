@@ -37,6 +37,7 @@ function configure {
 
     iniset $TEMPEST_CONFIG compute-feature-enabled virtio_rng "$COMPUTE_FEATURE_VIRTIO_RNG"
     iniset $TEMPEST_CONFIG compute-feature-enabled rbd_download "$COMPUTE_FEATURE_RBD_DOWNLOAD"
+    iniset $TEMPEST_CONFIG compute-feature-enabled uefi_secure_boot "$COMPUTE_FEATURE_UEFI_SECURE_BOOT"
 }
 
 if [[ "$1" == "stack" ]]; then

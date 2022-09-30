@@ -17,6 +17,7 @@ function configure {
     iniset $TEMPEST_CONFIG whitebox cpu_model_extra_flags $WHITEBOX_CPU_MODEL_EXTRA_FLAGS
     iniset $TEMPEST_CONFIG whitebox rx_queue_size $WHITEBOX_RX_QUEUE_SIZE
     iniset $TEMPEST_CONFIG whitebox default_video_model $WHITEBOX_DEFAULT_VIDEO_MODEL
+    iniset $TEMPEST_CONFIG whitebox max_disk_devices_to_attach $WHITEBOX_MAX_DISK_DEVICES_TO_ATTACH
 
     iniset $TEMPEST_CONFIG whitebox-nova-compute config_path "$WHITEBOX_NOVA_COMPUTE_CONFIG_PATH"
     iniset $TEMPEST_CONFIG whitebox-nova-compute stop_command "$WHITEBOX_NOVA_COMPUTE_STOP_COMMAND"

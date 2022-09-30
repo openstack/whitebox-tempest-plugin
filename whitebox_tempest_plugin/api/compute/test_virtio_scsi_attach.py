@@ -13,10 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import testtools
-
 from oslo_log import log as logging
 from tempest import config
+from tempest.lib.exceptions import Forbidden
 
 from whitebox_tempest_plugin.api.compute import base
 
@@ -25,15 +24,10 @@ CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
 
-class VirtioSCSIDisk(base.BaseWhiteboxComputeTest):
-    # NOTE: The class variable disk_to_create is specifically set to seven in
-    # order to validate Nova bug 1686116 beyond six disks, minimum number of
-    # disks present on a VM should be greater than six for tests to function
-    # appropriately
-    disks_to_create = 7
+class VirtioSCSIBase(base.BaseWhiteboxComputeTest):
 
     def setUp(self):
-        super(VirtioSCSIDisk, self).setUp()
+        super(VirtioSCSIBase, self).setUp()
         # NOTE: Flavor and image are common amongst every test of the class
         # so setting them once in setUP method.
         self.flavor = self.create_flavor()
@@ -101,11 +95,29 @@ class VirtioSCSIDisk(base.BaseWhiteboxComputeTest):
                       None]
         return serial_ids
 
-    @testtools.skipUnless(CONF.whitebox.available_cinder_storage >
-                          (CONF.whitebox.flavor_volume_size + disks_to_create),
-                          'Need more than %sGB of storage to execute'
-                          % (CONF.whitebox.flavor_volume_size + disks_to_create
-                             ))
+
+class VirtioSCSIDiskMultiAttachment(VirtioSCSIBase):
+    # NOTE: The class variable disk_to_create is specifically set to seven in
+    # order to validate Nova bug 1686116 beyond six disks, minimum number of
+    # disks present on a VM should be greater than six for tests to function
+    # appropriately
+    disks_to_create = 7
+
+    @classmethod
+    def skip_checks(cls):
+        super(VirtioSCSIDiskMultiAttachment, cls).skip_checks()
+        if getattr(CONF.whitebox, 'max_disk_devices_to_attach', None):
+            if CONF.whitebox.max_disk_devices_to_attach < cls.disks_to_create:
+                msg = "Tests may only run if allowed disk attachment " \
+                      "is %s or more devices" % cls.disks_to_create
+                raise cls.skipException(msg)
+        required_disk_space = \
+            CONF.whitebox.flavor_volume_size + cls.disks_to_create
+        if CONF.whitebox.available_cinder_storage < required_disk_space:
+            msg = "Need more than  %sGB of storage to execute" \
+                % required_disk_space
+            raise cls.skipException(msg)
+
     def test_boot_with_multiple_disks(self):
         """Using block device mapping, boot an instance with more than six
         volumes. Total volume count is determined by class variable
@@ -157,11 +169,6 @@ class VirtioSCSIDisk(base.BaseWhiteboxComputeTest):
         # Assert that the attached volume ids are present as serials
         self.assertCountEqual(attached_volume_ids, attached_serial_ids)
 
-    @testtools.skipUnless(CONF.whitebox.available_cinder_storage >
-                          (CONF.whitebox.flavor_volume_size + disks_to_create),
-                          'Need more than  %sGB of storage to execute'
-                          % (CONF.whitebox.flavor_volume_size + disks_to_create
-                             ))
     def test_attach_multiple_scsi_disks(self):
         """After booting an instance from an image with virtio-scsi properties
         attach multiple additional virtio-scsi disks to the point that the
@@ -204,3 +211,71 @@ class VirtioSCSIDisk(base.BaseWhiteboxComputeTest):
 
         # Assert that the volume IDs we attached are present in the serials
         self.assertCountEqual(vol_ids, attached_serial_ids)
+
+
+class VirtioSCSIDiskRestrictAttachments(VirtioSCSIBase):
+
+    @classmethod
+    def skip_checks(cls):
+        super(VirtioSCSIDiskRestrictAttachments, cls).skip_checks()
+        if getattr(CONF.whitebox, 'max_disk_devices_to_attach', None) is None:
+            msg = "Requires max_disk_devices_to_attach to be explicitly set " \
+                  "in the deployment to test"
+            raise cls.skipException(msg)
+        required_disk_space = CONF.whitebox.flavor_volume_size + \
+            CONF.whitebox.max_disk_devices_to_attach
+        if CONF.whitebox.available_cinder_storage < required_disk_space:
+            msg = "Need more than  %sGB of storage to execute" \
+                % required_disk_space
+            raise cls.skipException(msg)
+
+    def test_max_iscsi_disks_attachment_enforced(self):
+        """After booting an instance from an image with virtio-scsi properties
+        attach multiple additional virtio-scsi disks to the point that the
+        instance reaches the limit of allowed attached disks. After confirming
+        they are all attached correctly, add one more volume and confirm the
+        action is Forbidden.
+        """
+        disks_to_create = CONF.whitebox.max_disk_devices_to_attach
+        server = self.create_test_server(flavor=self.flavor['id'],
+                                         image_id=self.img_id,
+                                         wait_until='ACTIVE')
+        vol_ids = []
+        # A virtio-scsi disk has already been attached to the server's disk
+        # controller since hw_scsi_model of the image was already set to
+        # 'virtio-scsi' in self.setUp(). Decrementing disks_to_create by 1.
+        for _ in range(disks_to_create - 1):
+            volume = self.create_volume(size=1)
+            vol_ids.append(volume['id'])
+            self.addCleanup(self.delete_volume, volume['id'])
+            self.attach_volume(server, volume)
+
+        disk_ctrl = self.get_scsi_disk_controllers(server_id=server['id'])
+        self.assertEqual(len(disk_ctrl), 1,
+                         "One and only one SCSI Disk controller should have "
+                         "been created but instead "
+                         "found: {} controllers".format(len(disk_ctrl)))
+
+        cntrl_index = disk_ctrl[0].attrib['index']
+        scsi_disks = self.get_scsi_disks(server_id=server['id'],
+                                         controller_index=cntrl_index)
+        self.assertEqual(len(scsi_disks),
+                         disks_to_create,
+                         "Expected {} disks but only "
+                         "found {}".format(disks_to_create,
+                                           len(scsi_disks)))
+
+        attached_volume_ids = self.get_attached_volume_ids(server['id'])
+        attached_serial_ids = self.get_attached_serial_ids(scsi_disks)
+
+        # Assert that the volumes IDs we attached are listed as attached
+        self.assertCountEqual(vol_ids, attached_volume_ids)
+
+        # Assert that the volume IDs we attached are present in the serials
+        self.assertCountEqual(vol_ids, attached_serial_ids)
+
+        # Create and attempt to attach one more volume to guest and confirm
+        # action is forbidden
+        volume = self.create_volume(size=1)
+        self.addCleanup(self.delete_volume, volume['id'])
+        self.assertRaises(Forbidden, self.attach_volume, server, volume)

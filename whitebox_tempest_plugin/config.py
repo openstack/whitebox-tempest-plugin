@@ -121,7 +121,11 @@ general_opts = [
     cfg.StrOpt(
         'default_video_model',
         default=None,
-        help='The expected default video display for the guest')
+        help='The expected default video display for the guest'),
+    cfg.IntOpt(
+        'max_disk_devices_to_attach',
+        default=None,
+        help='Maximum number of disks allowed to attach to a singler server')
 ]
 
 nova_compute_group = cfg.OptGroup(

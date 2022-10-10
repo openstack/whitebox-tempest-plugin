@@ -46,13 +46,12 @@ class NUMAHelperMixin(object):
 
         return emulator_threads
 
-    def get_host_pcpus_for_guest_vcpu(self, server_id, instance_cpu_id):
+    def get_host_pcpus_for_guest_vcpu(self, server_id, instance_cpu_ids):
         """Search the xml vcpu element of the provided instance for its cpuset.
         Convert cpuset found into a set of integers.
         """
-
-        xml_cpu_search = "./cputune/vcpupin[@vcpu='%s']" % instance_cpu_id
         root = self.get_server_xml(server_id)
-        cpus = root.find(xml_cpu_search)
-        cpuset = cpus.attrib.get('cpuset')
-        return hardware.parse_cpu_spec(cpuset)
+        vcpus = [root.find("./cputune/vcpupin[@vcpu='%s']" % cpu_id) for
+                 cpu_id in instance_cpu_ids]
+        cpusets = [vcpu.attrib.get('cpuset') for vcpu in vcpus]
+        return hardware.parse_cpu_spec(','.join(cpusets))

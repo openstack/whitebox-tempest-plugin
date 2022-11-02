@@ -52,11 +52,13 @@ class TestUEFIBoot(base.BaseWhiteboxComputeTest):
             'Readonly attribute is not yes for loader element')
 
         # Confirm secure boot is properly set based on the secure_boot
-        # parameter
+        # parameter, for RHEL8 the 'no' flag is not present when secure boot
+        # is not enabled so add a default 'no' response when checking for the
+        # secure parameter
         secure_boot_check = 'yes' if secure_boot else 'no'
         self.assertEqual(
-            secure_boot_check, loader.get('secure'), 'Secure boot should be '
-            'set to %s but instead it is %s ' %
+            secure_boot_check, loader.get('secure', 'no'), 'Secure boot '
+            'should be set to %s but instead it is %s ' %
             (secure_boot_check, loader.get('secure')))
 
         # Confirm NVRAM element is present within os element of the guest

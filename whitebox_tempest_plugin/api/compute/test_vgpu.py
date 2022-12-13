@@ -18,6 +18,8 @@ from tempest.common import waiters
 from tempest import config
 from tempest.lib.common.utils import data_utils
 from whitebox_tempest_plugin.api.compute import base
+from whitebox_tempest_plugin.services import clients
+from whitebox_tempest_plugin import utils as whitebox_utils
 
 from oslo_log import log as logging
 
@@ -526,3 +528,86 @@ class VGPUResizeInstance(VGPUTest):
             server,
             linux_client=linux_client,
             expected_device_count=self.vgpu_amount_per_instance)
+
+
+class VGPUMultiTypes(VGPUTest):
+
+    @classmethod
+    def skip_checks(cls):
+        super(VGPUMultiTypes, cls).skip_checks()
+        if not CONF.whitebox_hardware.vgpu_type_mapping:
+            msg = "Requires custom vgpu trait to subsystem product id mapping"
+            raise cls.skipException(msg)
+
+    def _get_vgpu_mdev_type_on_guest(self, server_id):
+        """Find the mdev_type of the vgpu device for the provided server id
+
+        :param server_id: str, the guest uuid to check
+        :return mdev_type: str, the mdev_type of vgpu provided to guest
+        """
+        host = self.get_host_for_server(server_id)
+        ctlplane_addr = whitebox_utils.get_ctlplane_address(host)
+        ssh_client = clients.SSHClient(ctlplane_addr)
+        root = self.get_server_xml(server_id)
+        vgpu_dev = root.find("./devices/hostdev[@type='mdev']")
+        source_element = vgpu_dev.find(".source/address")
+        mdev_uuid = source_element.get('uuid')
+
+        cmd = "ls -al /sys/bus/mdev/devices/%s/ | awk -F'/' " \
+              "'/mdev_type/ {print $3}'" % mdev_uuid
+        mdev_type = ssh_client.execute(cmd)
+        return mdev_type.rstrip()
+
+    def _generate_vgpu_custom_trait_flavor(self, trait):
+        """Creates a vGPU flavor that requests a specific type
+
+        :param trait str, the custom trait used by the flavor to distinguish
+        a specific vGPU type to request.
+        """
+        flavor_name = data_utils.rand_name(
+            'vgpu_test_flavor_{}'.format(trait))
+        extra_specs = {
+            "resources:VGPU": str(self.vgpu_amount_per_instance),
+            "trait:{}".format(trait): 'required'}
+        vgpu_flavor = self.admin_flavors_client.create_flavor(
+            name=flavor_name,
+            ram=CONF.whitebox.flavor_ram_size,
+            vcpus=2,
+            disk=CONF.whitebox.flavor_volume_size,
+            is_public='True',)['flavor']
+        self.os_admin.flavors_client.set_flavor_extra_spec(
+            vgpu_flavor['id'],
+            **extra_specs)
+        self.addClassResourceCleanup(
+            self.admin_flavors_client.wait_for_resource_deletion,
+            vgpu_flavor['id'])
+        self.addClassResourceCleanup(self.admin_flavors_client.delete_flavor,
+                                     vgpu_flavor['id'])
+        return vgpu_flavor
+
+    def test_deploy_multiple_vgpu_types(self):
+        """Test creating multiple guests with different vGPU types
+
+        1. Create multiple guests by iterating over the vgpu_type_mapping
+        provided in tempest.conf.
+        2. For each iteration create a flavor using a CUSTOM_TRAIT from
+        vgpu_type_mapping and then launch an instance with the flavor.
+        3. Once the guest is ACTIVE, ssh into the guest's respective compute
+        host. From there check the uuid of the vgpu device assigned to the
+        guest. Using the uuid, check mdev type of the host via
+        /sys/bus/mdev/devices/<uuid> and confirm the mdev_type there matches
+        the exepected mdev_type provided to the guest.
+        """
+        custom_traits = CONF.whitebox_hardware.vgpu_type_mapping
+        for trait, expected_mdev_type in custom_traits.items():
+            vgpu_flavor = self._generate_vgpu_custom_trait_flavor(trait)
+            validation_resources = self.get_test_validation_resources(
+                self.os_primary)
+            server = self.create_validateable_instance(
+                vgpu_flavor,
+                validation_resources)
+            found_mdev_type = self._get_vgpu_mdev_type_on_guest(server['id'])
+            self.assertEqual(
+                expected_mdev_type, found_mdev_type,
+                "The found mdev_type %s does not match the expected mdev_type "
+                "%s for %s" % (found_mdev_type, expected_mdev_type, trait))

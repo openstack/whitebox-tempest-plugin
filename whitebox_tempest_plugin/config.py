@@ -278,7 +278,13 @@ hardware_opts = [
         'vgpu_cold_migration_supported',
         default=False,
         help='Cold migration and resize supported for guest instances '
-             'with vGPU devices')
+             'with vGPU devices'),
+    cfg.DictOpt(
+        'vgpu_type_mapping',
+        default=None,
+        help='Dictionary mapping of the vGPU custom traits to the unique '
+             'subsystem id that corresponds with the vGPU device e.g. '
+             'CUSTOM_NVIDIA_11:nvidia-319,CUSTOM_NVIDIA_12:nvidia-320')
 ]
 
 compute_features_group_opts = [

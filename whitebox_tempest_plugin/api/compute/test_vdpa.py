@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from tempest.common import waiters
 from tempest import config
 
 from whitebox_tempest_plugin.api.compute import base
@@ -64,6 +65,130 @@ class VDPASmokeTests(base.BaseWhiteboxComputeTest):
             networks=[{'port': port['port']['id']}],
             wait_until='ACTIVE'
         )
+
+        interface_xml_element = self._get_xml_interface_device(
+            server['id'],
+            port['port']['id'],
+        )
+        if CONF.whitebox.rx_queue_size:
+            driver = interface_xml_element.find("./driver[@name='vhost']")
+            self.assertEqual(
+                str(CONF.whitebox.rx_queue_size),
+                driver.attrib['rx_queue_size'],
+                "VDPA rx_queue_size equaling %s not found" %
+                str(CONF.whitebox.rx_queue_size))
+
+        # Confirm dev_type, allocation status, and pci address information are
+        # correct in pci_devices table of openstack DB
+        self._verify_neutron_port_binding(
+            server['id'],
+            port['port']['id']
+        )
+
+
+class VDPAColdMigration(VDPASmokeTests):
+
+    @classmethod
+    def skip_checks(cls):
+        super(VDPAColdMigration, cls).skip_checks()
+        if CONF.compute.min_compute_nodes < 2:
+            msg = "Need two or more compute nodes to execute cold migration"
+            raise cls.skipException(msg)
+        if not CONF.compute_feature_enabled.vdpa_cold_migration_supported:
+            msg = "vDPA Cold Migration support needed in order to run tests"
+            raise cls.skipException(msg)
+
+    def _test_vdpa_cold_migration(self, revert=False):
+        port = self._create_port_from_vnic_type(
+            net=self.network,
+            vnic_type='vdpa'
+        )
+        server = self.create_test_server(
+            networks=[{'port': port['port']['id']}],
+            wait_until='ACTIVE'
+        )
+
+        # Determine a target host for cold migration target
+        dest_host = self.get_host_other_than(server['id'])
+
+        # Cold migrate the the instance to the target host
+        src_host = self.get_host_for_server(server['id'])
+        self.admin_servers_client.migrate_server(server['id'], host=dest_host)
+        waiters.wait_for_server_status(self.servers_client, server['id'],
+                                       'VERIFY_RESIZE')
+
+        if revert:
+            self.admin_servers_client.revert_resize_server(server['id'])
+        else:
+            self.admin_servers_client.confirm_resize_server(server['id'])
+
+        waiters.wait_for_server_status(self.servers_client,
+                                       server['id'], 'ACTIVE')
+        dest_host = self.get_host_for_server(server['id'])
+
+        # If the cold migration is reverted the guest should be back on
+        # it's original host. Otherwise the destination host should now be
+        # different from the source
+        if revert:
+            self.assertEqual(src_host, dest_host)
+        else:
+            self.assertNotEqual(src_host, dest_host)
+
+        interface_xml_element = self._get_xml_interface_device(
+            server['id'],
+            port['port']['id'],
+        )
+        if CONF.whitebox.rx_queue_size:
+            driver = interface_xml_element.find("./driver[@name='vhost']")
+            self.assertEqual(
+                str(CONF.whitebox.rx_queue_size),
+                driver.attrib['rx_queue_size'],
+                "VDPA rx_queue_size equaling %s not found" %
+                str(CONF.whitebox.rx_queue_size))
+
+        # Confirm dev_type, allocation status, and pci address information are
+        # correct in pci_devices table of openstack DB
+        self._verify_neutron_port_binding(
+            server['id'],
+            port['port']['id']
+        )
+
+    def test_vdpa_cold_migration(self):
+        self._test_vdpa_cold_migration()
+
+    def test_revert_vdpa_cold_migration(self):
+        self._test_vdpa_cold_migration(revert=True)
+
+
+class VDPAResizeInstance(VDPASmokeTests):
+
+    @classmethod
+    def skip_checks(cls):
+        super(VDPAResizeInstance, cls).skip_checks()
+        if not CONF.compute_feature_enabled.vdpa_cold_migration_supported:
+            msg = "vDPA Cold Migration support needed in order to run " \
+                  "resize tests"
+            raise cls.skipException(msg)
+        if not CONF.compute_feature_enabled.resize:
+            msg = 'Resize not available.'
+            raise cls.skipException(msg)
+
+    def setUp(self):
+        super(VDPAResizeInstance, self).setUp()
+        self.new_flavor = self.create_flavor(vcpus=2, ram=256)
+
+    def test_vdpa_to_standard_resize(self):
+        # Create an instance with a vDPA port and resize the server
+        port = self._create_port_from_vnic_type(
+            net=self.network,
+            vnic_type='vdpa'
+        )
+        server = self.create_test_server(
+            networks=[{'port': port['port']['id']}],
+            wait_until='ACTIVE'
+        )
+
+        self.resize_server(server['id'], self.new_flavor['id'])
 
         interface_xml_element = self._get_xml_interface_device(
             server['id'],

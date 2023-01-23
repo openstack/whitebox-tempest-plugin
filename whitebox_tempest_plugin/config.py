@@ -286,11 +286,6 @@ hardware_opts = [
         default=None,
         help="The NUMA Node ID that has affinity to the NIC connected to the "
              "physnet defined in 'sriov_physnet'"),
-    cfg.BoolOpt(
-        'vgpu_cold_migration_supported',
-        default=False,
-        help='Cold migration and resize supported for guest instances '
-             'with vGPU devices'),
     cfg.DictOpt(
         'vgpu_type_mapping',
         default=None,
@@ -330,5 +325,13 @@ compute_features_group_opts = [
                      '[libvirt]/swtpm_enabled=True'
                      '[libvirt]/swtpm_user=tss'
                      '[libvirt]/swtpm_group=tss'
-                     '[key_manager]/backend=barbican')
+                     '[key_manager]/backend=barbican'),
+    cfg.BoolOpt('vdpa_cold_migration_supported',
+                default=False,
+                help='Cold migration and resize supported for guest instances '
+                'with vDPA ports'),
+    cfg.BoolOpt('vgpu_cold_migration_supported',
+                default=False,
+                help='Cold migration and resize supported for guest instances '
+                'with vGPU devices')
 ]

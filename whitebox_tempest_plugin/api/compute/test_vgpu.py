@@ -322,7 +322,7 @@ class VGPUColdMigration(VGPUTest):
         if CONF.compute.min_compute_nodes < 2:
             msg = "Need two or more compute nodes to execute cold migration"
             raise cls.skipException(msg)
-        if not CONF.whitebox_hardware.vgpu_cold_migration_supported:
+        if not CONF.compute_feature_enabled.vgpu_cold_migration_supported:
             msg = "vGPU Cold Migration support needed in order to run tests"
             raise cls.skipException(msg)
 
@@ -465,7 +465,7 @@ class VGPUResizeInstance(VGPUTest):
     @classmethod
     def skip_checks(cls):
         super(VGPUResizeInstance, cls).skip_checks()
-        if not CONF.whitebox_hardware.vgpu_cold_migration_supported:
+        if not CONF.compute_feature_enabled.vgpu_cold_migration_supported:
             msg = "vGPU Cold Migration support needed in order to run " \
                   "resize tests"
             raise cls.skipException(msg)

@@ -2,9 +2,9 @@
     name: nested-virt-multinode
     nodes:
       - name: controller
-        label: nested-virt-ubuntu-focal
+        label: nested-virt-ubuntu-jammy
       - name: compute
-        label: nested-virt-ubuntu-focal
+        label: nested-virt-ubuntu-jammy
     groups:
       # Node where tests are executed and test results collected
       - name: tempest

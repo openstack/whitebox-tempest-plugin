@@ -8,13 +8,14 @@
           name: crudini
           state: present
       become: yes
-    # NOTE(jparker) in order for guest to boot via UEFI, the host will need the
-    # open source implementation of UEFI for VMs via the OVMF package.
-    - name: Install ovmf
+    - name: Install additional packages needed by job environment
       package:
-        name: ovmf
+        name: "{{ item }}"
         state: present
       become: yes
+      loop:
+        - "{{ extra_packages }}"
+      when: extra_packages is defined
     # NOTE(artom) The run-tempest role runs as the tempest user, so we need to give
     # the tempest user SSH access to all hosts. Devstack's orchestrate-devstack
     # role should have put a pubkey into the stack user's authorized_keys, so if we

@@ -258,3 +258,183 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
                                     cipher=cipher,
                                     control_location=control_location)
         return self.create_volume(volume_type=volume_type['name'])
+
+    def _get_expected_xml_interface_type(self, port):
+        """Return expected domain xml interface type based on port vnic_type
+
+        :param port: dictionary with port details
+        :return xml_vnic_type: the vnic_type as it is expected to be
+        represented in a guest's XML
+        """
+        VNIC_MAPPING_DICT = {
+            'vdpa': 'vdpa',
+            'direct': 'hostdev',
+            'macvtap': 'direct'
+        }
+        vnic_type = port['port']['binding:vnic_type']
+        # NOTE: SR-IOV Port binding vnic type has been known to cause confusion
+        # when mapping the value to the underlying instance XML. A vnic_type
+        # that is direct is a 'hostdev' or Host device assignment that is
+        # is passing the device directly from the host to the guest. A
+        # vnic_type that is macvtap or 'direct' in the guest xml, is using the
+        # macvtap driver to attach a guests NIC directly to a specified
+        # physical interface on the host.
+
+        return VNIC_MAPPING_DICT.get(vnic_type)
+
+    def _get_xml_interface_device(self, server_id, port_id):
+        """Returns xml interface element that matches provided port mac
+        and interface type. It is technically possible to have multiple ports
+        with the same MAC address in an instance, so method functionality may
+        break in the future.
+
+        :param server_id: str, id of the instance to analyze
+        :param port_id: str, port id to request from the ports client
+        :return xml_network_deivce: The xml network device delement that match
+        the port search criteria
+        """
+        port_info = self.os_admin.ports_client.show_port(port_id)
+        interface_type = self._get_expected_xml_interface_type(port_info)
+        root = self.get_server_xml(server_id)
+        mac = port_info['port']['mac_address']
+        interface_list = root.findall(
+            "./devices/interface[@type='%s']/mac[@address='%s'].."
+            % (interface_type, mac)
+        )
+        self.assertEqual(len(interface_list), 1, 'Expect to find one '
+                         'and only one instance of interface but '
+                         'instead found %d instances' %
+                         len(interface_list))
+        return interface_list[0]
+
+    def _get_port_attribute(self, port_id, attribute):
+        """Get a specific attribute for provided port id
+
+        :param port_id: str the port id to search for
+        :param attribute: str the attribute or key to check from the returned
+        port dictionary
+        :return port_attribute: the requested port attribute value
+        """
+        body = self.os_admin.ports_client.show_port(port_id)
+        port = body['port']
+        return port.get(attribute)
+
+    def _create_net_from_physical_network(self, vlan_id, physical_net):
+        """Create an IPv4 L2 vlan network.  Physical network provider comes
+        from sriov_physnet provided in tempest config
+
+        :return net A dictionary describing details about the created network
+        """
+        name_net = data_utils.rand_name(self.__class__.__name__)
+        net_dict = {
+            'provider:network_type': 'vlan',
+            'provider:physical_network': physical_net,
+            'provider:segmentation_id': vlan_id,
+            'shared': True
+        }
+        net = self.os_admin.networks_client.create_network(
+            name=name_net,
+            **net_dict)
+        self.addCleanup(self.os_admin.networks_client.delete_network,
+                        net['network']['id'])
+        return net
+
+    def _create_subnet(self, network_id):
+        """Create an IPv4 L2 vlan network.  Physical network provider comes
+        from sriov_physnet provided in tempest config
+
+        :param network_id: str, network id subnet will be associated with
+        :return net A dictionary describing details about the created network
+        """
+        name_subnet = data_utils.rand_name(self.__class__.__name__)
+        subnet = self.os_admin.subnets_client.create_subnet(
+            name=name_subnet,
+            network_id=network_id,
+            cidr=CONF.network.project_network_cidr,
+            ip_version=4
+        )
+        self.addCleanup(
+            self.os_admin.subnets_client.delete_subnet,
+            subnet['subnet']['id']
+        )
+        return subnet
+
+    def _create_port_from_vnic_type(self, net, vnic_type,
+                                    numa_affinity_policy=None):
+        """Create an sr-iov port based on the provided vnic type
+
+        :param net: dictionary with network details
+        :param vnic_type: str, representing the vnic type to use with creating
+        the sriov port, e.g. direct, macvtap, etc.
+        :return port: dictionary with details about newly created port provided
+        by neutron ports client
+        """
+        vnic_params = {'binding:vnic_type': vnic_type}
+        if numa_affinity_policy:
+            vnic_params['numa_affinity_policy'] = numa_affinity_policy
+        port = self.os_primary.ports_client.create_port(
+            network_id=net['network']['id'],
+            **vnic_params)
+        self.addCleanup(self.os_primary.ports_client.delete_port,
+                        port['port']['id'])
+        return port
+
+    def _search_pci_devices(self, column, value):
+        """Returns all pci_device's address, status, and dev_type that match
+        query criteria.
+
+        :param column: str, the column in the pci_devices table to search
+        :param value: str, the specific value in the column to query for
+        return query_match: json, all pci_devices that match specified query
+        """
+        db_client = clients.DatabaseClient()
+        db = CONF.whitebox_database.nova_cell1_db_name
+        with db_client.cursor(db) as cursor:
+            cursor.execute(
+                'SELECT address,status,dev_type FROM '
+                'pci_devices WHERE %s = "%s"' % (column, value))
+            data = cursor.fetchall()
+        return data
+
+    def _verify_neutron_port_binding(self, server_id, port_id):
+        """Verifies db metrics are accurate for the state of the provided
+        port_id
+
+        :param port_id str, the port id to request from the ports client
+        :param server_id str, the guest id to check
+        """
+        binding_profile = self._get_port_attribute(port_id, 'binding:profile')
+        pci_info = self._search_pci_devices('instance_uuid', server_id)
+        vnic_type = self._get_port_attribute(port_id, 'binding:vnic_type')
+        for pci_device in pci_info:
+            self.assertEqual(
+                "allocated", pci_device['status'], 'PCI function %s is '
+                'status %s and not status allocated' %
+                (pci_device['address'], pci_device['status']))
+            self.assertEqual(
+                pci_device['address'],
+                binding_profile['pci_slot'], 'PCI device '
+                'information in Nova and and Binding profile information in '
+                'Neutron mismatch')
+            if vnic_type == 'vdpa':
+                self.assertEqual(pci_device['dev_type'], 'vdpa')
+            elif vnic_type == 'direct-physical':
+                self.assertEqual(pci_device['dev_type'], 'type-PF')
+            else:
+                # vnic_type direct, macvtap or virtio-forwarder can use VF or
+                # type pci devices.
+                self.assertIn(pci_device['dev_type'], ['type-VF', 'type-PCI'])
+
+    def _get_pci_status_count(self, status):
+        """Return the number of pci devices that match the status argument
+
+        :param status: str, value to query from the pci_devices table
+        return int, the number of rows that match the provided status
+        """
+        db_client = clients.DatabaseClient()
+        db = CONF.whitebox_database.nova_cell1_db_name
+        with db_client.cursor(db) as cursor:
+            cursor.execute('select COUNT(*) from pci_devices WHERE '
+                           'status = "%s"' % status)
+            data = cursor.fetchall()
+        return data[0]['COUNT(*)']

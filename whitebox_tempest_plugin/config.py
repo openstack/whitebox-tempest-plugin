@@ -270,6 +270,18 @@ hardware_opts = [
         default=None,
         help='The physnet to use when creating sr-iov ports'),
     cfg.IntOpt(
+        'sriov_vlan_id',
+        default=None,
+        help='The vlan id associated with the sriov port'),
+    cfg.StrOpt(
+        'vdpa_physnet',
+        default=None,
+        help='The physnet to use when creating vdpa ports'),
+    cfg.IntOpt(
+        'vdpa_vlan_id',
+        default=None,
+        help='The vlan id associated with the vdpa port'),
+    cfg.IntOpt(
         'physnet_numa_affinity',
         default=None,
         help="The NUMA Node ID that has affinity to the NIC connected to the "

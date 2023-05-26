@@ -1049,7 +1049,8 @@ class MixedCPUPolicyTest(BasePinningTest, numa_helper.NUMAHelperMixin):
         host_shared_cpus = host_sm.get_cpu_shared_set()
 
         # Find the PCPU's currently mapped to core 0 of the guest
-        guest_shared_cpus = self.get_host_pcpus_for_guest_vcpu(server['id'], 0)
+        guest_shared_cpus = self.get_host_pcpus_for_guest_vcpu(
+            server['id'], [0])
 
         # Validate the PCPUs mapped to core 0 are a subset of the cpu shared
         # set of the host and number of shared CPUs are accurate to what
@@ -1068,7 +1069,7 @@ class MixedCPUPolicyTest(BasePinningTest, numa_helper.NUMAHelperMixin):
 
         # Find the PCPU pinned to core 1 of the guest
         guest_dedicated_cpus = \
-            self.get_host_pcpus_for_guest_vcpu(server['id'], 1)
+            self.get_host_pcpus_for_guest_vcpu(server['id'], [1])
 
         # Confirm only one PCPU is mapped to core 1 of the guest
         self.assertEqual(1, len(guest_dedicated_cpus), 'Only one PCPU should '
@@ -1082,3 +1083,134 @@ class MixedCPUPolicyTest(BasePinningTest, numa_helper.NUMAHelperMixin):
                         'host %s is not a subset of the dedicated set %s' %
                         (guest_dedicated_cpus, server['id'], host,
                          host_dedicated_cpus))
+
+
+class MixedCPUPolicyTestMultiNuma(MixedCPUPolicyTest):
+
+    vcpus = 4
+    ram = 1024
+    numa_nodes = '2'
+
+    def setUp(self):
+        super(MixedCPUPolicyTestMultiNuma, self).setUp()
+        self.dedicated_cpus_per_numa = \
+            CONF.whitebox_hardware.dedicated_cpus_per_numa
+        self.dedicated_guest_cpus_ids = list(range(self.vcpus)[1:])
+        self.dedicated_cpu_count = len(self.dedicated_guest_cpus_ids)
+
+    @classmethod
+    def skip_checks(cls):
+        super(MixedCPUPolicyTestMultiNuma, cls).skip_checks()
+        if CONF.whitebox_hardware.dedicated_cpus_per_numa == 0:
+            msg = 'Need at least 1 or more pCPU\'s per NUMA allocated to ' \
+                  'the cpu_dedicated_set of the compute host'
+            raise cls.skipException(msg)
+        if getattr(CONF.whitebox_hardware, 'cpu_topology', None) is None:
+            msg = "cpu_topology in whitebox-hardware is not present"
+            raise cls.skipException(msg)
+        cpu_topology = CONF.whitebox_hardware.cpu_topology
+        if len(cpu_topology) < 2:
+            msg = "Need at least two or more NUMA Nodes to run tests"
+            raise cls.skipException(msg)
+
+    def _verify_multi_numa_guest(self, server_id):
+        host = self.get_host_for_server(server_id)
+        host_sm = clients.NovaServiceManager(host, 'nova-compute',
+                                             self.os_admin.services_client)
+
+        # Gather the current hosts cpu dedicated and shared set values
+        host_dedicated_cpus = host_sm.get_cpu_dedicated_set()
+        host_shared_cpus = host_sm.get_cpu_shared_set()
+
+        # Confirm the number of numa nodes for guest match expected flavor
+        # configuration
+        numa_nodes = self.get_server_cell_pinning(server_id)
+        self.assertEqual(int(self.numa_nodes), len(numa_nodes),
+                         'Expected to find %s NUMA Nodes but instead found %s '
+                         % (self.numa_nodes, len(numa_nodes)))
+
+        # Find the PCPU's currently mapped to core 0 of the guest
+        guest_shared_cpus = self.get_host_pcpus_for_guest_vcpu(
+            server_id, [0])
+
+        # Validate the PCPUs mapped to core 0 are a subset of the cpu shared
+        # set of the host and number of shared CPUs are accurate to what
+        # is expected for the NUMA node
+        self.assertEqual(
+            CONF.whitebox_hardware.shared_cpus_per_numa,
+            len(guest_shared_cpus),
+            'Number of Shared CPUs allocated to guest should be %s but '
+            'instead found %s' % (CONF.whitebox_hardware.shared_cpus_per_numa,
+                                  len(guest_shared_cpus)))
+        self.assertTrue(
+            guest_shared_cpus.issubset(host_shared_cpus),
+            'Shared CPUs allocated to guest %s is not a subset of the shared '
+            'CPUs that compute host is expected to provide %s' %
+            (guest_shared_cpus, host_shared_cpus))
+
+        # Confirm the dedicated cpus allocated to guest are subset of the
+        # hosts dedicated set and the number of dedicated cpus found is equal
+        # to what is expected for the mask
+        dedicated_pin = self.get_host_pcpus_for_guest_vcpu(
+            server_id, self.dedicated_guest_cpus_ids)
+
+        self.assertTrue(
+            dedicated_pin.issubset(host_dedicated_cpus),
+            'Pinned Host CPU\'s %s of server %s is not a subset of %s' %
+            (dedicated_pin, server_id, host_dedicated_cpus))
+
+        # Confirm the expected number of dedicated cpus that should be
+        # allocated to the guest due to the mask match what is found on the
+        # guest
+        self.assertEqual(
+            self.dedicated_cpu_count, len(dedicated_pin),
+            'Expected to find a total of %s dedicated cpus for guest but '
+            'instead found %s' % (self.dedicated_cpu_count, dedicated_pin))
+
+        # Confirm the PCPUs allocated for shared and dedicated found on the
+        # host do not intersect.
+        self.assertTrue(
+            guest_shared_cpus.isdisjoint(dedicated_pin),
+            'The shared cpus %s should be disjoint from the dedicated set %s'
+            % (guest_shared_cpus, dedicated_pin))
+
+    def test_symmetric_multi_numa(self):
+        """Create a multi NUMA guest with a mask and symmetric cpu allocation
+        """
+        symmetric_cpu_policy = {'hw:cpu_policy': 'mixed',
+                                'hw:cpu_dedicated_mask': '^0',
+                                'hw:numa_nodes': self.numa_nodes}
+
+        flavor = self.create_flavor(vcpus=self.vcpus,
+                                    extra_specs=symmetric_cpu_policy)
+
+        server = self.create_test_server(flavor=flavor['id'],
+                                         wait_until='ACTIVE')
+        self._verify_multi_numa_guest(server['id'])
+
+    def test_asymmetric_multi_numa(self):
+        """Create a multi NUMA guest with a mask and asymmetric cpu allocation
+        """
+        if self.dedicated_cpus_per_numa < self.dedicated_cpu_count:
+            msg = ('Need at least %s or more pCPUs per NUMA allocated to the '
+                   'cpu_dedicated_set of the compute host' %
+                   self.dedicated_cpu_count)
+            raise self.skipException(msg)
+
+        dedicated_str = [str(x) for x in self.dedicated_guest_cpus_ids]
+        asymmetric_cpu_policy = {'hw:cpu_policy': 'mixed',
+                                 'hw:cpu_dedicated_mask': '^0',
+                                 'hw:numa_nodes': self.numa_nodes,
+                                 'hw:numa_cpus.0': '0',
+                                 'hw:numa_cpus.1': ','.join(dedicated_str),
+                                 'hw:numa_mem.0': str(int(self.ram * 0.25)),
+                                 'hw:numa_mem.1': str(int(self.ram * 0.75))}
+
+        flavor = self.create_flavor(vcpus=self.vcpus,
+                                    ram=self.ram,
+                                    extra_specs=asymmetric_cpu_policy)
+
+        server = self.create_test_server(flavor=flavor['id'],
+                                         wait_until='ACTIVE')
+
+        self._verify_multi_numa_guest(server['id'])

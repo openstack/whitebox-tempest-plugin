@@ -17,6 +17,7 @@ import six
 from oslo_serialization import jsonutils
 from tempest import config
 from whitebox_tempest_plugin import exceptions
+import yaml
 
 if six.PY2:
     import contextlib2 as contextlib
@@ -24,6 +25,7 @@ else:
     import contextlib
 
 CONF = config.CONF
+_nodes = None
 
 
 def normalize_json(json):
@@ -70,3 +72,12 @@ def get_ctlplane_address(compute_hostname):
         return CONF.whitebox.ctlplane_addresses[compute_hostname]
 
     raise exceptions.CtrlplaneAddressResolutionError(host=compute_hostname)
+
+
+def get_host_details(host):
+    global _nodes
+    if _nodes is None:
+        nodes_location = CONF.whitebox.nodes_yaml
+        with open(nodes_location, "r") as f:
+            _nodes = yaml.safe_load(f)
+    return _nodes.get(host)

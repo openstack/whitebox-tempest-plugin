@@ -23,6 +23,9 @@ general_group = cfg.OptGroup(
 
 general_opts = [
     cfg.StrOpt(
+        'nodes_yaml',
+        help='File path to the yaml description file of the compute hosts '),
+    cfg.StrOpt(
         'ctlplane_ssh_username',
         help='Username to use when accessing controllers and/or compute hosts '
              'over SSH.',
@@ -134,58 +137,12 @@ nova_compute_group = cfg.OptGroup(
 
 nova_compute_opts = [
     cfg.StrOpt(
-        'config_path',
-        help='Path to the configuration file for the nova-compute service.'),
-    cfg.StrOpt(
-        'start_command',
-        help='Command to start the nova-compute service, without any '
-             'privilege management (ie, no sudo).'),
-    cfg.StrOpt(
-        'stop_command',
-        help='Command to stop the nova-compute service, without any '
-             'privilege management (ie, no sudo).'),
-    cfg.StrOpt(
         'log_query_command',
         default="journalctl",
         choices=["journalctl", "zgrep"],
         help="Name of the utility to run LogParserClient commands. "
              "Currently, supported values are 'journalctl' (default) "
-             "for devstack and 'zgrep' for TripleO"),
-]
-
-libvirt_group = cfg.OptGroup(
-    name='whitebox-libvirt',
-    title='Config options to manage the libvirt service')
-
-libvirt_opts = [
-    cfg.StrOpt(
-        'start_command',
-        help='Command to start the libvirt service, without any '
-             'privilege management (ie, no sudo).'),
-    cfg.StrOpt(
-        'stop_command',
-        help='Command to stop the libvirt service, without any '
-             'privilege management (ie, no sudo).',
-        deprecated_opts=[cfg.DeprecatedOpt('stop_command',
-                                           group='whitebox-nova-libvirt')]),
-    cfg.StrOpt(
-        'mask_command',
-        help='In some situations (Ubuntu Focal, for example), libvirtd can '
-             'be activated by other systemd units even if it is stopped. '
-             'In such cases, it can be useful to mask a service (ie, disable '
-             'it completely) to prevent it from being started outside of our '
-             'control. This config options sets the command to mask libvirt. '
-             'If set, it will be executed after every stop command.'),
-    cfg.StrOpt(
-        'unmask_command',
-        help='Similar to the mask_command option, this config options sets '
-             'the command to unmask libvirt. If set, it will be run before '
-             'every start command.'),
-    cfg.StrOpt(
-        'libvirt_container_name',
-        default="nova_libvirt",
-        help='The container name to use when needing to interact with the '
-             'respective virsh command of the compute host'),
+             "for devstack and 'zgrep' for TripleO")
 ]
 
 database_group = cfg.OptGroup(

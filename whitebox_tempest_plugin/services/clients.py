@@ -36,10 +36,11 @@ LOG = logging.getLogger(__name__)
 class SSHClient(object):
     """A client to execute remote commands, based on tempest.lib.common.ssh."""
 
-    def __init__(self, ctlplane_address):
+    def __init__(self, host):
         self.ssh_key = CONF.whitebox.ctlplane_ssh_private_key_path
         self.ssh_user = CONF.whitebox.ctlplane_ssh_username
-        self.ctlplane_address = ctlplane_address
+        self.host_parameters = whitebox_utils.get_host_details(host)
+        self.ctlplane_address = whitebox_utils.get_ctlplane_address(host)
 
     def execute(self, command, container_name=None, sudo=False):
         ssh_client = ssh.Client(self.ctlplane_address, self.ssh_user,
@@ -59,9 +60,12 @@ class SSHClient(object):
 class VirshXMLClient(SSHClient):
     """A client to obtain libvirt XML from a remote host."""
 
-    def __init__(self, ctlplane_address):
-        super(VirshXMLClient, self).__init__(ctlplane_address)
-        self.container_name = CONF.whitebox_libvirt.libvirt_container_name
+    def __init__(self, host):
+        super(VirshXMLClient, self).__init__(host)
+        service_dict = self.host_parameters.get('services', {}).get('libvirt')
+        if service_dict is None:
+            raise exceptions.MissingServiceSectionException(service='libvirt')
+        self.container_name = service_dict.get('container_name')
 
     def dumpxml(self, domain):
         command = 'virsh dumpxml %s' % domain
@@ -96,7 +100,10 @@ class QEMUImgClient(SSHClient):
 
     def __init__(self, ctlplane_address):
         super(QEMUImgClient, self).__init__(ctlplane_address)
-        self.container_name = CONF.whitebox_libvirt.libvirt_container_name
+        service_dict = self.host_parameters.get('services', {}).get('libvirt')
+        if service_dict is None:
+            raise exceptions.MissingServiceSectionException(service='libvirt')
+        self.container_name = service_dict.get('container_name')
 
     def info(self, path):
         command = 'qemu-img info --output=json --force-share %s' % path
@@ -120,15 +127,15 @@ class ServiceManager(SSHClient):
                         this must match the binary in the Nova os-services API.
         """
         super(ServiceManager, self).__init__(hostname)
-        conf = getattr(CONF, 'whitebox-%s' % service, None)
-        if conf is None:
+        service_dict = self.host_parameters.get('services', {}).get(service)
+        if service_dict is None:
             raise exceptions.MissingServiceSectionException(service=service)
         self.service = service
-        self.config_path = getattr(conf, 'config_path', None)
-        self.start_command = getattr(conf, 'start_command', None)
-        self.stop_command = getattr(conf, 'stop_command', None)
-        self.mask_command = getattr(conf, 'mask_command', None)
-        self.unmask_command = getattr(conf, 'unmask_command', None)
+        self.config_path = service_dict.get('config_path')
+        self.start_command = service_dict.get('start_command')
+        self.stop_command = service_dict.get('stop_command')
+        self.mask_command = service_dict.get('mask_command')
+        self.unmask_command = service_dict.get('unmask_command')
 
     @contextlib.contextmanager
     def config_options(self, *opts):
@@ -222,10 +229,7 @@ class NovaServiceManager(ServiceManager):
     """
 
     def __init__(self, host, service, services_client):
-        super(NovaServiceManager, self).__init__(
-            whitebox_utils.get_ctlplane_address(host),
-            service
-        )
+        super(NovaServiceManager, self).__init__(host, service)
         self.services_client = services_client
         self.host = host
 

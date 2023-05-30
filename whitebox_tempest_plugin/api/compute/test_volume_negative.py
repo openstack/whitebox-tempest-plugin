@@ -22,7 +22,6 @@ from tempest import config
 
 from whitebox_tempest_plugin.api.compute import base
 from whitebox_tempest_plugin.services import clients
-from whitebox_tempest_plugin import utils as whitebox_utils
 
 CONF = config.CONF
 
@@ -71,8 +70,7 @@ class VolumesAdminNegativeTest(base.BaseWhiteboxComputeTest,
         self.assertGreater(
             len(disks_after_attach),
             len(disks_before_attach))
-        host = whitebox_utils.get_ctlplane_address(
-            self.get_host_for_server(server['id']))
+        host = self.get_host_for_server(server['id'])
 
         with clients.ServiceManager(host, 'libvirt').stopped():
             # While this call to n-api will return successfully the underlying

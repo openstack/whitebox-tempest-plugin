@@ -37,6 +37,7 @@
     required-projects:
       - openstack/whitebox-tempest-plugin
       - openstack/barbican
+      - openstack/barbican-tempest-plugin
     pre-run: playbooks/whitebox/pre.yaml
     irrelevant-files:
       - ^test-requirements.txt$
@@ -51,7 +52,7 @@
       devstack_localrc:
         MAX_COMPUTE_NODES: 2
         LIBVIRT_TYPE: kvm
-        TEMPEST_PLUGINS: /opt/stack/whitebox-tempest-plugin
+        TEMPEST_PLUGINS: /opt/stack/whitebox-tempest-plugin /opt/stack/barbican-tempest-plugin
         WHITEBOX_PRIVKEY_PATH: /home/tempest/.ssh/id_rsa
         WHITEBOX_CPU_MODEL: Nehalem
         WHITEBOX_CPU_MODEL_EXTRA_FLAGS: vme,+ssse3,-mmx

@@ -15,6 +15,8 @@
 
 from tempest import config
 from tempest.exceptions import BuildErrorException
+from tempest.lib.services import clients
+
 from whitebox_tempest_plugin.api.compute import base
 
 CONF = config.CONF
@@ -39,10 +41,14 @@ class VTPMTest(base.BaseWhiteboxComputeTest):
     @classmethod
     def setup_clients(cls):
         super(VTPMTest, cls).setup_clients()
-        os = getattr(cls, 'os_primary')
-        cls.secret_client = os.secret_v1.SecretClient(
-            service='key-manager'
-        )
+        if CONF.identity.auth_version == 'v3':
+            auth_uri = CONF.identity.uri_v3
+        else:
+            auth_uri = CONF.identity.uri
+        service_clients = clients.ServiceClients(cls.os_primary.credentials,
+                                                 auth_uri)
+        cls.os_primary.secrets_client = service_clients.secret_v1.SecretClient(
+            service='key-manager')
 
     def _vptm_server_creation_check(self, vtpm_model, vtpm_version):
         """Test to verify creating server with vTPM device
@@ -82,7 +88,8 @@ class VTPMTest(base.BaseWhiteboxComputeTest):
 
         # Get the secret uuid and get secret details from barbican
         secret_uuid = secret_uuid = vtpm_secret_element.get('secret')
-        secret_info = self.secret_client.get_secret(secret_uuid)
+        secret_info = self.os_primary.secrets_client.get_secret_metadata(
+            secret_uuid)
 
         # Confirm the secret is ACTIVE and its description mentions the
         # respective server uuid and it is used for vTPM

@@ -56,14 +56,3 @@ class WhiteboxTempestPlugin(plugins.TempestPlugin):
                  whitebox_config.database_opts),
                 (whitebox_config.hardware_group.name,
                  whitebox_config.hardware_opts)]
-
-    def get_service_clients(self):
-        v1_params = {
-            'name': 'secret_v1',
-            'service_version': 'secret.v1',
-            'module_path': 'whitebox_tempest_plugin.services.key_manager.json',
-            'client_names': [
-                'SecretClient'
-            ]
-        }
-        return [v1_params]

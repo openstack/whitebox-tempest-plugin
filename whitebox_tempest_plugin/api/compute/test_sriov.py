@@ -89,10 +89,11 @@ class SRIOVBase(base.BaseWhiteboxComputeTest):
         :param port: dictionary describing port to find
         """
         interface_vlan = port_xml_element.find("./vlan/tag").get('id', None)
+        found_vlan = int(interface_vlan) if interface_vlan else None
         self.assertEqual(
-            expected_vlan, interface_vlan, 'Interface should have have vlan '
+            expected_vlan, found_vlan, 'Interface should have have vlan '
             'tag %s but instead it is tagged with %s' %
-            (expected_vlan, interface_vlan))
+            (expected_vlan, found_vlan))
 
 
 class SRIOVNumaAffinity(SRIOVBase, numa_helper.NUMAHelperMixin):

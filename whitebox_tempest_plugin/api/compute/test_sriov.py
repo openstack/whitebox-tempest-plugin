@@ -798,7 +798,7 @@ class SRIOVAttachAndDetach(SRIOVBase):
         self.network = self._create_net_from_physical_network(
             self.vlan_id,
             self.physical_net)
-        self._create_subnet(self.sriov_network['network']['id'])
+        self._create_subnet(self.network['network']['id'])
 
     @classmethod
     def skip_checks(cls):
@@ -900,7 +900,7 @@ class SRIOVAttachAndDetach(SRIOVBase):
         attached port
         :param after_attached: dict, original port data when first created
         """
-        net_id = self.sriov_network.get('network').get('id')
+        net_id = self.network.get('network').get('id')
         port_id = pre_attached_port['port']['id']
         port_ip_addr = pre_attached_port['port']['fixed_ips'][0]['ip_address']
         port_mac_addr = pre_attached_port['port']['mac_address']
@@ -941,7 +941,7 @@ class SRIOVAttachAndDetach(SRIOVBase):
         servers = [self.create_server_and_ssh(),
                    self.create_server_and_ssh()]
         port = self._create_port_from_vnic_type(
-            net=self.sriov_network,
+            net=self.network,
             vnic_type=vnic_type
         )
 
@@ -1024,7 +1024,7 @@ class SRIOVAttachAndDetach(SRIOVBase):
         servers = [self.create_server_and_ssh(),
                    self.create_server_and_ssh()]
         port = self._create_port_from_vnic_type(
-            net=self.sriov_network,
+            net=self.network,
             vnic_type='direct-physical'
         )
 

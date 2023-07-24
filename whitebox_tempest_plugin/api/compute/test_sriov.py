@@ -748,34 +748,38 @@ class SRIOVMigration(SRIOVBase):
                          'after first migration should be 1 but instead '
                          'is %s' % pci_allocated_count)
 
-        # Migrate server back to the original host
-        self.live_migrate(self.os_admin, server['id'], 'ACTIVE',
-                          target_host=host)
+        if CONF.compute_feature_enabled.live_migrate_back_and_forth:
+            # Migrate server back to the original host
+            self.live_migrate(self.os_admin, server['id'], 'ACTIVE',
+                              target_host=host)
 
-        # Again find the instance's network device element based on the mac
-        # address and binding:vnic_type from the port info provided by ports
-        # client
-        interface_xml_element = self._get_xml_interface_device(
-            server['id'],
-            port['port']['id'],
-        )
+            # Again find the instance's network device element based on the
+            # mac address and binding:vnic_type from the port info provided by
+            # ports client
+            interface_xml_element = self._get_xml_interface_device(
+                server['id'],
+                port['port']['id'],
+            )
 
-        # Confirm vlan tag in interface XML, dev_type, allocation status, and
-        # pci address information are correct in pci_devices table of openstack
-        # DB after second migration
-        self._validate_port_xml_vlan_tag(interface_xml_element, self.vlan_id)
-        self._verify_neutron_port_binding(
-            server['id'],
-            port['port']['id']
-        )
+            # Confirm vlan tag in interface XML, dev_type, allocation status,
+            # and pci address information are correct in pci_devices table of
+            # openstack DB after second migration
+            self._validate_port_xml_vlan_tag(
+                interface_xml_element,
+                self.vlan_id
+            )
+            self._verify_neutron_port_binding(
+                server['id'],
+                port['port']['id']
+            )
 
-        # Confirm total port allocations still remains one after final
-        # migration
-        pci_allocated_count = self._get_pci_status_count(
-            pci_device_status_regex)
-        self.assertEqual(pci_allocated_count, 1, 'Total allocated pci devices '
-                         'after second migration should be 1 but instead '
-                         'is %s' % pci_allocated_count)
+            # Confirm total port allocations still remains one after final
+            # migration
+            pci_allocated_count = self._get_pci_status_count(
+                pci_device_status_regex)
+            self.assertEqual(pci_allocated_count, 1, 'Total allocated pci '
+                             'devices after second migration should be 1 but '
+                             'instead is %s' % pci_allocated_count)
 
     def test_sriov_direct_live_migration(self):
         """Verify sriov live migration using direct type ports
@@ -798,7 +802,7 @@ class SRIOVAttachAndDetach(SRIOVBase):
         self.network = self._create_net_from_physical_network(
             self.vlan_id,
             self.physical_net)
-        self._create_subnet(self.sriov_network['network']['id'])
+        self._create_subnet(self.network['network']['id'])
 
     @classmethod
     def skip_checks(cls):
@@ -900,7 +904,7 @@ class SRIOVAttachAndDetach(SRIOVBase):
         attached port
         :param after_attached: dict, original port data when first created
         """
-        net_id = self.sriov_network.get('network').get('id')
+        net_id = self.network.get('network').get('id')
         port_id = pre_attached_port['port']['id']
         port_ip_addr = pre_attached_port['port']['fixed_ips'][0]['ip_address']
         port_mac_addr = pre_attached_port['port']['mac_address']
@@ -941,7 +945,7 @@ class SRIOVAttachAndDetach(SRIOVBase):
         servers = [self.create_server_and_ssh(),
                    self.create_server_and_ssh()]
         port = self._create_port_from_vnic_type(
-            net=self.sriov_network,
+            net=self.network,
             vnic_type=vnic_type
         )
 
@@ -1024,7 +1028,7 @@ class SRIOVAttachAndDetach(SRIOVBase):
         servers = [self.create_server_and_ssh(),
                    self.create_server_and_ssh()]
         port = self._create_port_from_vnic_type(
-            net=self.sriov_network,
+            net=self.network,
             vnic_type='direct-physical'
         )
 

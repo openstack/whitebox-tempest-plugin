@@ -40,6 +40,7 @@ function configure {
     iniset $TEMPEST_CONFIG compute-feature-enabled rbd_download "$COMPUTE_FEATURE_RBD_DOWNLOAD"
     iniset $TEMPEST_CONFIG compute-feature-enabled uefi_secure_boot "$COMPUTE_FEATURE_UEFI_SECURE_BOOT"
     iniset $TEMPEST_CONFIG compute-feature-enabled vtpm_device_supported "$COMPUTE_FEATURE_VTPM_ENABLED"
+    iniset $TEMPEST_CONFIG compute-feature-enabled live_migrate_back_and_forth "$COMPUTE_FEATURE_LIVE_MIGRATE_BACK_AND_FORTH"
 }
 
 if [[ "$1" == "stack" ]]; then

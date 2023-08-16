@@ -51,6 +51,7 @@
       extra_packages: ovmf,swtpm-tools
       devstack_localrc:
         MAX_COMPUTE_NODES: 2
+        NOVA_SERVICE_REPORT_INTERVAL: 10
         LIBVIRT_TYPE: kvm
         TEMPEST_PLUGINS: /opt/stack/whitebox-tempest-plugin /opt/stack/barbican-tempest-plugin
         WHITEBOX_PRIVKEY_PATH: /home/tempest/.ssh/id_rsa
@@ -86,6 +87,7 @@
         num_hugepages: 2048
         devstack_localrc:
           LIBVIRT_TYPE: kvm
+          NOVA_SERVICE_REPORT_INTERVAL: 10
         devstack_local_conf:
           post-config:
             $NOVA_CONF:

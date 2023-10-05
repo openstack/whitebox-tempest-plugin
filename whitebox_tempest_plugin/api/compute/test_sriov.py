@@ -748,34 +748,38 @@ class SRIOVMigration(SRIOVBase):
                          'after first migration should be 1 but instead '
                          'is %s' % pci_allocated_count)
 
-        # Migrate server back to the original host
-        self.live_migrate(self.os_admin, server['id'], 'ACTIVE',
-                          target_host=host)
+        if CONF.compute_feature_enabled.live_migrate_back_and_forth:
+            # Migrate server back to the original host
+            self.live_migrate(self.os_admin, server['id'], 'ACTIVE',
+                              target_host=host)
 
-        # Again find the instance's network device element based on the mac
-        # address and binding:vnic_type from the port info provided by ports
-        # client
-        interface_xml_element = self._get_xml_interface_device(
-            server['id'],
-            port['port']['id'],
-        )
+            # Again find the instance's network device element based on the
+            # mac address and binding:vnic_type from the port info provided by
+            # ports client
+            interface_xml_element = self._get_xml_interface_device(
+                server['id'],
+                port['port']['id'],
+            )
 
-        # Confirm vlan tag in interface XML, dev_type, allocation status, and
-        # pci address information are correct in pci_devices table of openstack
-        # DB after second migration
-        self._validate_port_xml_vlan_tag(interface_xml_element, self.vlan_id)
-        self._verify_neutron_port_binding(
-            server['id'],
-            port['port']['id']
-        )
+            # Confirm vlan tag in interface XML, dev_type, allocation status,
+            # and pci address information are correct in pci_devices table of
+            # openstack DB after second migration
+            self._validate_port_xml_vlan_tag(
+                interface_xml_element,
+                self.vlan_id
+            )
+            self._verify_neutron_port_binding(
+                server['id'],
+                port['port']['id']
+            )
 
-        # Confirm total port allocations still remains one after final
-        # migration
-        pci_allocated_count = self._get_pci_status_count(
-            pci_device_status_regex)
-        self.assertEqual(pci_allocated_count, 1, 'Total allocated pci devices '
-                         'after second migration should be 1 but instead '
-                         'is %s' % pci_allocated_count)
+            # Confirm total port allocations still remains one after final
+            # migration
+            pci_allocated_count = self._get_pci_status_count(
+                pci_device_status_regex)
+            self.assertEqual(pci_allocated_count, 1, 'Total allocated pci '
+                             'devices after second migration should be 1 but '
+                             'instead is %s' % pci_allocated_count)
 
     def test_sriov_direct_live_migration(self):
         """Verify sriov live migration using direct type ports

@@ -247,12 +247,16 @@ class NovaServiceManager(ServiceManager):
 
     def get_cpu_shared_set(self):
         shared_set = self.get_conf_opt('compute', 'cpu_shared_set')
+        if not shared_set:
+            return set()
         return hardware.parse_cpu_spec(shared_set)
 
     def get_cpu_dedicated_set(self):
         dedicated_set = self.get_conf_opt('compute', 'cpu_dedicated_set')
         dedicated_set = (dedicated_set if dedicated_set is not None else
                          self.get_conf_opt('DEFAULT', 'vcpu_pin_set'))
+        if not dedicated_set:
+            return set()
         return hardware.parse_cpu_spec(dedicated_set)
 
 
@@ -305,6 +309,39 @@ class NUMAClient(SSHClient):
                     free = int(line.split(':')[1].lstrip())
             pages[node] = {'total': total, 'free': free}
         return pages
+
+
+class SysFSClient(SSHClient):
+    """A client for getting and setting sysfs values"""
+
+    def get_sysfs_values(self, *paths):
+        """Fetch multiple values in one shot
+
+        :param paths: A list of paths relative to /sys
+        :returns: A dict of path:value
+        """
+        paths = set('/sys/%s' % p for p in paths)
+        result = self.execute('grep -H "" %s' % ' '.join(paths))
+        results = {}
+        for line in result.strip().split('\n'):
+            path, value = line.split(':', 1)
+            if path in results or path not in paths:
+                raise Exception('Extra or multi-line value found in %s' % (
+                    path))
+            results[path[5:]] = value.strip()
+        LOG.debug('sysfs results: %s', results)
+        return results
+
+    def get_sysfs_value(self, path):
+        """Fetch a value
+
+        :param path: A path relative to /sys
+        :returns: The value
+        """
+        return self.get_sysfs_values(path)[path]
+
+    def set_sysfs_value(self, path, value):
+        self.execute('echo "%s" | sudo tee /sys/%s' % (value, path))
 
 
 class DatabaseClient(object):

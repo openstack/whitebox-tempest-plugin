@@ -124,11 +124,19 @@ class BasePinningTest(base.BaseWhiteboxComputeTest,
 
 class CPUPolicyTest(BasePinningTest):
     """Validate CPU policy support."""
-    vcpus = 2
+
+    def setUp(self):
+        super().setUp()
+        self.dedicated_vcpus = (
+            CONF.whitebox_hardware.dedicated_cpus_per_numa *
+            len(CONF.whitebox_hardware.cpu_topology)) // 2
+        self.shared_vcpus = (
+            CONF.whitebox_hardware.shared_cpus_per_numa *
+            len(CONF.whitebox_hardware.cpu_topology)) // 2
 
     def test_cpu_shared(self):
         """Ensure an instance with an explicit 'shared' policy work."""
-        flavor = self.create_flavor(vcpus=self.vcpus,
+        flavor = self.create_flavor(vcpus=self.shared_vcpus,
                                     extra_specs=self.shared_cpu_policy)
         self.create_test_server(flavor=flavor['id'], wait_until='ACTIVE')
 
@@ -139,7 +147,7 @@ class CPUPolicyTest(BasePinningTest):
         default. However, we check specifics of that later and only assert that
         things aren't overlapping here.
         """
-        flavor = self.create_flavor(vcpus=self.vcpus,
+        flavor = self.create_flavor(vcpus=self.dedicated_vcpus,
                                     extra_specs=self.dedicated_cpu_policy)
         server_a = self.create_test_server(flavor=flavor['id'],
                                            wait_until='ACTIVE')
@@ -150,10 +158,10 @@ class CPUPolicyTest(BasePinningTest):
         cpu_pinnings_b = self.get_server_cpu_pinning(server_b['id'])
 
         self.assertEqual(
-            len(cpu_pinnings_a), self.vcpus,
+            len(cpu_pinnings_a), self.dedicated_vcpus,
             "Instance should be pinned but it is unpinned")
         self.assertEqual(
-            len(cpu_pinnings_b), self.vcpus,
+            len(cpu_pinnings_b), self.dedicated_vcpus,
             "Instance should be pinned but it is unpinned")
 
         self.assertTrue(
@@ -167,17 +175,17 @@ class CPUPolicyTest(BasePinningTest):
                           'Resize not available.')
     def test_resize_pinned_server_to_unpinned(self):
         """Ensure resizing an instance to unpinned actually drops pinning."""
-        flavor_a = self.create_flavor(vcpus=self.vcpus,
+        flavor_a = self.create_flavor(vcpus=self.dedicated_vcpus,
                                       extra_specs=self.dedicated_cpu_policy)
         server = self.create_test_server(flavor=flavor_a['id'],
                                          wait_until='ACTIVE')
         cpu_pinnings = self.get_server_cpu_pinning(server['id'])
 
         self.assertEqual(
-            len(cpu_pinnings), self.vcpus,
+            len(cpu_pinnings), self.dedicated_vcpus,
             "Instance should be pinned but is unpinned")
 
-        flavor_b = self.create_flavor(vcpus=self.vcpus,
+        flavor_b = self.create_flavor(vcpus=self.shared_vcpus,
                                       extra_specs=self.shared_cpu_policy)
         self.resize_server(server['id'], flavor_b['id'])
         cpu_pinnings = self.get_server_cpu_pinning(server['id'])
@@ -190,7 +198,7 @@ class CPUPolicyTest(BasePinningTest):
                           'Resize not available.')
     def test_resize_unpinned_server_to_pinned(self):
         """Ensure resizing an instance to pinned actually applies pinning."""
-        flavor_a = self.create_flavor(vcpus=self.vcpus,
+        flavor_a = self.create_flavor(vcpus=self.shared_vcpus,
                                       extra_specs=self.shared_cpu_policy)
         server = self.create_test_server(flavor=flavor_a['id'],
                                          wait_until='ACTIVE')
@@ -200,25 +208,25 @@ class CPUPolicyTest(BasePinningTest):
             len(cpu_pinnings), 0,
             "Instance should be unpinned but is pinned")
 
-        flavor_b = self.create_flavor(vcpus=self.vcpus,
+        flavor_b = self.create_flavor(vcpus=self.dedicated_vcpus,
                                       extra_specs=self.dedicated_cpu_policy)
         self.resize_server(server['id'], flavor_b['id'])
         cpu_pinnings = self.get_server_cpu_pinning(server['id'])
 
         self.assertEqual(
-            len(cpu_pinnings), self.vcpus,
+            len(cpu_pinnings), self.dedicated_vcpus,
             "Resized instance should be pinned but is still unpinned")
 
     def test_reboot_pinned_server(self):
         """Ensure pinning information is persisted after a reboot."""
-        flavor = self.create_flavor(vcpus=self.vcpus,
+        flavor = self.create_flavor(vcpus=self.dedicated_vcpus,
                                     extra_specs=self.dedicated_cpu_policy)
         server = self.create_test_server(flavor=flavor['id'],
                                          wait_until='ACTIVE')
         cpu_pinnings = self.get_server_cpu_pinning(server['id'])
 
         self.assertEqual(
-            len(cpu_pinnings), self.vcpus,
+            len(cpu_pinnings), self.dedicated_vcpus,
             "CPU pinning was not applied to new instance.")
 
         self.reboot_server(server['id'], 'HARD')
@@ -228,7 +236,7 @@ class CPUPolicyTest(BasePinningTest):
         # because that's not expected. We just care that _some_ pinning is in
         # effect
         self.assertEqual(
-            len(cpu_pinnings), self.vcpus,
+            len(cpu_pinnings), self.dedicated_vcpus,
             "Rebooted instance has lost its pinning information")
 
 

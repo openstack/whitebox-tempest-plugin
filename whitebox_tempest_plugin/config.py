@@ -322,4 +322,7 @@ compute_features_group_opts = [
                      'default value of [DEFAULT]state_path in the nova-compute'
                      'config, then [whitebox-nova-compute]state_path also '
                      'needs to be configured'),
+    cfg.BoolOpt('bochs_display_support',
+                default=False,
+                help="Guests support bochs display device"),
 ]

@@ -73,3 +73,17 @@ class HwVideoModelTest(base.BaseWhiteboxComputeTest):
         expected_video_model = CONF.whitebox.default_video_model
         server = self.create_test_server(wait_until='ACTIVE')
         self._assert_hw_video_type(server, expected_video_model)
+
+    @testtools.skipUnless(CONF.compute_feature_enabled.bochs_display_support,
+                          'Requires expected default video model')
+    @testtools.skipUnless(CONF.compute_feature_enabled.uefi_boot,
+                          'Requires support of uefi boot')
+    def test_bochs_display_device(self):
+        image_properties = {'hw_firmware_type': 'uefi',
+                            'hw_machine_type': 'q35',
+                            'hw_video_model': 'bochs'}
+
+        uefi_image_id = self.copy_default_image(**image_properties)
+        server = self.create_test_server(
+            image_id=uefi_image_id, wait_until='ACTIVE')
+        self._assert_hw_video_type(server, 'bochs')

@@ -226,6 +226,11 @@ hardware_opts = [
         'sriov_physnet',
         default=None,
         help='The physnet to use when creating sr-iov ports'),
+    cfg.StrOpt(
+        'sriov_vnic_type',
+        default=None,
+        choices=[None, "direct", "macvtap", "direct-physical"],
+        help='SR-IOV vnic type to use when creating port'),
     cfg.IntOpt(
         'sriov_vlan_id',
         default=None,

@@ -111,7 +111,10 @@ class SRIOVNumaAffinity(SRIOVBase, numa_helper.NUMAHelperMixin):
     @classmethod
     def skip_checks(cls):
         super(SRIOVNumaAffinity, cls).skip_checks()
-        if (CONF.network.port_vnic_type not in ['direct', 'macvtap']):
+        if (
+            CONF.whitebox_hardware.sriov_vnic_type not in
+            ['direct', 'macvtap']
+        ):
             raise cls.skipException('Tests are designed for vnic types '
                                     'direct or macvtap')
         if getattr(CONF.whitebox_hardware,
@@ -139,6 +142,7 @@ class SRIOVNumaAffinity(SRIOVBase, numa_helper.NUMAHelperMixin):
 
         self.affinity_node = str(CONF.whitebox_hardware.physnet_numa_affinity)
         self.physical_net = CONF.whitebox_hardware.sriov_physnet
+        self.vnic_type = CONF.whitebox_hardware.sriov_vnic_type
         self.network = self._create_net_from_physical_network(
             self.vlan_id,
             self.physical_net)
@@ -289,10 +293,10 @@ class SRIOVNumaAffinityWithFlavor(SRIOVNumaAffinity):
         )
         port_a = self._create_port_from_vnic_type(
             net=self.network,
-            vnic_type=CONF.network.port_vnic_type)
+            vnic_type=self.vnic_type)
         port_b = self._create_port_from_vnic_type(
             net=self.network,
-            vnic_type=CONF.network.port_vnic_type)
+            vnic_type=self.vnic_type)
         self._preferred_test_procedure(flavor, port_a, port_b, self.image_ref)
 
     def test_sriov_affinity_required_with_flavor(self):
@@ -328,10 +332,10 @@ class SRIOVNumaAffinityWithFlavor(SRIOVNumaAffinity):
         )
         port_a = self._create_port_from_vnic_type(
             net=self.network,
-            vnic_type=CONF.network.port_vnic_type)
+            vnic_type=self.vnic_type)
         port_b = self._create_port_from_vnic_type(
             net=self.network,
-            vnic_type=CONF.network.port_vnic_type)
+            vnic_type=self.vnic_type)
         self._required_test_procedure(flavor, port_a, port_b, self.image_ref)
 
 
@@ -366,10 +370,10 @@ class SRIOVNumaAffinityWithImagePolicy(SRIOVNumaAffinity):
             hw_pci_numa_affinity_policy='preferred')
         port_a = self._create_port_from_vnic_type(
             net=self.network,
-            vnic_type=CONF.network.port_vnic_type)
+            vnic_type=self.vnic_type)
         port_b = self._create_port_from_vnic_type(
             net=self.network,
-            vnic_type=CONF.network.port_vnic_type)
+            vnic_type=self.vnic_type)
         self._preferred_test_procedure(
             self.flavor, port_a, port_b, image_id)
 
@@ -396,10 +400,10 @@ class SRIOVNumaAffinityWithImagePolicy(SRIOVNumaAffinity):
             hw_pci_numa_affinity_policy='required')
         port_a = self._create_port_from_vnic_type(
             net=self.network,
-            vnic_type=CONF.network.port_vnic_type)
+            vnic_type=self.vnic_type)
         port_b = self._create_port_from_vnic_type(
             net=self.network,
-            vnic_type=CONF.network.port_vnic_type)
+            vnic_type=self.vnic_type)
         self._required_test_procedure(
             self.flavor, port_a, port_b, image_id)
 
@@ -432,11 +436,11 @@ class SRIOVNumaAffinityWithPortPolicy(SRIOVNumaAffinity):
 
         port_a = self._create_port_from_vnic_type(
             net=self.network,
-            vnic_type=CONF.network.port_vnic_type,
+            vnic_type=self.vnic_type,
             numa_affinity_policy='preferred')
         port_b = self._create_port_from_vnic_type(
             net=self.network,
-            vnic_type=CONF.network.port_vnic_type,
+            vnic_type=self.vnic_type,
             numa_affinity_policy='preferred')
         self._preferred_test_procedure(
             self.flavor, port_a, port_b, self.image_ref)
@@ -461,11 +465,11 @@ class SRIOVNumaAffinityWithPortPolicy(SRIOVNumaAffinity):
 
         port_a = self._create_port_from_vnic_type(
             net=self.network,
-            vnic_type=CONF.network.port_vnic_type,
+            vnic_type=self.vnic_type,
             numa_affinity_policy='required')
         port_b = self._create_port_from_vnic_type(
             net=self.network,
-            vnic_type=CONF.network.port_vnic_type,
+            vnic_type=self.vnic_type,
             numa_affinity_policy='preferred')
         self._preferred_test_procedure(
             self.flavor, port_a, port_b, self.image_ref)
@@ -489,11 +493,11 @@ class SRIOVNumaAffinityWithPortPolicy(SRIOVNumaAffinity):
 
         port_a = self._create_port_from_vnic_type(
             net=self.network,
-            vnic_type=CONF.network.port_vnic_type,
+            vnic_type=self.vnic_type,
             numa_affinity_policy='required')
         port_b = self._create_port_from_vnic_type(
             net=self.network,
-            vnic_type=CONF.network.port_vnic_type,
+            vnic_type=self.vnic_type,
             numa_affinity_policy='required')
         self._required_test_procedure(
             self.flavor, port_a, port_b, self.image_ref)
@@ -522,11 +526,11 @@ class SRIOVNumaAffinityWithPortPolicy(SRIOVNumaAffinity):
             extra_specs=self.required)
         port_a = self._create_port_from_vnic_type(
             net=self.network,
-            vnic_type=CONF.network.port_vnic_type,
+            vnic_type=self.vnic_type,
             numa_affinity_policy='preferred')
         port_b = self._create_port_from_vnic_type(
             net=self.network,
-            vnic_type=CONF.network.port_vnic_type,
+            vnic_type=self.vnic_type,
             numa_affinity_policy='preferred')
         self._preferred_test_procedure(
             required_flavor, port_a, port_b, self.image_ref)
@@ -554,11 +558,11 @@ class SRIOVNumaAffinityWithPortPolicy(SRIOVNumaAffinity):
             hw_pci_numa_affinity_policy='required')
         port_a = self._create_port_from_vnic_type(
             net=self.network,
-            vnic_type=CONF.network.port_vnic_type,
+            vnic_type=self.vnic_type,
             numa_affinity_policy='preferred')
         port_b = self._create_port_from_vnic_type(
             net=self.network,
-            vnic_type=CONF.network.port_vnic_type,
+            vnic_type=self.vnic_type,
             numa_affinity_policy='preferred')
         self._preferred_test_procedure(
             self.flavor, port_a, port_b, image_id)
@@ -663,11 +667,11 @@ class SRIOVNumaAffinityWithSocketPolicy(SRIOVNumaAffinity):
 
         port_a = self._create_port_from_vnic_type(
             net=self.network,
-            vnic_type=CONF.network.port_vnic_type)
+            vnic_type=self.vnic_type)
 
         port_b = self._create_port_from_vnic_type(
             net=self.network,
-            vnic_type=CONF.network.port_vnic_type)
+            vnic_type=self.vnic_type)
 
         self._socket_test_procedure(
             socket_flavor, port_a, port_b, self.image_ref)

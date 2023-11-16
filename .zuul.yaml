@@ -163,16 +163,13 @@
                 images_type: default
 
 - project:
-    templates:
-      - openstack-python3-antelope-jobs
-      - openstack-python36-jobs
     check:
       jobs:
         - whitebox-devstack-multinode
         - whitebox-devstack-ceph-multinode
-        - openstack-tox-py39
+        - openstack-tox-pep8
     gate:
       jobs:
         - whitebox-devstack-multinode
         - whitebox-devstack-ceph-multinode
-        - openstack-tox-py39
+        - openstack-tox-pep8

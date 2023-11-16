@@ -19,7 +19,6 @@ from tempest import config
 
 from whitebox_tempest_plugin.api.compute import base
 from whitebox_tempest_plugin.services import clients
-from whitebox_tempest_plugin.utils import get_ctlplane_address
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
@@ -66,8 +65,7 @@ class TestRBDDirectDownload(base.BaseWhiteboxComputeTest):
         log_query_string = f"Attempting to export RBD image: " \
             f"[[]pool_name: {rbd_pool}[]] [[]image_uuid: " \
             f"{image_id}[]]"
-        host_ip = get_ctlplane_address(host)
-        logs_client = clients.LogParserClient(host_ip)
+        logs_client = clients.LogParserClient(host)
         # Assert if log with specified image is found
         self.assertTrue(len(logs_client.parse(log_query_string)))
         path = self.get_server_blockdevice_path(server['id'], 'vda')

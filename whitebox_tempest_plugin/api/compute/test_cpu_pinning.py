@@ -285,7 +285,6 @@ class CPUThreadPolicyTest(BasePinningTest):
         """
         siblings = {}
 
-        host = whitebox_utils.get_ctlplane_address(host)
         virshxml = clients.VirshXMLClient(host)
         capxml = virshxml.capabilities()
         root = ET.fromstring(capxml)

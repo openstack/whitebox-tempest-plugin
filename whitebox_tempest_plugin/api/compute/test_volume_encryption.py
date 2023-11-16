@@ -18,7 +18,6 @@ from tempest import config
 
 from whitebox_tempest_plugin.api.compute import base
 from whitebox_tempest_plugin.services.clients import QEMUImgClient
-from whitebox_tempest_plugin.utils import get_ctlplane_address
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
@@ -107,7 +106,7 @@ class TestQEMUVolumeEncryption(base.BaseWhiteboxComputeTest):
 
         # Get volume details from qemu-img info with the previously generated
         # volume path
-        host = get_ctlplane_address(self.get_host_for_server(server['id']))
+        host = self.get_host_for_server(server['id'])
         qemu_img_client = QEMUImgClient(host)
         qemu_info = qemu_img_client.info(path)
 

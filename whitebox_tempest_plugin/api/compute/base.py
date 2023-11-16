@@ -24,7 +24,6 @@ from tempest.lib.common.utils import data_utils
 from tempest.lib.common.utils import test_utils
 
 from whitebox_tempest_plugin.services import clients
-from whitebox_tempest_plugin import utils as whitebox_utils
 
 if six.PY2:
     import contextlib2 as contextlib
@@ -125,17 +124,15 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
     def get_server_xml(self, server_id):
         server = self.os_admin.servers_client.show_server(server_id)['server']
         host = server['OS-EXT-SRV-ATTR:host']
-        cntrlplane_addr = whitebox_utils.get_ctlplane_address(host)
         server_instance_name = server['OS-EXT-SRV-ATTR:instance_name']
 
-        virshxml = clients.VirshXMLClient(cntrlplane_addr)
+        virshxml = clients.VirshXMLClient(host)
         xml = virshxml.dumpxml(server_instance_name)
         return ET.fromstring(xml)
 
     def get_server_blockdevice_path(self, server_id, device_name):
         host = self.get_host_for_server(server_id)
-        cntrlplane_addr = whitebox_utils.get_ctlplane_address(host)
-        virshxml = clients.VirshXMLClient(cntrlplane_addr)
+        virshxml = clients.VirshXMLClient(host)
         blklist = virshxml.domblklist(server_id).splitlines()
         source = None
         for line in blklist:

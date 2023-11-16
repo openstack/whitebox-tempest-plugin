@@ -18,15 +18,7 @@ function configure {
     iniset $TEMPEST_CONFIG whitebox rx_queue_size $WHITEBOX_RX_QUEUE_SIZE
     iniset $TEMPEST_CONFIG whitebox default_video_model $WHITEBOX_DEFAULT_VIDEO_MODEL
     iniset $TEMPEST_CONFIG whitebox max_disk_devices_to_attach $WHITEBOX_MAX_DISK_DEVICES_TO_ATTACH
-
-    iniset $TEMPEST_CONFIG whitebox-nova-compute config_path "$WHITEBOX_NOVA_COMPUTE_CONFIG_PATH"
-    iniset $TEMPEST_CONFIG whitebox-nova-compute stop_command "$WHITEBOX_NOVA_COMPUTE_STOP_COMMAND"
-    iniset $TEMPEST_CONFIG whitebox-nova-compute start_command "$WHITEBOX_NOVA_COMPUTE_START_COMMAND"
-
-    iniset $TEMPEST_CONFIG whitebox-libvirt start_command "$WHITEBOX_LIBVIRT_START_COMMAND"
-    iniset $TEMPEST_CONFIG whitebox-libvirt stop_command "$WHITEBOX_LIBVIRT_STOP_COMMAND"
-    iniset $TEMPEST_CONFIG whitebox-libvirt mask_command "$WHITEBOX_LIBVIRT_MASK_COMMAND"
-    iniset $TEMPEST_CONFIG whitebox-libvirt unmask_command "$WHITEBOX_LIBVIRT_UNMASK_COMMAND"
+    iniset $TEMPEST_CONFIG whitebox nodes_yaml $WHITEBOX_NODES_YAML
 
     iniset $TEMPEST_CONFIG whitebox-database user $DATABASE_USER
     iniset $TEMPEST_CONFIG whitebox-database password $DATABASE_PASSWORD

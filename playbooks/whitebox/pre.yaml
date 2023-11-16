@@ -27,3 +27,21 @@
       vars:
           ansible_become: yes
           copy_sshkey_target_user: 'tempest'
+
+    - name: Collect compute hostnames
+      set_fact:
+        computes: "{{ ansible_play_hosts_all|map('extract', hostvars, 'ansible_fqdn')|list }}"
+      run_once: true
+
+    - name: Render compute_nodes.yaml template
+      template:
+            src: ../templates/compute_nodes.yaml.j2
+            dest: /home/zuul/compute_nodes.yaml
+      run_once: true
+      delegate_to: controller
+
+    - name: Output the rendered file at /home/zuul/compute_nodes.yaml
+      shell: |
+        cat /home/zuul/compute_nodes.yaml
+      run_once: true
+      delegate_to: controller

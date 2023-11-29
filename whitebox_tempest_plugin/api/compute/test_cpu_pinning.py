@@ -121,22 +121,76 @@ class BasePinningTest(base.BaseWhiteboxComputeTest,
             numa_topology = whitebox_utils.normalize_json(numa_topology)
         return numa_topology
 
+    def _get_host_cpu_dedicated_set(self, host):
+        """Return cpu dedicated or shared set configured for the provided host.
+        """
+        cpu_set = \
+            whitebox_utils.get_host_details(host).get('cpu_dedicated_set', [])
+        return hardware.parse_cpu_spec(cpu_set)
+
+    def _get_host_cpu_shared_set(self, host):
+        """Return cpu dedicated or shared set configured for the provided host.
+        """
+        cpu_set = \
+            whitebox_utils.get_host_details(host).get('cpu_shared_set', [])
+        return hardware.parse_cpu_spec(cpu_set)
+
+    def _get_shared_set_size(self):
+        gathered_lists = [self._get_host_cpu_shared_set(host)
+                          for host in self.hosts_details.keys()]
+        return gathered_lists
+
+    def _get_dedicated_set_size(self):
+        gathered_lists = [self._get_host_cpu_dedicated_set(host)
+                          for host in self.hosts_details.keys()]
+        return gathered_lists
+
 
 class CPUPolicyTest(BasePinningTest):
     """Validate CPU policy support."""
 
+    minimum_shared_cpus = 2
+    minimum_dedicated_cpus = 2
+
     def setUp(self):
         super().setUp()
-        self.dedicated_vcpus = (
-            CONF.whitebox_hardware.dedicated_cpus_per_numa *
-            len(CONF.whitebox_hardware.cpu_topology)) // 2
-        self.shared_vcpus = (
-            CONF.whitebox_hardware.shared_cpus_per_numa *
-            len(CONF.whitebox_hardware.cpu_topology)) // 2
+        self.hosts_details = whitebox_utils.get_all_hosts_details()
+
+        # Get the configured shared CPUs of each compute host and confirm
+        # that every host has the minimum number of shared CPUs necessary
+        # to preform test
+        shared_cpus_per_host = self._get_shared_set_size()
+        if any(len(cpus) < self.minimum_shared_cpus for cpus in
+               shared_cpus_per_host):
+            raise self.skipException(
+                'A Host in the deployment does not have the minimum required '
+                '%s shared cpus necessary to execute the tests' %
+                (self.minimum_shared_cpus))
+        available_shared_vcpus = \
+            min(shared_cpus_per_host, key=lambda x: len(x))
+
+        # Get the configured dedicated CPUs of each compute host and confirm
+        # that every host has the minimum number of shared CPUs necessary
+        # to preform test
+        dedicated_cpus_per_host = self._get_dedicated_set_size()
+        if any(len(cpus) < self.minimum_dedicated_cpus for cpus in
+               dedicated_cpus_per_host):
+            raise self.skipException(
+                'A Host in the deployment does not have the minimum required '
+                '%s dedicated cpus necessary to execute the tests' %
+                (self.minimum_dedicated_cpus))
+        available_dedicated_vcpus = \
+            min(dedicated_cpus_per_host, key=lambda x: len(x))
+
+        # Calculate the number of cpus to use in the flavors such the total
+        # size allows for two guests are capable to be scheduled to the same
+        # host
+        self.dedicated_cpus_per_guest = len(available_dedicated_vcpus) // 2
+        self.shared_vcpus_per_guest = len(available_shared_vcpus) // 2
 
     def test_cpu_shared(self):
         """Ensure an instance with an explicit 'shared' policy work."""
-        flavor = self.create_flavor(vcpus=self.shared_vcpus,
+        flavor = self.create_flavor(vcpus=self.shared_vcpus_per_guest,
                                     extra_specs=self.shared_cpu_policy)
         self.create_test_server(flavor=flavor['id'], wait_until='ACTIVE')
 
@@ -147,7 +201,7 @@ class CPUPolicyTest(BasePinningTest):
         default. However, we check specifics of that later and only assert that
         things aren't overlapping here.
         """
-        flavor = self.create_flavor(vcpus=self.dedicated_vcpus,
+        flavor = self.create_flavor(vcpus=self.dedicated_cpus_per_guest,
                                     extra_specs=self.dedicated_cpu_policy)
         server_a = self.create_test_server(flavor=flavor['id'],
                                            wait_until='ACTIVE')
@@ -156,13 +210,16 @@ class CPUPolicyTest(BasePinningTest):
             wait_until='ACTIVE')
         cpu_pinnings_a = self.get_server_cpu_pinning(server_a['id'])
         cpu_pinnings_b = self.get_server_cpu_pinning(server_b['id'])
-
-        self.assertEqual(
-            len(cpu_pinnings_a), self.dedicated_vcpus,
-            "Instance should be pinned but it is unpinned")
-        self.assertEqual(
-            len(cpu_pinnings_b), self.dedicated_vcpus,
-            "Instance should be pinned but it is unpinned")
+        host = self.get_host_for_server(server_a['id'])
+        dedicated_vcpus = self._get_host_cpu_dedicated_set(host)
+        self.assertTrue(
+            set(cpu_pinnings_a.values()).issubset(dedicated_vcpus),
+            "Instance A's pinning %s should be a subset of pinning range %s"
+            % (cpu_pinnings_a, dedicated_vcpus))
+        self.assertTrue(
+            set(cpu_pinnings_b.values()).issubset(dedicated_vcpus),
+            "Instance B's pinning %s should be a subset of pinning range %s"
+            % (cpu_pinnings_b, dedicated_vcpus))
 
         self.assertTrue(
             set(cpu_pinnings_a.values()).isdisjoint(
@@ -175,17 +232,20 @@ class CPUPolicyTest(BasePinningTest):
                           'Resize not available.')
     def test_resize_pinned_server_to_unpinned(self):
         """Ensure resizing an instance to unpinned actually drops pinning."""
-        flavor_a = self.create_flavor(vcpus=self.dedicated_vcpus,
+        flavor_a = self.create_flavor(vcpus=self.dedicated_cpus_per_guest,
                                       extra_specs=self.dedicated_cpu_policy)
         server = self.create_test_server(flavor=flavor_a['id'],
                                          wait_until='ACTIVE')
+
         cpu_pinnings = self.get_server_cpu_pinning(server['id'])
+        host = self.get_host_for_server(server['id'])
+        dedicated_vcpus = self._get_host_cpu_dedicated_set(host)
+        self.assertTrue(
+            set(cpu_pinnings.values()).issubset(dedicated_vcpus),
+            "Instance pinning %s should be a subset of pinning range %s"
+            % (cpu_pinnings, dedicated_vcpus))
 
-        self.assertEqual(
-            len(cpu_pinnings), self.dedicated_vcpus,
-            "Instance should be pinned but is unpinned")
-
-        flavor_b = self.create_flavor(vcpus=self.shared_vcpus,
+        flavor_b = self.create_flavor(vcpus=self.shared_vcpus_per_guest,
                                       extra_specs=self.shared_cpu_policy)
         self.resize_server(server['id'], flavor_b['id'])
         cpu_pinnings = self.get_server_cpu_pinning(server['id'])
@@ -198,7 +258,7 @@ class CPUPolicyTest(BasePinningTest):
                           'Resize not available.')
     def test_resize_unpinned_server_to_pinned(self):
         """Ensure resizing an instance to pinned actually applies pinning."""
-        flavor_a = self.create_flavor(vcpus=self.shared_vcpus,
+        flavor_a = self.create_flavor(vcpus=self.shared_vcpus_per_guest,
                                       extra_specs=self.shared_cpu_policy)
         server = self.create_test_server(flavor=flavor_a['id'],
                                          wait_until='ACTIVE')
@@ -208,26 +268,32 @@ class CPUPolicyTest(BasePinningTest):
             len(cpu_pinnings), 0,
             "Instance should be unpinned but is pinned")
 
-        flavor_b = self.create_flavor(vcpus=self.dedicated_vcpus,
+        flavor_b = self.create_flavor(vcpus=self.dedicated_cpus_per_guest,
                                       extra_specs=self.dedicated_cpu_policy)
         self.resize_server(server['id'], flavor_b['id'])
-        cpu_pinnings = self.get_server_cpu_pinning(server['id'])
 
-        self.assertEqual(
-            len(cpu_pinnings), self.dedicated_vcpus,
-            "Resized instance should be pinned but is still unpinned")
+        cpu_pinnings = self.get_server_cpu_pinning(server['id'])
+        host = self.get_host_for_server(server['id'])
+        dedicated_vcpus = self._get_host_cpu_dedicated_set(host)
+        self.assertTrue(
+            set(cpu_pinnings.values()).issubset(dedicated_vcpus),
+            "After resize instance %s pinning %s should be a subset of "
+            "pinning range %s" % (server['id'], cpu_pinnings, dedicated_vcpus))
 
     def test_reboot_pinned_server(self):
         """Ensure pinning information is persisted after a reboot."""
-        flavor = self.create_flavor(vcpus=self.dedicated_vcpus,
+        flavor = self.create_flavor(vcpus=self.dedicated_cpus_per_guest,
                                     extra_specs=self.dedicated_cpu_policy)
         server = self.create_test_server(flavor=flavor['id'],
                                          wait_until='ACTIVE')
-        cpu_pinnings = self.get_server_cpu_pinning(server['id'])
 
-        self.assertEqual(
-            len(cpu_pinnings), self.dedicated_vcpus,
-            "CPU pinning was not applied to new instance.")
+        cpu_pinnings = self.get_server_cpu_pinning(server['id'])
+        host = self.get_host_for_server(server['id'])
+        dedicated_vcpus = self._get_host_cpu_dedicated_set(host)
+        self.assertTrue(
+            set(cpu_pinnings.values()).issubset(dedicated_vcpus),
+            "After resize instance %s pinning %s should be a subset of "
+            "pinning range %s" % (server['id'], cpu_pinnings, dedicated_vcpus))
 
         self.reboot_server(server['id'], 'HARD')
         cpu_pinnings = self.get_server_cpu_pinning(server['id'])
@@ -235,8 +301,8 @@ class CPUPolicyTest(BasePinningTest):
         # we don't actually assert that the same pinning information is used
         # because that's not expected. We just care that _some_ pinning is in
         # effect
-        self.assertEqual(
-            len(cpu_pinnings), self.dedicated_vcpus,
+        self.assertTrue(
+            set(cpu_pinnings.values()).issubset(dedicated_vcpus),
             "Rebooted instance has lost its pinning information")
 
 
@@ -428,9 +494,7 @@ class EmulatorThreadTest(BasePinningTest, numa_helper.NUMAHelperMixin):
         # Determine the compute host the guest was scheduled to and gather
         # the cpu shared set from the host
         host = self.get_host_for_server(server['id'])
-        host_sm = clients.NovaServiceManager(host, 'nova-compute',
-                                             self.os_admin.services_client)
-        cpu_shared_set = host_sm.get_cpu_shared_set()
+        cpu_shared_set = self._get_host_cpu_shared_set(host)
 
         # Gather the emulator threads from the server
         emulator_threads = \
@@ -506,8 +570,10 @@ class EmulatorThreadTest(BasePinningTest, numa_helper.NUMAHelperMixin):
 
         # Create a flavor using the isolate threads_policy and then launch
         # an instance with the flavor
-        flavor = self.create_flavor(threads_policy='isolate',
-                                    vcpus=(self.dedicated_cpus_per_numa - 1))
+        flavor = self.create_flavor(
+            threads_policy='isolate',
+            vcpus=(self.dedicated_cpus_per_numa - 1)
+        )
 
         server = self.create_test_server(flavor=flavor['id'],
                                          wait_until='ACTIVE')
@@ -520,9 +586,7 @@ class EmulatorThreadTest(BasePinningTest, numa_helper.NUMAHelperMixin):
         # Determine the compute host the guest was scheduled to and gather
         # the cpu dedicated set from the host
         host = self.get_host_for_server(server['id'])
-        host_sm = clients.NovaServiceManager(host, 'nova-compute',
-                                             self.os_admin.services_client)
-        cpu_dedicated_set = host_sm.get_cpu_dedicated_set()
+        cpu_dedicated_set = self._get_host_cpu_dedicated_set(host)
 
         # Confirm the pinned cpus from the guest are part of the dedicated
         # range of the compute host it is scheduled to

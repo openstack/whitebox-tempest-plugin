@@ -1,0 +1,22 @@
+{{ hostvars['controller']['ansible_fqdn'] }}:
+  services:
+    libvirt:
+      start_command: 'systemctl start libvirtd'
+      stop_command: 'systemctl stop libvirtd'
+      mask_command: 'systemctl mask libvirtd'
+      unmask_command: 'systemctl unmask libvirtd'
+    nova-compute:
+      config_path: '/etc/nova/nova-cpu.conf'
+      start_command: 'systemctl start devstack@n-cpu'
+      stop_command: 'systemctl stop devstack@n-cpu'
+{{ hostvars['compute1']['ansible_fqdn'] }}:
+  services:
+    libvirt:
+      start_command: 'systemctl start libvirtd'
+      stop_command: 'systemctl stop libvirtd'
+      mask_command: 'systemctl mask libvirtd'
+      unmask_command: 'systemctl unmask libvirtd'
+    nova-compute:
+      config_path: '/etc/nova/nova-cpu.conf'
+      start_command: 'systemctl start devstack@n-cpu'
+      stop_command: 'systemctl stop devstack@n-cpu'

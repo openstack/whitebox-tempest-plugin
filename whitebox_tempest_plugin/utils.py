@@ -81,3 +81,12 @@ def get_host_details(host):
         with open(nodes_location, "r") as f:
             _nodes = yaml.safe_load(f)
     return _nodes.get(host)
+
+
+def get_all_hosts_details():
+    global _nodes
+    if _nodes is None:
+        nodes_location = CONF.whitebox.nodes_yaml
+        with open(nodes_location, "r") as f:
+            _nodes = yaml.safe_load(f)
+    return _nodes

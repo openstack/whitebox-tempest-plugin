@@ -54,6 +54,7 @@
       # addition to test vTPM hosts need swtpm as well
       extra_packages: ovmf,swtpm-tools
       tempest_exclude_regex: ^whitebox_tempest_plugin\.api\.compute\.test_hugepages
+      compute_node_template_name: whitebox-devstack-multinode.yaml.j2
       devstack_localrc:
         MAX_COMPUTE_NODES: 2
         NOVA_SERVICE_REPORT_INTERVAL: 10
@@ -150,6 +151,7 @@
     vars:
       tox_envlist: all
       tempest_concurrency: 1
+      compute_node_template_name: whitebox-devstack-ceph-multinode.yaml.j2
       devstack_plugins:
         whitebox-tempest-plugin: https://opendev.org/openstack/whitebox-tempest-plugin.git
       tempest_test_regex: '^whitebox_tempest_plugin.api.compute.test_rbd_direct_download'

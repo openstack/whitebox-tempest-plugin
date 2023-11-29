@@ -1,0 +1,34 @@
+{{ hostvars['controller']['ansible_fqdn'] }}:
+  services:
+    libvirt:
+      start_command: 'systemctl start libvirtd'
+      stop_command: 'systemctl stop libvirtd'
+      mask_command: 'systemctl mask libvirtd'
+      unmask_command: 'systemctl unmask libvirtd'
+    nova-compute:
+      config_path: '/etc/nova/nova-cpu.conf'
+      start_command: 'systemctl start devstack@n-cpu'
+      stop_command: 'systemctl stop devstack@n-cpu'
+  cpu_shared_set: {{ hostvars['controller']['devstack_local_conf']['post-config']['$NOVA_CONF']['compute']['cpu_shared_set'] }}
+  cpu_dedicated_set: {{ hostvars['controller']['devstack_local_conf']['post-config']['$NOVA_CONF']['compute']['cpu_dedicated_set'] }}
+  topology:
+      socket-0:
+        numa-0:
+          cpus: 0-7
+{{ hostvars['compute-host']['ansible_fqdn'] }}:
+  services:
+    libvirt:
+      start_command: 'systemctl start libvirtd'
+      stop_command: 'systemctl stop libvirtd'
+      mask_command: 'systemctl mask libvirtd'
+      unmask_command: 'systemctl unmask libvirtd'
+    nova-compute:
+      config_path: '/etc/nova/nova-cpu.conf'
+      start_command: 'systemctl start devstack@n-cpu'
+      stop_command: 'systemctl stop devstack@n-cpu'
+  cpu_shared_set: {{ hostvars['compute-host']['devstack_local_conf']['post-config']['$NOVA_CONF']['compute']['cpu_shared_set'] }}
+  cpu_dedicated_set: {{ hostvars['compute-host']['devstack_local_conf']['post-config']['$NOVA_CONF']['compute']['cpu_dedicated_set'] }}
+  topology:
+      socket-0:
+        numa-0:
+          cpus: 0-7

@@ -34,7 +34,7 @@ class VTPMTest(base.BaseWhiteboxComputeTest):
     def skip_checks(cls):
         super(VTPMTest, cls).skip_checks()
         if (CONF.compute_feature_enabled.vtpm_device_supported is False):
-            msg = "CONF.compute_feature_enabled.vtpm_device_supported must " \
+            msg = "[compute-feature-enabled]vtpm_device_supported must " \
                 "be set."
             raise cls.skipException(msg)
 

@@ -64,6 +64,7 @@
           $TEMPEST_CONFIG:
             compute-feature-enabled:
               volume_backed_live_migration: true
+              stable_compute_uuid_supported: true
             auth:
               tempest_roles: creator
         post-config:

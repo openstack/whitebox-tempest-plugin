@@ -33,6 +33,11 @@ function configure {
     iniset $TEMPEST_CONFIG compute-feature-enabled uefi_secure_boot "$COMPUTE_FEATURE_UEFI_SECURE_BOOT"
     iniset $TEMPEST_CONFIG compute-feature-enabled vtpm_device_supported "$COMPUTE_FEATURE_VTPM_ENABLED"
     iniset $TEMPEST_CONFIG compute-feature-enabled live_migrate_back_and_forth "$COMPUTE_FEATURE_LIVE_MIGRATE_BACK_AND_FORTH"
+
+    # matching devstack/lib/nova
+    # https://github.com/openstack/devstack/blob/6b0f055b4ed407f8a190f768d0e654235ac015dd/lib/nova#L46C36-L46C50
+    iniset $TEMPEST_CONFIG whitebox-nova-compute state_path $DATA_DIR/nova
+
 }
 
 if [[ "$1" == "stack" ]]; then

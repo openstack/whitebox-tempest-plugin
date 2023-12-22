@@ -128,7 +128,7 @@ general_opts = [
     cfg.IntOpt(
         'max_disk_devices_to_attach',
         default=None,
-        help='Maximum number of disks allowed to attach to a singler server')
+        help='Maximum number of disks allowed to attach to a singler server'),
 ]
 
 nova_compute_group = cfg.OptGroup(
@@ -142,7 +142,12 @@ nova_compute_opts = [
         choices=["journalctl", "zgrep"],
         help="Name of the utility to run LogParserClient commands. "
              "Currently, supported values are 'journalctl' (default) "
-             "for devstack and 'zgrep' for TripleO")
+             "for devstack and 'zgrep' for TripleO"),
+    cfg.StrOpt(
+        'state_path',
+        default="/var/lib/nova",
+        help='The [DEFAULT]state_path passed to nova-compute. '
+             'Defaults to the default of nova'),
 ]
 
 database_group = cfg.OptGroup(
@@ -308,5 +313,13 @@ compute_features_group_opts = [
     cfg.BoolOpt('vgpu_cold_migration_supported',
                 default=False,
                 help='Cold migration and resize supported for guest instances '
-                'with vGPU devices')
+                'with vGPU devices'),
+    cfg.BoolOpt('stable_compute_uuid_supported',
+                default=False,
+                help='Stable compute UUID feature is supported for the '
+                     'deployment. This feature is available since 2023.1 '
+                     '(Antelope) upstream. If the deployment does not use the '
+                     'default value of [DEFAULT]state_path in the nova-compute'
+                     'config, then [whitebox-nova-compute]state_path also '
+                     'needs to be configured'),
 ]

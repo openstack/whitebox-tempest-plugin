@@ -129,6 +129,11 @@ general_opts = [
         'max_disk_devices_to_attach',
         default=None,
         help='Maximum number of disks allowed to attach to a singler server'),
+    cfg.StrOpt(
+        'libvirt_hw_machine_type',
+        default='pc',
+        choices=["pc", "q35"],
+        help='The machine type configured for the nova computes')
 ]
 
 nova_compute_group = cfg.OptGroup(

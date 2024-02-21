@@ -954,14 +954,12 @@ class NUMACPUDedicatedLiveMigrationTest(NUMALiveMigrationBase):
 
         # Validate shared server A now has a shared cpuset that is a equal
         # to it's new host's cpu_shared_set
-        # FIXME(jparker) change host1_shared_set to host2_shared_set once
-        # Nova bug 1869804 has been addressed
         shared_set_a = self._get_shared_cpuset(shared_server_a['id'])
-        host_a_shared_set = host_sm_a.get_cpu_shared_set()
+        host_b_shared_set = host_sm_b.get_cpu_shared_set()
         self.assertCountEqual(
-            shared_set_a, host_a_shared_set, 'After migration of server %s, '
+            shared_set_a, host_b_shared_set, 'After migration of server %s, '
             'shared CPU set %s is not equal to new shared set %s' %
-            (shared_server_a['id'], shared_set_a, host_a_shared_set))
+            (shared_server_a['id'], shared_set_a, host_b_shared_set))
 
         # Live migrate dedicated server A to the same host holding
         # dedicated server B. End result should be all 4 servers are on

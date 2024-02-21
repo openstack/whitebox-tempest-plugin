@@ -330,4 +330,7 @@ compute_features_group_opts = [
     cfg.BoolOpt('bochs_display_support',
                 default=False,
                 help="Guests support bochs display device"),
+    cfg.BoolOpt('cpu_power_management',
+                default=False,
+                help="Libvirt CPU power management is turned on."),
 ]

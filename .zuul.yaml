@@ -65,6 +65,7 @@
             compute-feature-enabled:
               volume_backed_live_migration: true
               stable_compute_uuid_supported: true
+              cpu_power_management: true
             auth:
               tempest_roles: creator
         post-config:
@@ -79,6 +80,7 @@
               cpu_mode: custom
               cpu_models: Nehalem
               cpu_model_extra_flags: vme,+ssse3,-mmx
+              cpu_power_management: True
               virt_type: kvm
               rx_queue_size: 1024
               swtpm_enabled: True
@@ -103,6 +105,7 @@
                 cpu_mode: custom
                 cpu_models: Nehalem
                 cpu_model_extra_flags: vme,+ssse3,-mmx
+                cpu_power_management: True
                 virt_type: kvm
                 rx_queue_size: 1024
                 swtpm_enabled: True

@@ -19,7 +19,6 @@ from tempest import config
 from tempest.lib.common.utils import data_utils
 from whitebox_tempest_plugin.api.compute import base
 from whitebox_tempest_plugin.services import clients
-from whitebox_tempest_plugin import utils as whitebox_utils
 
 from oslo_log import log as logging
 
@@ -546,8 +545,7 @@ class VGPUMultiTypes(VGPUTest):
         :return mdev_type: str, the mdev_type of vgpu provided to guest
         """
         host = self.get_host_for_server(server_id)
-        ctlplane_addr = whitebox_utils.get_ctlplane_address(host)
-        ssh_client = clients.SSHClient(ctlplane_addr)
+        ssh_client = clients.SSHClient(host)
         root = self.get_server_xml(server_id)
         vgpu_dev = root.find("./devices/hostdev[@type='mdev']")
         source_element = vgpu_dev.find(".source/address")

@@ -16,6 +16,7 @@
 import time
 
 from tempest.lib import exceptions as lib_exc
+from whitebox_tempest_plugin.exceptions import MigrationException
 
 
 def wait_for_nova_service_state(client, host, binary, state):
@@ -33,3 +34,22 @@ def wait_for_nova_service_state(client, host, binary, state):
                 'Service %s on host %s failed to reach state %s within '
                 'the required time (%s s)', binary, host, state, timeout)
         service = client.list_services(host=host, binary=binary)['services'][0]
+
+
+def wait_for_server_migration_complete(os_admin, server_id):
+    start_time = int(time.time())
+    timeout = os_admin.services_client.build_timeout
+    interval = os_admin.services_client.build_interval + 1
+    while int(time.time()) - start_time <= timeout:
+        s_migs = os_admin.migrations_client.list_migrations()
+        if s_migs['migrations'][-1]['status'] in ['done', 'completed']:
+            break
+        elif s_migs['migrations'][-1]['status'] in ['error', 'failed']:
+            raise MigrationException(
+                'Evacuation failed, because server migration failed.')
+        time.sleep(interval)
+    else:
+        # raise Timeout exception if migration never completed
+        raise lib_exc.TimeoutException(
+            'Evacuation failed, because server migration did not '
+            'complete, within the required time: (%s s)' % timeout)

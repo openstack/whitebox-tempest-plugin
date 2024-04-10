@@ -17,6 +17,7 @@ from tempest.common.utils.linux import remote_client
 from tempest.common import waiters
 from tempest import config
 from tempest.lib.common.utils import data_utils
+from tempest.lib import decorators
 from whitebox_tempest_plugin.api.compute import base
 from whitebox_tempest_plugin.services import clients
 
@@ -609,3 +610,80 @@ class VGPUMultiTypes(VGPUTest):
                 expected_mdev_type, found_mdev_type,
                 "The found mdev_type %s does not match the expected mdev_type "
                 "%s for %s" % (found_mdev_type, expected_mdev_type, trait))
+
+
+@decorators.skip_because(bug='1874664')
+class VGPUServerEvacuation(VGPUTest):
+
+    min_microversion = '2.95'
+
+    @classmethod
+    def skip_checks(cls):
+        super(VGPUServerEvacuation, cls).skip_checks()
+        if CONF.compute.min_compute_nodes < 2:
+            msg = "Need two or more compute nodes to execute evacuate."
+            raise cls.skipException(msg)
+
+    def test_evacuate_server_having_vgpu(self):
+        starting_rp_vgpu_inventory = \
+            self._get_vgpu_inventories_for_deployment()
+        validation_resources = self.get_test_validation_resources(
+            self.os_primary)
+        server = self.create_validateable_instance(
+            self.vgpu_flavor, validation_resources)
+        linux_client = self._create_ssh_client(server, validation_resources)
+
+        # Determine the host the vGPU enabled guest is currently on. Next
+        # get another potential compute host to serve as the migration target
+        src_host = self.get_host_for_server(server['id'])
+        dest_host = self.get_host_other_than(server['id'])
+
+        # Get the current VGPU usage from the resource providers on
+        # the source and destination compute hosts.
+        pre_src_usage = self._get_vgpu_util_for_host(src_host)
+        pre_dest_usage = self._get_vgpu_util_for_host(dest_host)
+
+        host_a_svc = clients.NovaServiceManager(
+            src_host, 'nova-compute', self.os_admin.services_client)
+
+        with host_a_svc.stopped():
+            self.shutdown_server_on_host(server['id'], src_host)
+            self.evacuate_server(server['id'])
+
+        self.assertEqual(self.get_host_for_server(server['id']), dest_host)
+
+        LOG.info('Guest %(server)s was just evacuated to %(dest_host)s, '
+                 'guest will now be validated after operation',
+                 {'server': server['id'], 'dest_host': dest_host})
+        self._validate_vgpu_instance(
+            server,
+            linux_client=linux_client,
+            expected_device_count=self.vgpu_amount_per_instance)
+
+        # Regather the VGPU resource usage on both compute hosts involved.
+        # Confirm the original source host's VGPU usage has
+        # updated to no longer report original usage for the vGPU resource and
+        # the destination is now accounting for the resource.
+        post_src_usage = self._get_vgpu_util_for_host(src_host)
+        post_dest_usage = self._get_vgpu_util_for_host(dest_host)
+        expected_src_usage = pre_src_usage - self.vgpu_amount_per_instance
+        self.assertEqual(
+            expected_src_usage,
+            post_src_usage, 'After evacuation, host %s expected to have %s '
+            'usage for resource class VGPU but instead found %d' %
+            (src_host, expected_src_usage, post_src_usage))
+        expected_dest_usage = pre_dest_usage + self.vgpu_amount_per_instance
+        self.assertEqual(
+            expected_dest_usage, post_dest_usage, 'After evacuation, Host '
+            '%s expected to have resource class VGPU usage totaling %d but '
+            'instead found %d' %
+            (dest_host, expected_dest_usage, post_dest_usage))
+
+        # Delete the guest and confirm the inventory reverts back to the
+        # original amount
+        self.os_admin.servers_client.delete_server(server['id'])
+        waiters.wait_for_server_termination(
+            self.os_admin.servers_client, server['id'])
+        end_rp_vgpu_inventory = self._get_vgpu_inventories_for_deployment()
+        self._validate_final_vgpu_rp_inventory(
+            starting_rp_vgpu_inventory, end_rp_vgpu_inventory)

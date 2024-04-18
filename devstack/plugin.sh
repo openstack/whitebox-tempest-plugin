@@ -19,6 +19,7 @@ function configure {
     iniset $TEMPEST_CONFIG whitebox default_video_model $WHITEBOX_DEFAULT_VIDEO_MODEL
     iniset $TEMPEST_CONFIG whitebox max_disk_devices_to_attach $WHITEBOX_MAX_DISK_DEVICES_TO_ATTACH
     iniset $TEMPEST_CONFIG whitebox nodes_yaml $WHITEBOX_NODES_YAML
+    iniset $TEMPEST_CONFIG whitebox hugepage_guest_ram_size $WHITEBOX_HUGEPAGE_GUEST_RAM_SIZE
 
     iniset $TEMPEST_CONFIG whitebox-database user $DATABASE_USER
     iniset $TEMPEST_CONFIG whitebox-database password $DATABASE_PASSWORD
@@ -27,6 +28,7 @@ function configure {
     iniset $TEMPEST_CONFIG whitebox-hardware cpu_topology "$WHITEBOX_CPU_TOPOLOGY"
     iniset $TEMPEST_CONFIG whitebox-hardware dedicated_cpus_per_numa "$WHITEBOX_DEDICATED_CPUS_PER_NUMA"
     iniset $TEMPEST_CONFIG whitebox-hardware shared_cpus_per_numa "$WHITEBOX_SHARED_CPUS_PER_NUMA"
+    iniset $TEMPEST_CONFIG whitebox-hardware configured_hugepage_sizes "$WHITEBOX_CONFIGURED_HUGEPAGES"
 
     iniset $TEMPEST_CONFIG compute-feature-enabled virtio_rng "$COMPUTE_FEATURE_VIRTIO_RNG"
     iniset $TEMPEST_CONFIG compute-feature-enabled rbd_download "$COMPUTE_FEATURE_RBD_DOWNLOAD"
@@ -39,6 +41,7 @@ function configure {
     # https://github.com/openstack/devstack/blob/6b0f055b4ed407f8a190f768d0e654235ac015dd/lib/nova#L46C36-L46C50
     iniset $TEMPEST_CONFIG whitebox-nova-compute state_path $DATA_DIR/nova
 
+    iniset $NOVA_CONF filter_scheduler track_instance_changes True
 }
 
 if [[ "$1" == "stack" ]]; then

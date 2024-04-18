@@ -3,7 +3,11 @@
     nodes:
       - name: controller
         label: nested-virt-ubuntu-jammy
-      - name: compute
+        # NOTE(artom) We can't name the node 'compute' because that seems to
+        # take precedence over the 'compute' group in playbooks, so things we
+        # want to run on all hosts in the 'compute' group would only run on the
+        # subnode.
+      - name: compute-host
         label: nested-virt-ubuntu-jammy
     groups:
       # Node where tests are executed and test results collected
@@ -14,11 +18,11 @@
       - name: compute
         nodes:
           - controller
-          - compute
+          - compute-host
       # Nodes that are not the controller
       - name: subnode
         nodes:
-          - compute
+          - compute-host
       # Switch node for multinode networking setup
       - name: switch
         nodes:
@@ -26,7 +30,7 @@
       # Peer nodes for multinode networking setup
       - name: peers
         nodes:
-          - compute
+          - compute-host
 
 - job:
     name: whitebox-devstack-multinode
@@ -49,6 +53,7 @@
       # open source implementation of UEFI for VMs via the OVMF package. In
       # addition to test vTPM hosts need swtpm as well
       extra_packages: ovmf,swtpm-tools
+      tempest_exclude_regex: ^whitebox_tempest_plugin\.api\.compute\.test_hugepages
       devstack_localrc:
         MAX_COMPUTE_NODES: 2
         NOVA_SERVICE_REPORT_INTERVAL: 10
@@ -86,7 +91,6 @@
               swtpm_group: swtpm
     group-vars:
       subnode:
-        num_hugepages: 2048
         devstack_localrc:
           LIBVIRT_TYPE: kvm
           NOVA_SERVICE_REPORT_INTERVAL: 10
@@ -109,10 +113,23 @@
                 swtpm_user: swtpm
                 swtpm_group: swtpm
       tempest:
-        num_hugepages: 512
         devstack_plugins:
           barbican: https://opendev.org/openstack/barbican.git
           whitebox-tempest-plugin: https://opendev.org/openstack/whitebox-tempest-plugin.git
+
+- job:
+    name: whitebox-devstack-multinode-hugepages
+    parent: whitebox-devstack-multinode
+    description: |
+      Runs the hugepages tests on a deployment that has set up hugepages on the hosts.
+    vars:
+      tempest_test_regex: ^whitebox_tempest_plugin\.api\.compute\.test_hugepages
+      # NOTE(artom) The parent job's exclude regex excludes the hugepages
+      # tests, so we need to overwrite it here with a regex that matches
+      # *nothing*.
+      tempest_exclude_regex: $^
+      num_2M_pages: 512
+      num_1G_pages: 1
 
 - job:
     name: whitebox-devstack-ceph-multinode
@@ -174,3 +191,6 @@
         - whitebox-devstack-multinode
         - whitebox-devstack-ceph-multinode
         - openstack-tox-pep8
+    experimental:
+      jobs:
+        - whitebox-devstack-multinode-hugepages

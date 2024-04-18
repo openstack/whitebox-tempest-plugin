@@ -45,3 +45,44 @@
         cat /home/zuul/compute_nodes.yaml
       run_once: true
       delegate_to: controller
+
+- hosts: compute
+  tasks:
+    - name: Create hugepages for computes
+      block:
+
+        - name: Append to GRUB command line
+          lineinfile:
+            path: /etc/default/grub
+            state: present
+            backrefs: yes
+            regexp: GRUB_CMDLINE_LINUX="([^"]*)"
+            line: GRUB_CMDLINE_LINUX="\1 hugepagesz=2M hugepages={{ num_2M_pages }} hugepagesz=1G hugepages={{ num_1G_pages }} transparent_hugepage=never"
+          become: yes
+
+        - name: Update grub.cfg
+          # NOTE(artom) This assumes an Ubuntu host
+          command: update-grub2
+          become: yes
+
+        - name: Reboot
+          reboot:
+          become: yes
+
+        - name: (Re-)start the Zuul console streamer after the reboot
+          # NOTE(artom) The job will still work if we don't do this, but the
+          # console will get spammed with 'Waiting on logger' messages. See
+          # https://bugs.launchpad.net/openstack-gate/+bug/1806655 for more
+          # info.
+          import_role:
+            name: start-zuul-console
+
+        - name: Add 1G hugetlbfs mount
+          # The 2M hugetlbfs is mounted automatically by the OS, but we need to
+          # manually add the 1G mount.
+          shell: |
+            mkdir /dev/hugepages1G
+            mount -t hugetlbfs -o pagesize=1G none /dev/hugepages1G
+          become: yes
+
+      when: num_2M_pages is defined and num_1G_pages is defined

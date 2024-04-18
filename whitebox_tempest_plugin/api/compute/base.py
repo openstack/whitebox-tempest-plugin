@@ -435,3 +435,11 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
                            'status = "%s"' % status)
             data = cursor.fetchall()
         return data[0]['COUNT(*)']
+
+    def _get_hugepage_xml_element(self, server_id):
+        """Gather and return all instances of the page element from XML element
+        'memoryBacking/hugepages' in a given server's domain.
+        """
+        root = self.get_server_xml(server_id)
+        huge_pages = root.findall('.memoryBacking/hugepages/page')
+        return huge_pages

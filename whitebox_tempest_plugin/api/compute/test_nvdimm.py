@@ -49,7 +49,8 @@ class NVDIMMTests(base.BaseWhiteboxComputeTest):
         root = self.get_server_xml(server['id'])
         pmem_device = root.find("./devices/memory[@model='nvdimm']")
         self.assertIsNotNone(
-            pmem_device, "NVDIMM memory device was not found in instace %s XML"
+            pmem_device,
+            "NVDIMM memory device was not found in instance %s XML"
             % server['id']
         )
 

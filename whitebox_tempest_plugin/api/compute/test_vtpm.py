@@ -27,7 +27,7 @@ class VTPMTest(base.BaseWhiteboxComputeTest):
     Creating instance with a variety of device versions and module types are
     tested. Tests require creating instance flavor with extra specs about the
     tpm version and model to be specified and Barbican Key manager must enabled
-    in the environement to manage the instance secrets.
+    in the environment to manage the instance secrets.
     """
 
     @classmethod

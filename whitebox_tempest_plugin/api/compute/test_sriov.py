@@ -192,7 +192,7 @@ class SRIOVNumaAffinity(SRIOVBase, numa_helper.NUMAHelperMixin):
 
         # Find the pinned pCPUs used by server B. They are not expected to have
         # affinity so just confirm they are a subset of the host's
-        # cpu_dedicated_set. Also confirm pCPUs are not resued between guest A
+        # cpu_dedicated_set. Also confirm pCPUs are not rescued between guest A
         # and B
         cpu_pins_b = self.get_pinning_as_set(server_b['id'])
         self.assertTrue(
@@ -1019,7 +1019,7 @@ class SRIOVAttachAndDetach(SRIOVBase):
         """Verify sriov direct-physical port attached/detached from guest
 
         1. Create and sr-iov port based on the provided vnic_type
-        2. Launch two guests accessable by the UC via SSH. Test creates two
+        2. Launch two guests accessible by the UC via SSH. Test creates two
         guests to validate the same port can be attached/removed from multiple
         guests
         3. Iterate over both guests doing the following steps:
@@ -1060,7 +1060,7 @@ class SRIOVAttachAndDetach(SRIOVBase):
             self._validate_pf_pci_address_in_xml(
                 port['port']['id'], host_dev_xml)
 
-            # Verify the the interface's vendor ID and the phsyical device ID
+            # Verify the the interface's vendor ID and the physical device ID
             # are present in the guest
             self._check_device_in_guest(
                 linux_client,

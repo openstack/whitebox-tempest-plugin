@@ -165,7 +165,7 @@ class CPUPolicyTest(BasePinningTest):
 
         # Get the configured shared CPUs of each compute host and confirm
         # that every host has the minimum number of shared CPUs necessary
-        # to preform test
+        # to perform test
         shared_cpus_per_host = self._get_shared_set_size()
         if any(len(cpus) < self.minimum_shared_cpus for cpus in
                shared_cpus_per_host):
@@ -178,7 +178,7 @@ class CPUPolicyTest(BasePinningTest):
 
         # Get the configured dedicated CPUs of each compute host and confirm
         # that every host has the minimum number of shared CPUs necessary
-        # to preform test
+        # to perform test
         dedicated_cpus_per_host = self._get_dedicated_set_size()
         if any(len(cpus) < self.minimum_dedicated_cpus for cpus in
                dedicated_cpus_per_host):

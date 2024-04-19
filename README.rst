@@ -34,6 +34,8 @@ Install, configure and run
 
    This should be done from source. ::
 
+   .. code-block:: shell
+
      WORKSPACE=/some/directory
      cd $WORKSPACE
      git clone https://opendev.org/openstack/whitebox-tempest-plugin
@@ -46,13 +48,14 @@ Install, configure and run
    ``whitebox_tempest_plugin/config.py`` instead. As an example, here is a
    configuration for a multinode TripleO deployment::
 
-   [whitebox]
-   ctlplane_addresses = compute-0.localdomain:192.168.24.6,compute-1.localdomain:192.168.24.12
-   ctlplane_ssh_username = heat-admin
-   ctlplane_ssh_private_key_path = /home/stack/.ssh/id_rsa
-   containers = true
-   max_compute_nodes = 2 # Some tests depend on there being a single
-                         # (available) compute node
+   .. code-block:: ini
+
+      [whitebox]
+      ctlplane_addresses = compute-0.localdomain:192.168.24.6,compute-1.localdomain:192.168.24.12
+      ctlplane_ssh_username = heat-admin
+      ctlplane_ssh_private_key_path = /home/stack/.ssh/id_rsa
+      containers = true
+      max_compute_nodes = 2 # Some tests depend on there being a single (available) compute node
 
 3. Execute the tests. ::
 
@@ -61,7 +64,7 @@ Install, configure and run
    .. important::
 
       Whitebox expects its tests to run one at a time. Make sure to pass
-      `--serial` or `--concurrency 1` to `tempest run`.
+      ``--serial`` or ``--concurrency 1`` to ``tempest run``.
 
 
 How to add a new test

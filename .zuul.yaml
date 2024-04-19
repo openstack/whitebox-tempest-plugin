@@ -181,6 +181,8 @@
                 images_type: default
 
 - project:
+    templates:
+      - publish-to-pypi
     check:
       jobs:
         - whitebox-devstack-multinode

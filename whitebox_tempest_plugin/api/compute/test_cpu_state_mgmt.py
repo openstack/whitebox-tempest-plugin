@@ -35,22 +35,29 @@ class TestCPUStateMgmt(base.BaseWhiteboxComputeTest):
             vcpus=1,
             extra_specs={'hw:cpu_policy': 'dedicated'})
 
-    def _assert_cpus_initial_state(self, host, shared_cpus, dedicated_cpus,
-                                   sysfsclient):
-        """Assert that nova-compute disabled dedicated CPUs on startup"""
-        # In case we didn't have a full set specified, at least make sure that
-        # our shared CPUs are in the subset of online CPUs (i.e. we didn't
-        # offline any of the shared ones).
+    def test_cpu_state(self):
+        host = self.list_compute_hosts()[0]
+        sysfsclient = clients.SysFSClient(host)
+        sm = clients.NovaServiceManager(host, 'nova-compute',
+                                        self.os_admin.services_client)
+        dedicated_cpus = sm.get_cpu_dedicated_set()
+        shared_cpus = sm.get_cpu_shared_set()
+
+        if len(dedicated_cpus) < 2:
+            raise self.skipException('Multiple dedicated CPUs required')
+
+        # Assert that nova-compute disabled dedicated CPUs on startup. In case
+        # we didn't have a full set specified, at least make sure that our
+        # shared CPUs are in the subset of online CPUs (i.e. we didn't offline
+        # any of the shared ones).
         online = sysfsclient.get_sysfs_value('devices/system/cpu/online')
         self.assertTrue(shared_cpus.issubset(hardware.parse_cpu_spec(online)))
 
-        # All our dedicated CPUs should be offlined at service startup.
-        offline = sysfsclient.get_sysfs_value('devices/system/cpu/offline')
-        self.assertEqual(dedicated_cpus, hardware.parse_cpu_spec(offline))
-
-    def _assert_cpu_onlined_guest(self, host, dedicated_cpus, sysfsclient):
+        # All our dedicated CPUs should be offlined (this assumes running
+        # serially with no other guests using the dedicated CPUs).
         offline_before = hardware.parse_cpu_spec(
             sysfsclient.get_sysfs_value('devices/system/cpu/offline'))
+        self.assertEqual(dedicated_cpus, offline_before)
 
         server = self.create_test_server(clients=self.os_admin,
                                          flavor=self.flavor['id'],
@@ -67,41 +74,6 @@ class TestCPUStateMgmt(base.BaseWhiteboxComputeTest):
                                             server['id'])
 
         # Once it is gone, the dedicated CPU should be offline again
-        offline = hardware.parse_cpu_spec(
+        offline_final = hardware.parse_cpu_spec(
             sysfsclient.get_sysfs_value('devices/system/cpu/offline'))
-        self.assertEqual(offline_before, offline)
-
-    def online_test_cpu(self, cpus, sysfsclient):
-        """Put our test CPUs back to online status"""
-        for cpu in cpus:
-            sysfsclient.set_sysfs_value(
-                'devices/system/cpu/cpu%i/online' % cpu, '1')
-
-    def test_cpu_state(self):
-        host = self.list_compute_hosts()[0]
-        sysfsclient = clients.SysFSClient(host)
-
-        # Check that we don't have any offline CPUs to start with
-        offline = sysfsclient.get_sysfs_value('devices/system/cpu/offline')
-        self.assertEqual("", offline,
-                         'System has offlined CPUs unexpectedly!')
-
-        sm = clients.NovaServiceManager(host, 'nova-compute',
-                                        self.os_admin.services_client)
-        dedicated_cpus = sm.get_cpu_dedicated_set()
-        shared_cpus = sm.get_cpu_shared_set()
-        opts = [('libvirt', 'cpu_power_management', 'True'),
-                ('libvirt', 'cpu_power_management_strategy', 'cpu_state')]
-
-        if len(dedicated_cpus) < 2:
-            raise self.skipException('Multiple dedicated CPUs required')
-
-        # Nova will not online the CPUs it manages on shutdown, so we need
-        # to re-online it before we finish here to leave the system as we
-        # found it
-        self.addCleanup(self.online_test_cpu, dedicated_cpus, sysfsclient)
-
-        with sm.config_options(*tuple(opts)):
-            self._assert_cpus_initial_state(host, shared_cpus, dedicated_cpus,
-                                            sysfsclient)
-            self._assert_cpu_onlined_guest(host, dedicated_cpus, sysfsclient)
+        self.assertEqual(offline_before, offline_final)

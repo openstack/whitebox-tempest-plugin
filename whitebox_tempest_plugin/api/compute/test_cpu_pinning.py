@@ -33,6 +33,7 @@ from tempest.common import compute
 from tempest.common import waiters
 from tempest import config
 from tempest.exceptions import BuildErrorException
+from tempest.lib.common import api_version_request
 from tempest.lib import decorators
 
 from whitebox_tempest_plugin.api.compute import base
@@ -928,6 +929,7 @@ class NUMALiveMigrationTest(NUMALiveMigrationBase):
 class NUMACPUDedicatedLiveMigrationTest(NUMALiveMigrationBase):
 
     min_microversion = '2.74'
+    lp_bug_1869804_fix = '2.96'
 
     @classmethod
     def skip_checks(cls):
@@ -1011,11 +1013,22 @@ class NUMACPUDedicatedLiveMigrationTest(NUMALiveMigrationBase):
         # Validate shared server A now has a shared cpuset that is a equal
         # to it's new host's cpu_shared_set
         shared_set_a = self._get_shared_cpuset(shared_server_a['id'])
-        host_b_shared_set = host_sm_b.get_cpu_shared_set()
+
+        # TODO(jparker) 1869804 has been addressed in master but will not be
+        # backported into RHOS 17 or older downstream version. Will be removed
+        # when downstream supports the bug fix.
+        config_max_version = api_version_request.APIVersionRequest(
+            CONF.compute.max_microversion)
+        version_fix = \
+            api_version_request.APIVersionRequest(self.lp_bug_1869804_fix)
+        if config_max_version < version_fix:
+            host_shared_set = host_sm_a.get_cpu_shared_set()
+        else:
+            host_shared_set = host_sm_b.get_cpu_shared_set()
         self.assertCountEqual(
-            shared_set_a, host_b_shared_set, 'After migration of server %s, '
+            shared_set_a, host_shared_set, 'After migration of server %s, '
             'shared CPU set %s is not equal to new shared set %s' %
-            (shared_server_a['id'], shared_set_a, host_b_shared_set))
+            (shared_server_a['id'], shared_set_a, host_shared_set))
 
         # Live migrate dedicated server A to the same host holding
         # dedicated server B. End result should be all 4 servers are on

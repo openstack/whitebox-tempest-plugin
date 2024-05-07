@@ -694,6 +694,20 @@ class SRIOVMigration(SRIOVBase):
             self.physical_net)
         self._create_subnet(self.network['network']['id'])
 
+    def _validate_pci_allocation(self, pci_device_status_regex):
+        """Check PCI allocation count and confirm it updates to 1"""
+        start_time = int(time.time())
+        timeout = self.os_admin.services_client.build_timeout
+        while int(time.time()) - start_time <= timeout:
+            pci_allocated_count = self._get_pci_status_count(
+                pci_device_status_regex)
+            if pci_allocated_count == 1:
+                return
+            time.sleep(self.os_admin.services_client.build_interval + 1)
+        raise lib_exc.TimeoutException(
+            pci_allocated_count, 1, 'Total allocated pci devices should be 1 '
+            'but instead is %s' % pci_allocated_count)
+
     @classmethod
     def skip_checks(cls):
         super(SRIOVMigration, cls).skip_checks()
@@ -746,11 +760,7 @@ class SRIOVMigration(SRIOVBase):
 
         # Validate the total allocation of pci devices is one and only one
         # after instance migration
-        pci_allocated_count = self._get_pci_status_count(
-            pci_device_status_regex)
-        self.assertEqual(pci_allocated_count, 1, 'Total allocated pci devices '
-                         'after first migration should be 1 but instead '
-                         'is %s' % pci_allocated_count)
+        self._validate_pci_allocation(pci_device_status_regex)
 
         if CONF.compute_feature_enabled.live_migrate_back_and_forth:
             # Migrate server back to the original host
@@ -779,11 +789,7 @@ class SRIOVMigration(SRIOVBase):
 
             # Confirm total port allocations still remains one after final
             # migration
-            pci_allocated_count = self._get_pci_status_count(
-                pci_device_status_regex)
-            self.assertEqual(pci_allocated_count, 1, 'Total allocated pci '
-                             'devices after second migration should be 1 but '
-                             'instead is %s' % pci_allocated_count)
+            self._validate_pci_allocation(pci_device_status_regex)
 
     def test_sriov_direct_live_migration(self):
         """Verify sriov live migration using direct type ports

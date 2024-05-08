@@ -91,6 +91,12 @@ class BasePinningTest(base.BaseWhiteboxComputeTest,
 
         return emulator_threads
 
+    def get_cpus_with_sched(self, server_id):
+        root = self.get_server_xml(server_id)
+        scheds = root.findall('./cputune/vcpusched')
+        cpus = [int(each.get('vcpus')) for each in scheds if each is not None]
+        return cpus
+
     def get_server_cpu_pinning(self, server_id):
         """Get the host CPU numbers to which the server's vCPUs are pinned.
         Assumes that cpu_policy=dedicated is in effect so that every vCPU is
@@ -228,6 +234,23 @@ class CPUPolicyTest(BasePinningTest):
             "Unexpected overlap in CPU pinning: {}; {}".format(
                 cpu_pinnings_a,
                 cpu_pinnings_b))
+
+    def test_realtime_cpu(self):
+        realtime_mask = '1-2'
+
+        specs = self.dedicated_cpu_policy.copy()
+        specs.update({
+            'hw:cpu_realtime': 'yes',
+            'hw:cpu_realtime_mask': realtime_mask,
+        })
+
+        flavor = self.create_flavor(vcpus=3, extra_specs=specs)
+        server = self.create_test_server(
+            flavor=flavor['id'], wait_until='ACTIVE')
+
+        cpus = self.get_cpus_with_sched(server['id'])
+        expected = list(hardware.parse_cpu_spec(realtime_mask))
+        self.assertEqual(expected, cpus)
 
     @testtools.skipUnless(CONF.compute_feature_enabled.resize,
                           'Resize not available.')

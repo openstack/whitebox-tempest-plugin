@@ -34,21 +34,18 @@ Install, configure and run
 
    This should be done from source. ::
 
-   .. code-block:: shell
+      WORKSPACE=/some/directory
+      cd $WORKSPACE
+      git clone https://opendev.org/openstack/whitebox-tempest-plugin
 
-     WORKSPACE=/some/directory
-     cd $WORKSPACE
-     git clone https://opendev.org/openstack/whitebox-tempest-plugin
-     sudo pip install whitebox-tempest-plugin
+      sudo pip install whitebox-tempest-plugin
 
 2. Configure Tempest.
 
    The exact configuration will depend on the deployment. There is no
    configuration reference yet, have a look at
    ``whitebox_tempest_plugin/config.py`` instead. As an example, here is a
-   configuration for a multinode TripleO deployment::
-
-   .. code-block:: ini
+   configuration for a multinode TripleO deployment. ::
 
       [whitebox]
       ctlplane_addresses = compute-0.localdomain:192.168.24.6,compute-1.localdomain:192.168.24.12

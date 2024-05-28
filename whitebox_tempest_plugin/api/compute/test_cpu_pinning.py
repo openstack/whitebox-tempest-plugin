@@ -235,8 +235,12 @@ class CPUPolicyTest(BasePinningTest):
                 cpu_pinnings_a,
                 cpu_pinnings_b))
 
+    @testtools.skipUnless(CONF.whitebox_hardware.realtime_mask,
+                          'Realtime mask was not provided.')
     def test_realtime_cpu(self):
-        realtime_mask = '1-2'
+        realtime_mask = CONF.whitebox_hardware.realtime_mask
+        realtime_set = hardware.parse_cpu_spec(realtime_mask)
+        vcpu_count = len(realtime_set) + 1
 
         specs = self.dedicated_cpu_policy.copy()
         specs.update({
@@ -244,7 +248,7 @@ class CPUPolicyTest(BasePinningTest):
             'hw:cpu_realtime_mask': realtime_mask,
         })
 
-        flavor = self.create_flavor(vcpus=3, extra_specs=specs)
+        flavor = self.create_flavor(vcpus=vcpu_count, extra_specs=specs)
         server = self.create_test_server(
             flavor=flavor['id'], wait_until='ACTIVE')
 

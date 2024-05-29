@@ -22,6 +22,8 @@ from tempest.common import waiters
 from tempest import config
 from tempest.lib.common.utils import data_utils
 from tempest.lib.common.utils import test_utils
+from time import sleep
+from whitebox_tempest_plugin.common import waiters as wb_waiters
 
 from whitebox_tempest_plugin.services import clients
 
@@ -134,6 +136,21 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
         virshxml = clients.VirshXMLClient(host)
         xml = virshxml.dumpxml(server_instance_name)
         return ET.fromstring(xml)
+
+    def shutdown_server_on_host(self, server_id, host):
+        # This runs virsh shutdown commands on host
+        server = self.os_admin.servers_client.show_server(server_id)['server']
+        domain = server['OS-EXT-SRV-ATTR:instance_name']
+
+        ssh_cl = clients.SSHClient(host)
+        cmd = "virsh shutdown %s " % domain
+        ssh_cl.execute(cmd, sudo=True)
+        msg, wait_counter = domain, 0
+        cmd = "virsh list --name"
+        while domain in msg and wait_counter < 6:
+            sleep(10)
+            msg = ssh_cl.execute(cmd, sudo=True)
+            wait_counter += 1
 
     def get_server_blockdevice_path(self, server_id, device_name):
         host = self.get_host_for_server(server_id)
@@ -448,3 +465,9 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
         root = self.get_server_xml(server_id)
         huge_pages = root.findall('.memoryBacking/hugepages/page')
         return huge_pages
+
+    def evacuate_server(self, server_id, **kwargs):
+        """Evacuate server and wait for server migration to complete.
+        """
+        self.admin_servers_client.evacuate_server(server_id, **kwargs)
+        wb_waiters.wait_for_server_migration_complete(self.os_admin, server_id)

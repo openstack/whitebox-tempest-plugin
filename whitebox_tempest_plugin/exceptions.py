@@ -26,3 +26,7 @@ class MissingServiceSectionException(exceptions.TempestException):
 
 class InvalidCPUSpec(exceptions.TempestException):
     message = "CPU spec is invalid: %(spec)s."
+
+
+class MigrationException(exceptions.TempestException):
+    message = "Migration Failed: %(msg)s."

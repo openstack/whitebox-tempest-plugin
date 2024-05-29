@@ -15,8 +15,8 @@
 
 from tempest.common import waiters
 from tempest import config
-
 from whitebox_tempest_plugin.api.compute import base
+from whitebox_tempest_plugin.services import clients
 
 from oslo_log import log as logging
 
@@ -206,5 +206,45 @@ class VDPAResizeInstance(VDPASmokeTests):
         # correct in pci_devices table of openstack DB
         self._verify_neutron_port_binding(
             server['id'],
+            port['port']['id']
+        )
+
+
+class VDPAEvacuateInstance(VDPASmokeTests):
+
+    min_microversion = '2.95'
+
+    @classmethod
+    def skip_checks(cls):
+        super(VDPAEvacuateInstance, cls).skip_checks()
+        if CONF.compute.min_compute_nodes < 2:
+            msg = "Need two or more compute nodes to execute evacuate."
+            raise cls.skipException(msg)
+
+    def test_evacuate_server_vdpa(self):
+        # Create an instance with a vDPA port and evacuate
+        port = self._create_port_from_vnic_type(
+            net=self.network,
+            vnic_type='vdpa'
+        )
+        server = self.create_test_server(
+            networks=[{'port': port['port']['id']}],
+            wait_until='ACTIVE'
+        )
+        server_id = server['id']
+        host_a = self.get_host_for_server(server_id)
+
+        host_a_svc = clients.NovaServiceManager(
+            host_a, 'nova-compute', self.os_admin.services_client)
+
+        with host_a_svc.stopped():
+            self.shutdown_server_on_host(server_id, host_a)
+            self.evacuate_server(server_id)
+
+        self.assertNotEqual(self.get_host_for_server(server_id), host_a)
+        # Confirm dev_type, allocation status, and pci address information are
+        # correct in pci_devices table of openstack DB
+        self._verify_neutron_port_binding(
+            server_id,
             port['port']['id']
         )

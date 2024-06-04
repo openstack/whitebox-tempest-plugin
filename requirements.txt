@@ -17,3 +17,4 @@ pymysql
 # the vTPM tests require it
 barbican-tempest-plugin<=1.6.0;python_version<='3.6'
 barbican-tempest-plugin;python_version>'3.6'
+ddt>=1.7.2

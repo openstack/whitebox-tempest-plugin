@@ -148,8 +148,8 @@
     required-projects:
       openstack/whitebox-tempest-plugin
     pre-run: playbooks/whitebox/pre.yaml
-    irrelevant-files:
-      - ^whitebox_tempest_plugin/api/compute/(?!test_rbd_direct_download).*py$
+    files:
+      - whitebox_tempest_plugin/api/compute/test_rbd_direct_download.py$
     vars:
       tox_envlist: all
       compute_node_template_name: whitebox-devstack-ceph-multinode.yaml.j2

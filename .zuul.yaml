@@ -47,6 +47,7 @@
       - ^test-requirements.txt$
     vars:
       tox_envlist: all
+      tempest_concurrency: 1
       tempest_test_regex: ^whitebox_tempest_plugin\.
       # NOTE(jparker) in order for guest to boot via UEFI, the host will need the
       # open source implementation of UEFI for VMs via the OVMF package. In
@@ -152,6 +153,7 @@
       - ^whitebox_tempest_plugin/api/compute/(?!test_rbd_direct_download).*py$
     vars:
       tox_envlist: all
+      tempest_concurrency: 1
       compute_node_template_name: whitebox-devstack-ceph-multinode.yaml.j2
       devstack_plugins:
         whitebox-tempest-plugin: https://opendev.org/openstack/whitebox-tempest-plugin.git

@@ -39,11 +39,6 @@ LOG = logging.getLogger(__name__)
 
 class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
 
-    # Decorator support for serial does not land into tempest until 34.0.0.
-    # Explicitly setting _serial to True instead of using the decorator to
-    # avoid clashing with downstream execution.
-    _serial = True
-
     def create_test_server(self, *args, **kwargs):
         """Whitebox is able to completely fill its compute hosts because it
         runs with things like PCI devices and dedicated CPUs. Because of that

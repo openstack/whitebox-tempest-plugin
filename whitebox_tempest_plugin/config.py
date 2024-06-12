@@ -244,6 +244,10 @@ hardware_opts = [
         default=0,
         help='Number of pCPUs allocated for cpu_shared_set per NUMA'),
     cfg.StrOpt(
+        'realtime_mask',
+        default=None,
+        help='CPU mask used when configuring hw:cpu_realtime_mask'),
+    cfg.StrOpt(
         'sriov_physnet',
         default=None,
         help='The physnet to use when creating sr-iov ports'),

@@ -43,7 +43,9 @@ class TestStableCpuId(base.BaseWhiteboxComputeTest):
         for hypervisor in hypervisors:
             name = hypervisor['hypervisor_hostname']
             ssh_client = clients.SSHClient(name)
-            uuid_on_disk = ssh_client.execute(f'cat {compute_id_path}')
+            uuid_on_disk = ssh_client.execute(f'cat {compute_id_path}',
+                                              sudo=True)
+            uuid_on_disk = uuid_on_disk.rstrip()
             self.assertEqual(
                 hypervisor['id'],
                 uuid_on_disk,

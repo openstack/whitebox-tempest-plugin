@@ -231,7 +231,7 @@ class VGPUTest(base.BaseWhiteboxComputeTest):
             "./devices/hostdev[@type='mdev']"
         )
 
-        # Validate the numer of mdev host devices is equal to the expected
+        # Validate the number of mdev host devices is equal to the expected
         # count provided to the method
         self.assertEqual(
             expected_device_count, len(vgpu_devices), "Expected %d "
@@ -438,7 +438,7 @@ class VGPUColdMigration(VGPUTest):
             'but instead found %d' %
             (src_host, pre_src_usage, current_dest_usage))
 
-        # Do a final sanity check of the guest after the rever to confirm the
+        # Do a final sanity check of the guest after the revert to confirm the
         # vgpu device is present in the XML and vendor id is present in sysfs
         self._validate_vgpu_instance(
             server,
@@ -595,7 +595,7 @@ class VGPUMultiTypes(VGPUTest):
         host. From there check the uuid of the vgpu device assigned to the
         guest. Using the uuid, check mdev type of the host via
         /sys/bus/mdev/devices/<uuid> and confirm the mdev_type there matches
-        the exepected mdev_type provided to the guest.
+        the expected mdev_type provided to the guest.
         """
         custom_traits = CONF.whitebox_hardware.vgpu_type_mapping
         for trait, expected_mdev_type in custom_traits.items():

@@ -170,7 +170,7 @@ database_opts = [
         help='Address of the database host. This is normally a controller.'),
     cfg.StrOpt(
         'internal_ip',
-        help='If the databse service is listening on separate internal '
+        help='If the database service is listening on separate internal '
              'network, this option specifies its IP on that network. It will '
              'be used to set up an SSH tunnel through the database host.'),
     cfg.StrOpt(

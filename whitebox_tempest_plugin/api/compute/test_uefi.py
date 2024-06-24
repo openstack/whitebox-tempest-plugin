@@ -14,6 +14,7 @@
 #    under the License.
 
 from oslo_log import log as logging
+from tempest.common import waiters
 from tempest import config
 import testtools
 
@@ -66,7 +67,7 @@ class TestUEFIBoot(base.BaseWhiteboxComputeTest):
             os_element.find('nvram'),
             'NVRAM element not present in guest %s' % server_id)
 
-    def test_uefi_boot(self):
+    def test_uefi_boot_and_rebuild(self):
         """Verify booting guest with UEFI enabled for image property"""
 
         image_properties = {'hw_firmware_type': 'uefi',
@@ -83,6 +84,28 @@ class TestUEFIBoot(base.BaseWhiteboxComputeTest):
         # is set to 'yes' and secure is set to 'no'.
         self._validate_uefi_os_xml_elements(
             server['id'], os_element, secure_boot=False)
+
+        # rebuild same instance with non-uefi image
+        non_uefi_image_id = CONF.compute.image_ref
+        server = self.servers_client.rebuild_server(
+            server['id'], image_ref=non_uefi_image_id)['server']
+        waiters.wait_for_server_status(self.servers_client,
+                                       server['id'], 'ACTIVE')
+        domain2 = self.get_server_xml(server['id'])
+        os_element2 = domain2.find("./os")
+        self.assertIsNone(os_element2.find('nvram'))
+        self.assertEmpty(os_element2.items())
+
+        # rebuild again with uefi image
+        server = self.servers_client.rebuild_server(
+            server['id'], image_ref=uefi_image_id)['server']
+        waiters.wait_for_server_status(self.servers_client,
+                                       server['id'], 'ACTIVE')
+        domain3 = self.get_server_xml(server['id'])
+        os_element3 = domain3.find("./os")
+
+        self._validate_uefi_os_xml_elements(
+            server['id'], os_element3, secure_boot=False)
 
     @testtools.skipUnless(CONF.compute_feature_enabled.uefi_secure_boot,
                           "Requires uefi secure boot to be enabled")

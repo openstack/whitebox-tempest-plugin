@@ -4,7 +4,7 @@
 
   tasks:
     - name: crudini
-      pip:
+      package:
           name: crudini
           state: present
       become: yes

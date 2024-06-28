@@ -20,40 +20,46 @@ from whitebox_tempest_plugin.api.compute import base
 @ddt.ddt
 class WatchdogDeviceTest(base.BaseWhiteboxComputeTest):
 
-    def _create_flavor_with_watchdog_property(self, action):
-        return self.create_flavor(
-            extra_specs={"hw:watchdog_action": action}
-        )
-
-    def _get_image_with_watchdog_property(self, action):
-        return self.copy_default_image(hw_watchdog_action=action)
-
     def _get_watchdog_action_from_xml(self, server_id):
         root = self.get_server_xml(server_id)
         return root.find(".devices/watchdog")
 
     @ddt.data('reset', 'poweroff', 'pause', 'none', 'disabled')
-    def test_actions_via_flavor(self, action):
-        flavor = self._create_flavor_with_watchdog_property(action)
+    def test_action_with_flavor(self, action):
+        flavor_id = self.create_flavor(
+            extra_specs={"hw:watchdog_action": action})['id']
         server = self.create_test_server(
-            flavor=flavor['id'], wait_until='ACTIVE')
+            flavor=flavor_id, wait_until='ACTIVE')
 
         watchdog_dev = self._get_watchdog_action_from_xml(server['id'])
+
         if action == 'disabled':
             # as watchdog is disabled there is no watchdog dev in xml
             self.assertIsNone(watchdog_dev)
         else:
             self.assertEqual(action, watchdog_dev.attrib['action'])
 
-    @ddt.data('reset', 'poweroff', 'pause', 'none', 'disabled')
-    def test_actions_via_image(self, action):
-        image_id = self._get_image_with_watchdog_property(action)
+    @ddt.data(
+        ('reset', 'pc'), ('poweroff', 'pc'), ('pause', 'pc'), ('none', 'pc'),
+        ('disabled', 'pc'),
+        ('reset', 'q35'), ('poweroff', 'q35'), ('pause', 'q35'),
+        ('none', 'q35'), ('disabled', 'q35')
+    )
+    @ddt.unpack
+    def test_action_with_image(self, action, m_type):
+        image_id = self.copy_default_image(
+            hw_watchdog_action=action,
+            hw_machine_type=m_type
+        )
         server = self.create_test_server(
             image_id=image_id, wait_until='ACTIVE')
 
         watchdog_dev = self._get_watchdog_action_from_xml(server['id'])
 
-        if action == 'disabled':
+        if m_type == 'q35' and action == 'disabled':
+            # for machine_type q35, disabled watchdog exist with 'reset'
+            self.assertEqual('reset', watchdog_dev.attrib['action'])
+        elif m_type == 'pc' and action == 'disabled':
             # as watchdog is disabled there is no watchdog dev in xml
             self.assertIsNone(watchdog_dev)
         else:

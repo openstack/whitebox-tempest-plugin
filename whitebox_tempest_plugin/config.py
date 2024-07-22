@@ -217,6 +217,14 @@ hardware_opts = [
         default=None,
         help='The product/device id of the underlying sriov PF port of the '
              'NIC. An example with Intel would be 1572'),
+    cfg.StrOpt(
+        'macvtap_virtio_vendor_id',
+        default=None,
+        help='The vendor id of the virtio interface device'),
+    cfg.StrOpt(
+        'macvtap_virtio_product_id',
+        default=None,
+        help='The product id of the virtio interface device'),
     cfg.ListOpt(
         'smt_hosts',
         default=[],

@@ -855,12 +855,12 @@ class SRIOVAttachAndDetach(SRIOVBase):
 
         return port
 
-    def _check_device_in_guest(self, linux_client, product_id):
+    def _check_device_in_guest(self, linux_client, vendor_id, product_id):
         """Check attached SR-IOV NIC is present in guest
 
         """
-        vendor = CONF.whitebox_hardware.sriov_nic_vendor_id
-        cmd = "lspci -nn  | grep {0}:{1} | wc -l".format(vendor, product_id)
+        cmd = "lspci -nn  | grep {0}:{1} | wc -l".format(
+            vendor_id, product_id)
         sys_out = linux_client.exec_command(cmd)
         self.assertIsNotNone(
             sys_out, 'Unable to find vendor id %s when checking the guest' %
@@ -959,6 +959,13 @@ class SRIOVAttachAndDetach(SRIOVBase):
             vnic_type=vnic_type
         )
 
+        if vnic_type == 'macvtap':
+            vendor_id = CONF.whitebox_hardware.macvtap_virtio_vendor_id
+            product_id = CONF.whitebox_hardware.macvtap_virtio_product_id
+        else:
+            vendor_id = CONF.whitebox_hardware.sriov_nic_vendor_id
+            product_id = CONF.whitebox_hardware.sriov_vf_product_id
+
         # Iterate over both servers, attaching the sr-iov port, checking the
         # the attach was successful from an API, XML, and guest level and
         # then detach the interface from the guest
@@ -986,9 +993,7 @@ class SRIOVAttachAndDetach(SRIOVBase):
                                              self.vlan_id)
 
             # Confirm the vendor and vf product id are present in the guest
-            self._check_device_in_guest(
-                linux_client,
-                CONF.whitebox_hardware.sriov_vf_product_id)
+            self._check_device_in_guest(linux_client, vendor_id, product_id)
 
             # Validate the port mappings are correct in the nova DB
             self._verify_neutron_port_binding(
@@ -1000,14 +1005,18 @@ class SRIOVAttachAndDetach(SRIOVBase):
             self.wait_for_port_detach(port['port']['id'])
 
     @testtools.skipUnless(CONF.whitebox_hardware.sriov_vf_product_id,
+                          "Requires sriov NIC's VF Prodcut ID")
+    @testtools.skipUnless(CONF.whitebox_hardware.sriov_nic_vendor_id,
                           "Requires sriov NIC's VF ID")
     def test_sriov_direct_attach_detach_port(self):
         """Verify sriov direct port can be attached/detached from live guest
         """
         self._base_test_attach_and_detach_sriov_port(vnic_type='direct')
 
-    @testtools.skipUnless(CONF.whitebox_hardware.sriov_vf_product_id,
-                          "Requires sriov NIC's VF ID")
+    @testtools.skipUnless(CONF.whitebox_hardware.macvtap_virtio_product_id,
+                          "Requires sriov NIC's virtio product ID")
+    @testtools.skipUnless(CONF.whitebox_hardware.macvtap_virtio_vendor_id,
+                          "Requires sriov NIC's virtio vendor ID")
     def test_sriov_macvtap_attach_detach_port(self):
         """Verify sriov macvtap port can be attached/detached from live guest
         """
@@ -1064,6 +1073,7 @@ class SRIOVAttachAndDetach(SRIOVBase):
             # are present in the guest
             self._check_device_in_guest(
                 linux_client,
+                CONF.whitebox_hardware.sriov_nic_vendor_id,
                 CONF.whitebox_hardware.sriov_pf_product_id)
 
             # Confirm the nova db mappings for the port are correct

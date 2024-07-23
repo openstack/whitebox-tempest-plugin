@@ -2,13 +2,13 @@
     name: nested-virt-multinode
     nodes:
       - name: controller
-        label: nested-virt-ubuntu-jammy
+        label: nested-virt-ubuntu-noble
         # NOTE(artom) We can't name the node 'compute' because that seems to
         # take precedence over the 'compute' group in playbooks, so things we
         # want to run on all hosts in the 'compute' group would only run on the
         # subnode.
       - name: compute-host
-        label: nested-virt-ubuntu-jammy
+        label: nested-virt-ubuntu-noble
     groups:
       # Node where tests are executed and test results collected
       - name: tempest
@@ -55,6 +55,8 @@
       extra_packages: ovmf,swtpm-tools
       tempest_exclude_regex: ^whitebox_tempest_plugin\.api\.compute\.test_hugepages
       compute_node_template_name: whitebox-devstack-multinode.yaml.j2
+      devstack_services:
+        br-ex-tcpdump: false
       devstack_localrc:
         MAX_COMPUTE_NODES: 2
         NOVA_SERVICE_REPORT_INTERVAL: 10
@@ -94,6 +96,8 @@
               swtpm_group: swtpm
     group-vars:
       subnode:
+        devstack_services:
+          br-ex-tcpdump: false
         devstack_localrc:
           LIBVIRT_TYPE: kvm
           NOVA_SERVICE_REPORT_INTERVAL: 10
@@ -151,6 +155,7 @@
     pre-run: playbooks/whitebox/pre.yaml
     files:
       - whitebox_tempest_plugin/api/compute/test_rbd_direct_download.py$
+      - .zuul.yaml$
     vars:
       tox_envlist: all
       tempest_concurrency: 1

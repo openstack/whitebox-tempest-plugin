@@ -357,6 +357,6 @@ compute_features_group_opts = [
                 default=False,
                 help="Libvirt CPU power management is turned on."),
     cfg.BoolOpt('vencrypt',
-                default=False,
+                default=True,
                 help="verify vnc console tls."),
 ]

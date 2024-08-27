@@ -19,14 +19,14 @@ from tempest.lib import exceptions as lib_exc
 from whitebox_tempest_plugin.exceptions import MigrationException
 
 
-def wait_for_nova_service_state(client, host, binary, state):
+def wait_for_nova_service_state(client, host, binary, status_field, state):
     timeout = client.build_timeout
     start_time = int(time.time())
     # NOTE(artom) Assumes that the (host, binary) combination will yield a
     # unique service. There is no service in Nova that can run multiple copies
     # on the same host.
     service = client.list_services(host=host, binary=binary)['services'][0]
-    while service['state'] != state:
+    while service[status_field] != state:
         time.sleep(client.build_interval)
         timed_out = int(time.time()) - start_time >= timeout
         if timed_out:

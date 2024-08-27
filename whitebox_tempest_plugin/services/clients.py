@@ -232,12 +232,14 @@ class NovaServiceManager(ServiceManager):
         super(NovaServiceManager, self).__init__(host, service)
         self.services_client = services_client
         self.host = host
+        self.status_field = 'state'
 
     def start(self):
         result = self.execute(self.start_command, sudo=True)
         waiters.wait_for_nova_service_state(self.services_client,
                                             self.host,
                                             self.service,
+                                            self.status_field,
                                             'up')
         return result
 
@@ -246,6 +248,7 @@ class NovaServiceManager(ServiceManager):
         waiters.wait_for_nova_service_state(self.services_client,
                                             self.host,
                                             self.service,
+                                            self.status_field,
                                             'down')
         return result
 
@@ -262,6 +265,37 @@ class NovaServiceManager(ServiceManager):
         if not dedicated_set:
             return set()
         return hardware.parse_cpu_spec(dedicated_set)
+
+
+class VirtQEMUdManager(ServiceManager):
+    """A services manager for Nova services that uses Nova's service API to be
+    smarter about stopping and restarting services.
+    """
+
+    def __init__(self, host, service, services_client):
+        super(VirtQEMUdManager, self).__init__(host, service)
+        self.services_client = services_client
+        self.binary = 'nova-compute'
+        self.host = host
+        self.status_field = 'status'
+
+    def start(self):
+        result = self.execute(self.start_command, sudo=True)
+        waiters.wait_for_nova_service_state(self.services_client,
+                                            self.host,
+                                            self.binary,
+                                            self.status_field,
+                                            'enabled')
+        return result
+
+    def stop(self):
+        result = self.execute(self.stop_command, sudo=True)
+        waiters.wait_for_nova_service_state(self.services_client,
+                                            self.host,
+                                            self.binary,
+                                            self.status_field,
+                                            'disabled')
+        return result
 
 
 class NUMAClient(SSHClient):

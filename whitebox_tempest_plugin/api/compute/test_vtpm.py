@@ -18,6 +18,7 @@ from tempest.exceptions import BuildErrorException
 from tempest.lib.services import clients
 
 from whitebox_tempest_plugin.api.compute import base
+from whitebox_tempest_plugin.services import clients as wb_clients
 
 CONF = config.CONF
 
@@ -124,3 +125,12 @@ class VTPMTest(base.BaseWhiteboxComputeTest):
                           self.create_test_server,
                           flavor=vtpm_flavor['id'],
                           wait_until='ACTIVE')
+
+    def test_vtpm_creation_after_virtqemud_restart(self):
+        # Test validates vTPM instance creation after libvirt service restart
+        hosts = self.list_compute_hosts()
+        for host in hosts:
+            host_svc = wb_clients.VirtQEMUdManager(
+                host, 'libvirt', self.os_admin.services_client)
+            host_svc.restart()
+        self._vptm_server_creation_check('tpm-crb', '2.0')

@@ -89,10 +89,14 @@ class LogParserClient(SSHClient):
     def parse(self, query_string):
         log_query_command = CONF.whitebox_nova_compute.log_query_command
         if log_query_command == 'zgrep':
-            command = 'sh -c "zgrep \'%s\' /var/log/nova/*"' % query_string
+            command = f'sh -c "zgrep \'{query_string}\' /var/log/nova/*"'
         else:
-            command = 'journalctl -u devstack@n-cpu -g \'%s\'' % query_string
-        return self.execute(command, container_name='nova_compute', sudo=True)
+            unit = CONF.whitebox_nova_compute.journalctl_unit
+            command = f'journalctl -u {unit} -g \'{query_string}\''
+            services_dict = self.host_parameters.get('services', {})
+            nova_compute_srvc = services_dict.get('nova-compute')
+            container_name = nova_compute_srvc.get('container_name')
+        return self.execute(command, container_name=container_name, sudo=True)
 
 
 class QEMUImgClient(SSHClient):

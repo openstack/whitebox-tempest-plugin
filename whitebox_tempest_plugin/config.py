@@ -154,6 +154,10 @@ nova_compute_opts = [
              "Currently, supported values are 'journalctl' (default) "
              "for devstack and 'zgrep' for TripleO"),
     cfg.StrOpt(
+        'journalctl_unit',
+        default="devstack@n-cpu",
+        help="Unit to access when doing log query via journalctl"),
+    cfg.StrOpt(
         'state_path',
         default="/var/lib/nova",
         help='The [DEFAULT]state_path passed to nova-compute. '

@@ -168,6 +168,7 @@
         whitebox-tempest-plugin: https://opendev.org/openstack/whitebox-tempest-plugin.git
       tempest_test_regex: '^whitebox_tempest_plugin.api.compute.test_rbd_direct_download'
       devstack_localrc:
+        NOVA_SERVICE_REPORT_INTERVAL: 10
         COMPUTE_FEATURE_RBD_DOWNLOAD: True
         TEMPEST_PLUGINS: /opt/stack/whitebox-tempest-plugin
         WHITEBOX_PRIVKEY_PATH: /home/tempest/.ssh/id_rsa

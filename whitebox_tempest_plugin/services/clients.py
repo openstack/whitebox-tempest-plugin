@@ -268,8 +268,10 @@ class NovaServiceManager(ServiceManager):
 
 
 class VirtQEMUdManager(ServiceManager):
-    """A services manager for Nova services that uses Nova's service API to be
-    smarter about stopping and restarting services.
+    """A services manager for VirtQEMUd that uses Nova API as the monitoring
+    mechanism for tracking the status of libvirtd. This is possible because
+    Nova API will report its status as either 'enabled/disabled' based on if
+    libvirt is up or down.
     """
 
     def __init__(self, host, service, services_client):

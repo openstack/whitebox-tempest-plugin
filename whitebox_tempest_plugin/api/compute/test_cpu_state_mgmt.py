@@ -42,6 +42,10 @@ class TestCPUStateMgmt(base.BaseWhiteboxComputeTest):
                                         self.os_admin.services_client)
         dedicated_cpus = sm.get_cpu_dedicated_set()
         shared_cpus = sm.get_cpu_shared_set()
+        # Nova offlines all unused cpu's from the dedicated set
+        # except for cpu0 because it is not hot pluggable
+        # Hence modifying to exclude it avoid false test failures.
+        dedicated_cpus.discard(0)
 
         if len(dedicated_cpus) < 2:
             raise self.skipException('Multiple dedicated CPUs required')

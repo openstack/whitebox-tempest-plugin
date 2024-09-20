@@ -156,51 +156,20 @@ class BasePinningTest(base.BaseWhiteboxComputeTest,
 class CPUPolicyTest(BasePinningTest):
     """Validate CPU policy support."""
 
-    minimum_shared_cpus = 2
-    minimum_dedicated_cpus = 2
-
-    def setUp(self):
-        super().setUp()
-        self.hosts_details = whitebox_utils.get_all_hosts_details()
-
-        # Get the configured shared CPUs of each compute host and confirm
-        # that every host has the minimum number of shared CPUs necessary
-        # to perform test
-        shared_cpus_per_host = self._get_shared_set_size()
-        if any(len(cpus) < self.minimum_shared_cpus for cpus in
-               shared_cpus_per_host):
-            raise self.skipException(
-                'A Host in the deployment does not have the minimum required '
-                '%s shared cpus necessary to execute the tests' %
-                (self.minimum_shared_cpus))
-        available_shared_vcpus = \
-            min(shared_cpus_per_host, key=lambda x: len(x))
-
-        # Get the configured dedicated CPUs of each compute host and confirm
-        # that every host has the minimum number of shared CPUs necessary
-        # to perform test
-        dedicated_cpus_per_host = self._get_dedicated_set_size()
-        if any(len(cpus) < self.minimum_dedicated_cpus for cpus in
-               dedicated_cpus_per_host):
-            raise self.skipException(
-                'A Host in the deployment does not have the minimum required '
-                '%s dedicated cpus necessary to execute the tests' %
-                (self.minimum_dedicated_cpus))
-        available_dedicated_vcpus = \
-            min(dedicated_cpus_per_host, key=lambda x: len(x))
-
-        # Calculate the number of cpus to use in the flavors such the total
-        # size allows for two guests are capable to be scheduled to the same
-        # host
-        self.dedicated_cpus_per_guest = len(available_dedicated_vcpus) // 2
-        self.shared_vcpus_per_guest = len(available_shared_vcpus) // 2
-
+    @testtools.skipUnless(
+        CONF.whitebox_hardware.shared_cpus_per_numa > 0,
+        'Need one or more shared cpus per NUMA')
     def test_cpu_shared(self):
         """Ensure an instance with an explicit 'shared' policy work."""
-        flavor = self.create_flavor(vcpus=self.shared_vcpus_per_guest,
-                                    extra_specs=self.shared_cpu_policy)
+        shared_vcpus = CONF.whitebox_hardware.shared_cpus_per_numa
+        flavor = self.create_flavor(
+            vcpus=shared_vcpus,
+            extra_specs=self.shared_cpu_policy)
         self.create_test_server(flavor=flavor['id'], wait_until='ACTIVE')
 
+    @testtools.skipUnless(
+        CONF.whitebox_hardware.dedicated_cpus_per_numa >= 2,
+        'Need two or more dedicated cpus per NUMA')
     def test_cpu_dedicated(self):
         """Ensure an instance with 'dedicated' pinning policy work.
 
@@ -208,7 +177,9 @@ class CPUPolicyTest(BasePinningTest):
         default. However, we check specifics of that later and only assert that
         things aren't overlapping here.
         """
-        flavor = self.create_flavor(vcpus=self.dedicated_cpus_per_guest,
+        dedicated_vcpus_per_guest = \
+            CONF.whitebox_hardware.dedicated_cpus_per_numa // 2
+        flavor = self.create_flavor(vcpus=dedicated_vcpus_per_guest,
                                     extra_specs=self.dedicated_cpu_policy)
         server_a = self.create_test_server(flavor=flavor['id'],
                                            wait_until='ACTIVE')
@@ -258,10 +229,17 @@ class CPUPolicyTest(BasePinningTest):
 
     @testtools.skipUnless(CONF.compute_feature_enabled.resize,
                           'Resize not available.')
+    @testtools.skipUnless(
+        CONF.whitebox_hardware.shared_cpus_per_numa > 0,
+        'Need one or more shared cpu per NUMA')
+    @testtools.skipUnless(
+        CONF.whitebox_hardware.dedicated_cpus_per_numa > 0,
+        'Need at least one or more dedicated cpu per NUMA')
     def test_resize_pinned_server_to_unpinned(self):
         """Ensure resizing an instance to unpinned actually drops pinning."""
-        flavor_a = self.create_flavor(vcpus=self.dedicated_cpus_per_guest,
-                                      extra_specs=self.dedicated_cpu_policy)
+        flavor_a = self.create_flavor(
+            vcpus=CONF.whitebox_hardware.dedicated_cpus_per_numa,
+            extra_specs=self.dedicated_cpu_policy)
         server = self.create_test_server(flavor=flavor_a['id'],
                                          wait_until='ACTIVE')
 
@@ -273,8 +251,9 @@ class CPUPolicyTest(BasePinningTest):
             "Instance pinning %s should be a subset of pinning range %s"
             % (cpu_pinnings, dedicated_vcpus))
 
-        flavor_b = self.create_flavor(vcpus=self.shared_vcpus_per_guest,
-                                      extra_specs=self.shared_cpu_policy)
+        flavor_b = self.create_flavor(
+            vcpus=CONF.whitebox_hardware.shared_cpus_per_numa,
+            extra_specs=self.shared_cpu_policy)
         self.resize_server(server['id'], flavor_b['id'])
         cpu_pinnings = self.get_server_cpu_pinning(server['id'])
 
@@ -284,10 +263,17 @@ class CPUPolicyTest(BasePinningTest):
 
     @testtools.skipUnless(CONF.compute_feature_enabled.resize,
                           'Resize not available.')
+    @testtools.skipUnless(
+        CONF.whitebox_hardware.shared_cpus_per_numa > 0,
+        'Need one or more shared cpus per NUMA')
+    @testtools.skipUnless(
+        CONF.whitebox_hardware.dedicated_cpus_per_numa > 0,
+        'Need at least one or more dedicated cpus per NUMA')
     def test_resize_unpinned_server_to_pinned(self):
         """Ensure resizing an instance to pinned actually applies pinning."""
-        flavor_a = self.create_flavor(vcpus=self.shared_vcpus_per_guest,
-                                      extra_specs=self.shared_cpu_policy)
+        flavor_a = self.create_flavor(
+            vcpus=CONF.whitebox_hardware.shared_cpus_per_numa,
+            extra_specs=self.shared_cpu_policy)
         server = self.create_test_server(flavor=flavor_a['id'],
                                          wait_until='ACTIVE')
         cpu_pinnings = self.get_server_cpu_pinning(server['id'])
@@ -296,8 +282,9 @@ class CPUPolicyTest(BasePinningTest):
             len(cpu_pinnings), 0,
             "Instance should be unpinned but is pinned")
 
-        flavor_b = self.create_flavor(vcpus=self.dedicated_cpus_per_guest,
-                                      extra_specs=self.dedicated_cpu_policy)
+        flavor_b = self.create_flavor(
+            vcpus=CONF.whitebox_hardware.dedicated_cpus_per_numa,
+            extra_specs=self.dedicated_cpu_policy)
         self.resize_server(server['id'], flavor_b['id'])
 
         cpu_pinnings = self.get_server_cpu_pinning(server['id'])
@@ -308,10 +295,14 @@ class CPUPolicyTest(BasePinningTest):
             "After resize instance %s pinning %s should be a subset of "
             "pinning range %s" % (server['id'], cpu_pinnings, dedicated_vcpus))
 
+    @testtools.skipUnless(
+        CONF.whitebox_hardware.dedicated_cpus_per_numa > 0,
+        'Need at least one or more dedicated cpus per NUMA')
     def test_reboot_pinned_server(self):
         """Ensure pinning information is persisted after a reboot."""
-        flavor = self.create_flavor(vcpus=self.dedicated_cpus_per_guest,
-                                    extra_specs=self.dedicated_cpu_policy)
+        flavor = self.create_flavor(
+            vcpus=CONF.whitebox_hardware.dedicated_cpus_per_numa,
+            extra_specs=self.dedicated_cpu_policy)
         server = self.create_test_server(flavor=flavor['id'],
                                          wait_until='ACTIVE')
 

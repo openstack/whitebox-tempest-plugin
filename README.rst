@@ -54,6 +54,41 @@ Install, configure and run
       containers = true
       max_compute_nodes = 2 # Some tests depend on there being a single (available) compute node
 
+   Here is an example for a two-node DevStack deployment:
+
+   .. code-block:: ini
+
+      [whitebox]
+      nodes_yaml = /opt/stack/whitebox-tempest-plugin/nodes.yaml
+      ctlplane_ssh_username = vagrant
+      ctlplane_ssh_private_key_path = /home/vagrant/.ssh/id_rsa
+
+   with a ``nodes.yaml`` file that looks something like:
+
+   .. code-block:: yaml
+
+      controller:
+        services:
+          libvirt:
+            start-command: 'systemctl start libvirtd'
+            stop_command: 'systemctl stop libvirtd'
+          nova-compute:
+            config_path: '/etc/nova/nova-cpu.conf'
+            start_command: 'systemctl start devstack@n-cpu'
+            stop_command: 'systemctl stop devstack@n-cpu'
+      compute1:
+        services:
+          libvirt:
+            start-command: 'systemctl start libvirtd'
+            stop_command: 'systemctl stop libvirtd'
+          nova-compute:
+            config_path: '/etc/nova/nova-cpu.conf'
+            start_command: 'systemctl start devstack@n-cpu'
+            stop_command: 'systemctl stop devstack@n-cpu'
+
+   where ``controller`` is the hostname of the controller node and
+   ``compute1`` is the hostname of the second node running nova-compute.
+
 3. Execute the tests. ::
 
      tempest run --serial --regex whitebox_tempest_plugin.

@@ -14,6 +14,7 @@
 #    under the License.
 
 import six
+import time
 import xml.etree.ElementTree as ET
 
 from oslo_log import log as logging
@@ -22,9 +23,9 @@ from tempest.common import waiters
 from tempest import config
 from tempest.lib.common.utils import data_utils
 from tempest.lib.common.utils import test_utils
-from time import sleep
-from whitebox_tempest_plugin.common import waiters as wb_waiters
+from tempest.lib import exceptions as lib_exc
 
+from whitebox_tempest_plugin.common import waiters as wb_waiters
 from whitebox_tempest_plugin.services import clients
 
 if six.PY2:
@@ -132,20 +133,28 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
         xml = virshxml.dumpxml(server_instance_name)
         return ET.fromstring(xml)
 
-    def shutdown_server_on_host(self, server_id, host):
-        # This runs virsh shutdown commands on host
-        server = self.os_admin.servers_client.show_server(server_id)['server']
-        domain = server['OS-EXT-SRV-ATTR:instance_name']
+    def shutdown_server_domain(self, server, host):
+        server_details = \
+            self.admin_servers_client.show_server(server['id'])['server']
+        domain_name = server_details['OS-EXT-SRV-ATTR:instance_name']
+        ssh_client = clients.SSHClient(host)
+        ssh_client.execute('virsh shutdown %s' % domain_name, sudo=True)
+        self._wait_for_domain_shutdown(ssh_client, domain_name)
 
-        ssh_cl = clients.SSHClient(host)
-        cmd = "virsh shutdown %s " % domain
-        ssh_cl.execute(cmd, sudo=True)
-        msg, wait_counter = domain, 0
-        cmd = "virsh list --name"
-        while domain in msg and wait_counter < 6:
-            sleep(10)
-            msg = ssh_cl.execute(cmd, sudo=True)
-            wait_counter += 1
+    def _wait_for_domain_shutdown(self, ssh_client, domain_name):
+        start_time = int(time.time())
+        timeout = CONF.compute.build_timeout
+        interval = CONF.compute.build_interval
+        while int(time.time()) - start_time <= timeout:
+            domains = ssh_client.execute('virsh list --name', sudo=True)
+            if domain_name in domains:
+                continue
+            else:
+                break
+            time.sleep(interval)
+        else:
+            raise lib_exc.TimeoutException(
+                'Failed to shutdown domain within the required time.')
 
     def get_server_blockdevice_path(self, server_id, device_name):
         host = self.get_host_for_server(server_id)

@@ -36,8 +36,8 @@ class ServerEvacuation(base.BaseWhiteboxComputeTest):
             raise cls.skipException(msg)
 
     def test_evacuate_to_shutoff(self):
-        server_id = self.create_test_server(wait_until="ACTIVE")['id']
-        host_a = self.get_host_for_server(server_id)
+        server = self.create_test_server(wait_until="ACTIVE")
+        host_a = self.get_host_for_server(server['id'])
 
         # set compute service down in host-A
         host_a_svc = clients.NovaServiceManager(
@@ -46,29 +46,31 @@ class ServerEvacuation(base.BaseWhiteboxComputeTest):
         with host_a_svc.stopped():
             # as compute service is down at src host,
             # shutdown server using virsh
-            self.shutdown_server_on_host(server_id, host_a)
-            self.evacuate_server(server_id)
+            self.shutdown_server_domain(server, host_a)
+            self.evacuate_server(server['id'])
 
         # after evacuation server stays stopped at destination
-        self.assertNotEqual(self.get_host_for_server(server_id), host_a)
-        server = self.os_admin.servers_client.show_server(server_id)['server']
+        self.assertNotEqual(self.get_host_for_server(server['id']), host_a)
+        server = self.os_admin.servers_client.show_server(
+            server['id'])['server']
         self.assertEqual(server['status'], 'SHUTOFF')
 
     def test_evacuate_with_target_host(self):
-        server_id = self.create_test_server(wait_until="ACTIVE")['id']
-        host_a = self.get_host_for_server(server_id)
-        host_b = self.get_host_other_than(server_id)
+        server = self.create_test_server(wait_until="ACTIVE")
+        host_a = self.get_host_for_server(server['id'])
+        host_b = self.get_host_other_than(server['id'])
 
         host_a_svc = clients.NovaServiceManager(
             host_a, 'nova-compute', self.os_admin.services_client)
 
         with host_a_svc.stopped():
-            self.shutdown_server_on_host(server_id, host_a)
+            self.shutdown_server_domain(server, host_a)
             # pass target host
-            self.evacuate_server(server_id, host=host_b)
+            self.evacuate_server(server['id'], host=host_b)
 
-        self.assertEqual(self.get_host_for_server(server_id), host_b)
-        server = self.os_admin.servers_client.show_server(server_id)['server']
+        self.assertEqual(self.get_host_for_server(server['id']), host_b)
+        server = self.os_admin.servers_client.show_server(
+            server['id'])['server']
         self.assertEqual(server['status'], 'SHUTOFF')
 
     def test_evacuate_attached_vol(self):
@@ -93,7 +95,7 @@ class ServerEvacuation(base.BaseWhiteboxComputeTest):
             host_a, 'nova-compute', self.os_admin.services_client)
 
         with host_a_svc.stopped():
-            self.shutdown_server_on_host(server_id, host_a)
+            self.shutdown_server_domain(server, host_a)
             self.evacuate_server(server_id)
 
         self.assertNotEqual(self.get_host_for_server(server_id), host_a)
@@ -116,7 +118,7 @@ class ServerEvacuation(base.BaseWhiteboxComputeTest):
         vol_id = server['os-extended-volumes:volumes_attached'][0]['id']
 
         with host_a_svc.stopped():
-            self.shutdown_server_on_host(server_id, host_a)
+            self.shutdown_server_domain(server, host_a)
             self.evacuate_server(server_id)
 
         self.assertNotEqual(self.get_host_for_server(server_id), host_a)
@@ -140,8 +142,8 @@ class ServerEvacuationV294(base.BaseWhiteboxComputeTest):
             raise cls.skipException(msg)
 
     def test_evacuate_to_active(self):
-        server_id = self.create_test_server(wait_until="ACTIVE")['id']
-        host_a = self.get_host_for_server(server_id)
+        server = self.create_test_server(wait_until="ACTIVE")
+        host_a = self.get_host_for_server(server['id'])
 
         # set compute service down in host-A
         host_a_svc = clients.NovaServiceManager(
@@ -150,10 +152,11 @@ class ServerEvacuationV294(base.BaseWhiteboxComputeTest):
         with host_a_svc.stopped():
             # as compute service is down at src host,
             # shutdown server using virsh
-            self.shutdown_server_on_host(server_id, host_a)
-            self.evacuate_server(server_id)
+            self.shutdown_server_domain(server, host_a)
+            self.evacuate_server(server['id'])
 
         # after evacuation server starts by itself at destination
-        self.assertNotEqual(self.get_host_for_server(server_id), host_a)
-        server = self.os_admin.servers_client.show_server(server_id)['server']
+        self.assertNotEqual(self.get_host_for_server(server['id']), host_a)
+        server = self.os_admin.servers_client.show_server(
+            server['id'])['server']
         self.assertEqual(server['status'], 'ACTIVE')

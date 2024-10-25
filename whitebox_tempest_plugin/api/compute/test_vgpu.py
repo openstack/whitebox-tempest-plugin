@@ -647,7 +647,7 @@ class VGPUServerEvacuation(VGPUTest):
             src_host, 'nova-compute', self.os_admin.services_client)
 
         with host_a_svc.stopped():
-            self.shutdown_server_on_host(server['id'], src_host)
+            self.shutdown_server_domain(server, src_host)
             self.evacuate_server(server['id'])
 
         self.assertEqual(self.get_host_for_server(server['id']), dest_host)

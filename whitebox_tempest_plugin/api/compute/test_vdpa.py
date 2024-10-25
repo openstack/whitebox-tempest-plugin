@@ -238,7 +238,7 @@ class VDPAEvacuateInstance(VDPASmokeTests):
             host_a, 'nova-compute', self.os_admin.services_client)
 
         with host_a_svc.stopped():
-            self.shutdown_server_on_host(server_id, host_a)
+            self.shutdown_server_domain(server, host_a)
             self.evacuate_server(server_id)
 
         self.assertNotEqual(self.get_host_for_server(server_id), host_a)

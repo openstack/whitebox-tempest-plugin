@@ -98,9 +98,9 @@ class TestQEMUVolumeEncryption(base.BaseWhiteboxComputeTest):
             volume = encrypted_disk_xml_element.find('./source').get('name')
             user = encrypted_disk_xml_element.find('./auth').get('username')
             if user:
-                path = f"rbd:{volume}:id={user}"
+                path = "rbd:%s:id=%s" % (volume, user)
             else:
-                path = f"rbd:{volume}"
+                path = "rbd:%s" % volume
         else:
             path = encrypted_disk_xml_element.find('./source').get('dev')
 

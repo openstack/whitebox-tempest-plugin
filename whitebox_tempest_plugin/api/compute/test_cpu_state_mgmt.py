@@ -14,9 +14,14 @@
 #    under the License.
 
 from tempest.common import waiters
+from tempest import config
+
 from whitebox_tempest_plugin.api.compute import base
 from whitebox_tempest_plugin import hardware
 from whitebox_tempest_plugin.services import clients
+
+
+CONF = config.CONF
 
 
 class TestCPUStateMgmt(base.BaseWhiteboxComputeTest):
@@ -28,6 +33,9 @@ class TestCPUStateMgmt(base.BaseWhiteboxComputeTest):
     @classmethod
     def skip_checks(cls):
         super(TestCPUStateMgmt, cls).skip_checks()
+        if not CONF.compute_feature_enabled.cpu_power_management:
+            raise cls.skipException(
+                'Libvirt CPU power is unavailable, skipping.')
 
     def setUp(self):
         super(TestCPUStateMgmt, self).setUp()

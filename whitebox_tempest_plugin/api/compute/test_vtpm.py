@@ -15,6 +15,7 @@
 
 from tempest import config
 from tempest.exceptions import BuildErrorException
+from tempest.lib.exceptions import ServerFault
 from tempest.lib.services import clients
 
 from whitebox_tempest_plugin.api.compute import base
@@ -120,11 +121,23 @@ class VTPMTest(base.BaseWhiteboxComputeTest):
         # combination model
         flavor_specs = {'hw:tpm_version': '1.2',
                         'hw:tpm_model': '2.0'}
+
+        # Starting with 2.86, Nova validates flavor extra specs. Since the
+        # tpm_model in this test is an invalid value for the flavor request
+        # it will result in a ServerFault being thrown via Nova-API, instead
+        # of failing later in the path and throwing a BuildErrorException.
         vtpm_flavor = self.create_flavor(extra_specs=flavor_specs)
-        self.assertRaises(BuildErrorException,
-                          self.create_test_server,
-                          flavor=vtpm_flavor['id'],
-                          wait_until='ACTIVE')
+
+        if not CONF.compute_feature_enabled.unified_limits:
+            self.assertRaises(BuildErrorException,
+                              self.create_test_server,
+                              flavor=vtpm_flavor['id'],
+                              wait_until='ACTIVE')
+        else:
+            self.assertRaises(ServerFault,
+                              self.create_test_server,
+                              flavor=vtpm_flavor['id'],
+                              wait_until='ACTIVE')
 
     def test_vtpm_creation_after_virtqemud_restart(self):
         # Test validates vTPM instance creation after libvirt service restart

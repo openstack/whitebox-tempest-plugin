@@ -303,7 +303,20 @@ hardware_opts = [
         help='Host Socket topology, as a dictionary of <Socket ID>:'
              '<List of NUMA node IDs>. For example, if Socket 0 has '
              'NUMA nodes 0 and 1, and Socket 1 NUMA nodes 2 and 3, the value '
-             'to set would be `0: [0,1], 1: [2, 3]`.')
+             'to set would be `0: [0,1], 1: [2, 3]`.'),
+    cfg.StrOpt(
+        'pci_passthrough_alias',
+        default=None,
+        help='The alias to use when creating a flavor for pci passthrough.'),
+    cfg.ListOpt(
+        'pci_passthrough_addresses',
+        default=None,
+        help='List of underlying PCI device addresses that are potential '
+             'candidates for passthrough.'),
+    cfg.StrOpt(
+        'pci_passthrough_resource_class',
+        default=None,
+        help='The resource class for PCI passthrough devices.')
 ]
 
 compute_features_group_opts = [

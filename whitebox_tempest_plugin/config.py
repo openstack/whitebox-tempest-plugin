@@ -139,6 +139,11 @@ general_opts = [
         default=64,
         help="RAM size in MB to use when launching the guests backed "
              "by hugepages."),
+    cfg.StrOpt(
+        'http_iso_image',
+        default='/opt/stack/devstack/files/Core-14.0.iso',
+        help='http iso image which will be used to create image in '
+             'glance and boot server from iso format image.'),
 ]
 
 nova_compute_group = cfg.OptGroup(

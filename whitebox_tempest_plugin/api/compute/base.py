@@ -75,6 +75,16 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
                                                                **extra_specs)
         return flavor
 
+    def create_keypair(self, **kwargs):
+        """Creates keypair"""
+        if not kwargs.get('name'):
+            kwargs['name'] = data_utils.rand_name(
+                prefix=CONF.resource_name_prefix,
+                name=self.__class__.__name__)
+        body = self.keypairs_client.create_keypair(**kwargs)
+        self.addCleanup(self.keypairs_client.delete_keypair, kwargs['name'])
+        return body['keypair']
+
     def reboot_server(self, server_id, type):
         """Reboot a server and wait for it to be ACTIVE."""
         self.servers_client.reboot_server(server_id, type=type)

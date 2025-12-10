@@ -76,6 +76,11 @@
             compute-feature-enabled:
               volume_backed_live_migration: true
               stable_compute_uuid_supported: true
+              # NOTE(jparker) Tests requiring uefi_boot are currently blocked by
+              # https://bugs.launchpad.net/nova/+bug/2122288. Disabling impacted
+              # testcases and will re-enable once fix has landed in stable
+              # branches
+              uefi_boot: false
             auth:
               tempest_roles: creator
         post-config:

@@ -458,17 +458,20 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
                 # type pci devices.
                 self.assertIn(pci_device['dev_type'], ['type-VF', 'type-PCI'])
 
-    def _get_pci_status_count(self, status):
+    def _get_pci_status_count(self, status, pci_address=None):
         """Return the number of pci devices that match the status argument
 
         :param status: str, value to query from the pci_devices table
+        :param pci_address: str, optional pci address to query for
         return int, the number of rows that match the provided status
         """
         db_client = clients.DatabaseClient()
         db = CONF.whitebox_database.nova_cell1_db_name
+        query = 'select COUNT(*) from pci_devices WHERE status = "%s"' % status
+        if pci_address:
+            query += ' AND address = "%s"' % pci_address
         with db_client.cursor(db) as cursor:
-            cursor.execute('select COUNT(*) from pci_devices WHERE '
-                           'status = "%s"' % status)
+            cursor.execute(query)
             data = cursor.fetchall()
         return data[0]['COUNT(*)']
 

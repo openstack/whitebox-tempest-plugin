@@ -13,10 +13,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from tempest import config
 import time
 
 from tempest.lib import exceptions as lib_exc
 from whitebox_tempest_plugin.exceptions import MigrationException
+
+
+CONF = config.CONF
 
 
 def wait_for_nova_service_state(client, host, binary, status_field, state):
@@ -53,3 +57,17 @@ def wait_for_server_migration_complete(os_admin, server_id):
         raise lib_exc.TimeoutException(
             'Evacuation failed, because server migration did not '
             'complete, within the required time: (%s s)' % timeout)
+
+
+def wait_for_trait_add_in_rp(rp_admin_cl, trait, provider):
+    timeout = CONF.compute.build_timeout
+    interval = CONF.compute.build_interval
+    start_time = int(time.time())
+    while int(time.time()) - start_time <= timeout:
+        traits = rp_admin_cl.list_resource_provider_traits(provider)['traits']
+        if trait in traits:
+            return True
+        time.sleep(interval)
+    raise lib_exc.TimeoutException(
+        'Failed to add trait %s in resource provider %s '
+        'within the required time: (%s s)' % (trait, provider, timeout))

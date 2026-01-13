@@ -134,6 +134,13 @@ general_opts = [
         default='pc',
         choices=["pc", "q35"],
         help='The machine type configured for the nova computes'),
+    cfg.StrOpt(
+        'provider_config_location',
+        default='/etc/nova/provider_config',
+        help='Directory path where provider.yaml configuration files are '
+             'stored on compute hosts. This path can be customized for '
+             'different deployment scenarios (e.g., downstream deployments '
+             'may use a different location).'),
     cfg.IntOpt(
         'hugepage_guest_ram_size',
         default=64,

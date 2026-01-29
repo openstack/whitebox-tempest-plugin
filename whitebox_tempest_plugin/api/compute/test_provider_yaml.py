@@ -47,8 +47,12 @@ class TestProviderYamlViaTraits(base.BaseWhiteboxComputeTest):
         super(TestProviderYamlViaTraits, self).setUp()
         self.rp_admin_cl = self.os_admin.resource_providers_client
         rps = self.rp_admin_cl.list_resource_providers()['resource_providers']
-        self.host1, self.host1_id = rps[0]['name'], rps[0]['uuid']
-        self.host2, self.host2_id = rps[1]['name'], rps[1]['uuid']
+        parent_rps = \
+            [rp for rp in rps if rp.get('parent_provider_uuid') is None]
+        self.host1, self.host1_id = \
+            parent_rps[0]['name'], parent_rps[0]['uuid']
+        self.host2, self.host2_id = \
+            parent_rps[1]['name'], parent_rps[1]['uuid']
         # /etc/nova/provider_config/provider.yaml config location is
         # configurable for different deployments
         self.provider_config_location = CONF.whitebox.provider_config_location

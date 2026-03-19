@@ -82,6 +82,11 @@ class VirshXMLClient(SSHClient):
         return self.execute(
             command, container_name=self.container_name, sudo=True)
 
+    def secret_dumpxml(self, secret_uuid):
+        command = f'virsh secret-dumpxml {secret_uuid}'
+        return self.execute(
+            command, container_name=self.container_name, sudo=True)
+
 
 class LogParserClient(SSHClient):
     """A client to parse logs"""

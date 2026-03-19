@@ -143,6 +143,11 @@ class BaseWhiteboxComputeTest(base.BaseV2ComputeAdminTest):
         xml = virshxml.dumpxml(server_instance_name)
         return ET.fromstring(xml)
 
+    def get_secret_xml(self, secret_uuid, host):
+        virshxml = clients.VirshXMLClient(host)
+        xml = virshxml.secret_dumpxml(secret_uuid)
+        return ET.fromstring(xml)
+
     def shutdown_server_domain(self, server, host):
         server_details = \
             self.admin_servers_client.show_server(server['id'])['server']

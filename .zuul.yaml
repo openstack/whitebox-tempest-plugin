@@ -81,9 +81,15 @@
               # testcases and will re-enable once fix has landed in stable
               # branches
               uefi_boot: false
+              vtpm_live_migration: true
             auth:
               tempest_roles: creator
         post-config:
+          $BARBICAN_CONF:
+            oslo_policy:
+              # Needed to avoid 'creator' role requirement for Barbican
+              enforce_new_defaults: True
+              enforce_scope: True
           $NOVA_CONF:
             key_manager:
               backend: barbican
@@ -100,6 +106,7 @@
               swtpm_enabled: True
               swtpm_user: swtpm
               swtpm_group: swtpm
+              supported_tpm_secret_security: 'user,host,deployment'
     group-vars:
       subnode:
         devstack_services:
@@ -127,6 +134,7 @@
                 swtpm_enabled: True
                 swtpm_user: swtpm
                 swtpm_group: swtpm
+                supported_tpm_secret_security: 'user,host,deployment'
       tempest:
         devstack_plugins:
           barbican: https://opendev.org/openstack/barbican.git

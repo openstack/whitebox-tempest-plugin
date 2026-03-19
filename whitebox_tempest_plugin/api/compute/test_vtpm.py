@@ -13,8 +13,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import testtools
+
+import tempest.clients
 from tempest import config
 from tempest.exceptions import BuildErrorException
+import tempest.lib.exceptions
 from tempest.lib.exceptions import ServerFault
 from tempest.lib.services import clients
 
@@ -31,6 +35,9 @@ class VTPMTest(base.BaseWhiteboxComputeTest):
     tpm version and model to be specified and Barbican Key manager must enabled
     in the environment to manage the instance secrets.
     """
+
+    min_microversion = '2.25'
+    max_microversion = 'latest'
 
     @classmethod
     def skip_checks(cls):
@@ -52,20 +59,9 @@ class VTPMTest(base.BaseWhiteboxComputeTest):
         cls.os_primary.secrets_client = service_clients.secret_v1.SecretClient(
             service='key-manager')
 
-    def _vptm_server_creation_check(self, vtpm_model, vtpm_version):
-        """Test to verify creating server with vTPM device
-
-        This test creates a server with specific tpm version and model
-        and verifies the same is configured by fetching instance xml.
-        """
-
-        flavor_specs = {'hw:tpm_version': vtpm_version,
-                        'hw:tpm_model': vtpm_model}
-        vtpm_flavor = self.create_flavor(extra_specs=flavor_specs)
-
-        # Create server with vtpm device and fetch xml data
-        server = self.create_test_server(flavor=vtpm_flavor['id'],
-                                         wait_until="ACTIVE")
+    def _vtpm_check(self, server, vtpm_model, vtpm_version,
+                    secrets_client=None):
+        secrets_client = secrets_client or self.os_primary.secrets_client
         server_xml = self.get_server_xml(server['id'])
 
         # Assert tpm model found in vTPM XML element is correct
@@ -89,12 +85,11 @@ class VTPMTest(base.BaseWhiteboxComputeTest):
             'element')
 
         # Get the secret uuid and get secret details from barbican
-        secret_uuid = secret_uuid = vtpm_secret_element.get('secret')
-        secret_info = self.os_primary.secrets_client.get_secret_metadata(
-            secret_uuid)
+        secret_uuid = vtpm_secret_element.get('secret')
+        secret_info = secrets_client.get_secret_metadata(secret_uuid)
 
-        # Confirm the secret is ACTIVE and its description mentions the
-        # respective server uuid and it is used for vTPM
+        # Confirm the secret is ACTIVE and its name mentions the respective
+        # server UUID and it is used for vTPM
         self.assertEqual(
             'ACTIVE', secret_info.get('status'), 'Secret is not ACTIVE, '
             'current status: %s' % secret_info.get('status'))
@@ -103,18 +98,43 @@ class VTPMTest(base.BaseWhiteboxComputeTest):
             'in secret key information: %s' % secret_info.get('name'))
         self.assertTrue(
             'vtpm' in secret_info.get('name').lower(), 'No mention of vTPM in '
-            'secret description: %s' % secret_info.get('name'))
+            'secret name: %s' % secret_info.get('name'))
+
+        return secret_uuid
+
+    def _vtpm_server_creation_check(self, vtpm_model, vtpm_version):
+        """Test to verify creating server with vTPM device
+
+        This test creates a server with specific tpm version and model
+        and verifies the same is configured by fetching instance xml.
+        """
+
+        flavor_specs = {'hw:tpm_version': vtpm_version,
+                        'hw:tpm_model': vtpm_model}
+        vtpm_flavor = self.create_flavor(extra_specs=flavor_specs)
+
+        # Create server with vtpm device
+        server = self.create_test_server(flavor=vtpm_flavor['id'],
+                                         wait_until="ACTIVE")
+
+        # Verify the server XML against Barbican API
+        self._vtpm_check(server, vtpm_model, vtpm_version)
 
         # Delete server after test
         self.delete_server(server['id'])
 
+    def _secret_check(self, secret_uuid, host):
+        secret_xml = self.get_secret_xml(secret_uuid, host)
+        self.assertEqual('no', secret_xml.get('ephemeral'))
+        self.assertEqual('no', secret_xml.get('private'))
+
     def test_create_server_with_vtpm_tis(self):
         # Test creating server with tpm-tis model and versions supported
-        self._vptm_server_creation_check('tpm-tis', '2.0')
+        self._vtpm_server_creation_check('tpm-tis', '2.0')
 
     def test_create_server_with_vtpm_crb(self):
         # Test creating server with tpm-crb model and versions supported
-        self._vptm_server_creation_check('tpm-crb', '2.0')
+        self._vtpm_server_creation_check('tpm-crb', '2.0')
 
     def test_invalid_model_version_creation(self):
         # Test attempting to create a server with an invalid model/version
@@ -146,4 +166,80 @@ class VTPMTest(base.BaseWhiteboxComputeTest):
             host_svc = wb_clients.VirtQEMUdManager(
                 host, 'libvirt', self.os_admin.services_client)
             host_svc.restart()
-        self._vptm_server_creation_check('tpm-crb', '2.0')
+        self._vtpm_server_creation_check('tpm-crb', '2.0')
+
+    def test_vtpm_live_migration_secret_security_user(self):
+        """Test vTPM live migration with secret security 'user'
+
+        The 'user' secret security policy is the same as legacy vTPM secret
+        handling where the Barbican secret is owned by the user and live
+        migration is disallowed in the API.
+
+        In this case, a cloud admin would not be able to live migrate a user's
+        instance anyhow because the user's auth token would be needed for
+        accessing the Barbican secret.
+
+        The libvirt secret in this case has ephemeral=yes and private=yes and
+        is deleted after the guest is running.
+        """
+        flavor_specs = {'hw:tpm_version': '1.2',
+                        'hw:tpm_model': 'tpm-tis'}
+        vtpm_flavor = self.create_flavor(extra_specs=flavor_specs)
+
+        # Create server with vtpm device
+        server = self.create_test_server(flavor=vtpm_flavor['id'],
+                                         wait_until="ACTIVE")
+
+        ex = self.assertRaises(
+            tempest.lib.exceptions.BadRequest, self.live_migrate,
+            self.os_admin, server['id'], 'ACTIVE')
+        self.assertIn(
+            "Operation 'live-migration' not supported for vTPM-enabled "
+            "instance", str(ex))
+
+        self.delete_server(server['id'])
+
+    @testtools.skipUnless(CONF.compute_feature_enabled.vtpm_live_migration,
+                          'vTPM live migration is not available')
+    def test_vtpm_live_migration_secret_security_host(self):
+        """Test vTPM live migration with secret security 'host'
+
+        The 'host' secret security policy has the Barbican secret owned by the
+        user but during live migration, the secret is read from libvirt and
+        passed to the destination compute host over RPC.
+
+        This enables a cloud admin to live migrate the user's instance without
+        needing the user's auth token for accessing the Barbican secret.
+
+        In this case the libvirt secret needs to be ephemeral=no and private=no
+        allowing it to be read back from libvirt.
+        """
+        vtpm_model = 'tpm-tis'
+        vtpm_version = '1.2'
+        flavor_specs = {'hw:tpm_version': vtpm_version,
+                        'hw:tpm_model': vtpm_model,
+                        'hw:tpm_secret_security': 'host'}
+        vtpm_flavor = self.create_flavor(extra_specs=flavor_specs)
+
+        # Create server with vtpm device
+        server = self.create_test_server(flavor=vtpm_flavor['id'],
+                                         wait_until="ACTIVE")
+
+        # Check the vtpm before live migration
+        secret_uuid = self._vtpm_check(server, vtpm_model, vtpm_version)
+
+        # Check the secret. We should be able to find it because it should have
+        # been created with ephemeral=no and private=no and not deleted.
+        host = self.get_host_for_server(server['id'])
+        self._secret_check(secret_uuid, host)
+
+        self.live_migrate(self.os_admin, server['id'], 'ACTIVE')
+
+        # Check the vtpm again after live migration
+        secret_uuid = self._vtpm_check(server, vtpm_model, vtpm_version)
+
+        # Check the secret again
+        host = self.get_host_for_server(server['id'])
+        self._secret_check(secret_uuid, host)
+
+        self.delete_server(server['id'])

@@ -363,6 +363,14 @@ compute_features_group_opts = [
                      '[libvirt]/swtpm_user=tss'
                      '[libvirt]/swtpm_group=tss'
                      '[key_manager]/backend=barbican'),
+    # TODO(jparker): This is a temporary config parameter that has been added
+    # to handle to downstream use cases where the latest tempest is not being
+    # used. This will be removed and the associated skipChecks will be updated
+    # to use compute_feature.vtpm_live_migration when that has landed
+    # downstream.
+    cfg.BoolOpt('vtpm_live_migration_supported',
+                default=True,
+                help='Live migration is supported with guests using vTPM'),
     cfg.BoolOpt('vdpa_cold_migration_supported',
                 default=False,
                 help='Cold migration and resize supported for guest instances '

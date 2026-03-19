@@ -199,8 +199,9 @@ class VTPMTest(base.BaseWhiteboxComputeTest):
 
         self.delete_server(server['id'])
 
-    @testtools.skipUnless(CONF.compute_feature_enabled.vtpm_live_migration,
-                          'vTPM live migration is not available')
+    @testtools.skipUnless(
+        CONF.compute_feature_enabled.vtpm_live_migration_supported,
+        'vTPM live migration is not available')
     def test_vtpm_live_migration_secret_security_host(self):
         """Test vTPM live migration with secret security 'host'
 

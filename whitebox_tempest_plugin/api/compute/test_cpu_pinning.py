@@ -91,6 +91,32 @@ class BasePinningTest(base.BaseWhiteboxComputeTest,
 
         return emulator_threads
 
+    def get_server_iothreads(self, server_id):
+        """Get the number of iothreads of the VM and host CPU numbers to
+        which these threads are pinned if any.
+
+        :param server_id: The instance UUID to look up.
+        :return (nr_of_iothreads, iothread_pins):
+            The number of io threads, An int:set(int) indicating which
+            iothread is pinned to which set of PCPUs. If the VM is not
+            pinned then iothreadpins are returned as None.
+        """
+        root = self.get_server_xml(server_id)
+
+        nr_of_iothreads = int(root.find('./iothreads').text)
+
+        iothreadpins = root.findall('./cputune/iothreadpin')
+
+        if not iothreadpins:
+            return nr_of_iothreads, None
+
+        iothread_pins = {
+            int(pin.get('iothread')):
+                hardware.parse_cpu_spec(pin.get('cpuset'))
+            for pin in iothreadpins}
+
+        return nr_of_iothreads, iothread_pins
+
     def get_cpus_with_sched(self, server_id):
         root = self.get_server_xml(server_id)
         scheds = root.findall('./cputune/vcpusched')
@@ -152,6 +178,26 @@ class BasePinningTest(base.BaseWhiteboxComputeTest,
                           for host in self.hosts_details.keys()]
         return gathered_lists
 
+    def _assert_iothread_pins(self, server_id, expected_pins):
+        if not CONF.compute_feature_enabled.iothreads:
+            return
+
+        nr, pins = self.get_server_iothreads(server_id)
+
+        # Since Gazpacho each VM gets 1 iothreads unconditionally
+        self.assertEqual(
+            1, nr, "Instance %s should have 1 iothread but it has %d"
+            % (server_id, nr))
+
+        # We know that we have only one iothread, index 1
+        pins = pins[1] if pins is not None else None
+        pins = set(pins) if pins is not None else None
+        e_pins = set(expected_pins) if expected_pins is not None else None
+        self.assertEqual(
+            e_pins, pins,
+            "The iothread of the instance %s should be pinned to the "
+            "CPUs %s but it is pinned to %s" % (server_id, e_pins, pins))
+
 
 class CPUPolicyTest(BasePinningTest):
     """Validate CPU policy support."""
@@ -165,7 +211,12 @@ class CPUPolicyTest(BasePinningTest):
         flavor = self.create_flavor(
             vcpus=shared_vcpus,
             extra_specs=self.shared_cpu_policy)
-        self.create_test_server(flavor=flavor['id'], wait_until='ACTIVE')
+        server = self.create_test_server(
+            flavor=flavor['id'], wait_until='ACTIVE')
+
+        # When the instance is not pinned to CPUs the iothread should also
+        # not be pinned.
+        self._assert_iothread_pins(server['id'], expected_pins=None)
 
     @testtools.skipUnless(
         CONF.whitebox_hardware.dedicated_cpus_per_numa >= 2,
@@ -205,6 +256,16 @@ class CPUPolicyTest(BasePinningTest):
             "Unexpected overlap in CPU pinning: {}; {}".format(
                 cpu_pinnings_a,
                 cpu_pinnings_b))
+
+        # Assert that the instance A has a single iothread and that is pinned
+        # to the instance's pcpus.
+        self._assert_iothread_pins(
+            server_a['id'], expected_pins=cpu_pinnings_a.values())
+
+        # Assert that the instance B has a single iothread and that is pinned
+        # to the instance's pcpus.
+        self._assert_iothread_pins(
+            server_b['id'], expected_pins=cpu_pinnings_b.values())
 
     @testtools.skipUnless(CONF.whitebox_hardware.realtime_mask,
                           'Realtime mask was not provided.')
@@ -525,6 +586,9 @@ class EmulatorThreadTest(BasePinningTest, numa_helper.NUMAHelperMixin):
             'Emulator threads for server %s is not the same as CPU set '
             '%s' % (emulator_threads, cpu_shared_set))
 
+        # And that the same is true for the single iothread as well
+        self._assert_iothread_pins(server['id'], expected_pins=cpu_shared_set)
+
     def test_policy_share_cpu_shared_unset(self):
         """With policy set to share and cpu_share_set unset, emulator threads
         should float over the instance's pCPUs.
@@ -570,6 +634,12 @@ class EmulatorThreadTest(BasePinningTest, numa_helper.NUMAHelperMixin):
                 emulator_threads_b, cpu_pins_b,
                 'Threads %s not the same as CPU pins %s' % (emulator_threads_b,
                                                             cpu_pins_b))
+
+            # And that the same is true for the single iothread as well
+            self._assert_iothread_pins(
+                server_a['id'], expected_pins=cpu_pins_a)
+            self._assert_iothread_pins(
+                server_b['id'], expected_pins=cpu_pins_b)
 
             # Confirm the pinned pCPUs from server A do not intersect with
             # the pinned pCPUs of server B
@@ -619,6 +689,15 @@ class EmulatorThreadTest(BasePinningTest, numa_helper.NUMAHelperMixin):
             cpu_pins.isdisjoint(emulator_threads),
             'Threads %s overlap with CPUs %s' % (emulator_threads,
                                                  cpu_pins))
+        if CONF.compute_feature_enabled.iothreads:
+            # And that the same is true to the single iothread
+            nr, pins = self.get_server_iothreads(server['id'])
+            self.assertEqual(
+                1, nr, "Instance should have 1 iothread but it has %d" % nr)
+            pins = pins[1]  # We know that we have only one iothread
+            self.assertTrue(
+                cpu_pins.isdisjoint(pins),
+                'IOThreads %s overlap with CPUs %s' % (pins, cpu_pins))
 
         # Confirm the emulator thread is a subset of the compute host's cpu
         # dedicated set
@@ -626,6 +705,13 @@ class EmulatorThreadTest(BasePinningTest, numa_helper.NUMAHelperMixin):
             emulator_threads.issubset(cpu_dedicated_set), 'Emulator thread '
             'value %s is not a subset of cpu dedicated set %s' %
             (emulator_threads, cpu_dedicated_set))
+
+        if CONF.compute_feature_enabled.iothreads:
+            # And that the same is true for the single iothread
+            self.assertTrue(
+                pins.issubset(cpu_dedicated_set), 'IO thread '
+                'value %s is not a subset of cpu dedicated set %s' %
+                (pins, cpu_dedicated_set))
 
     def test_emulator_no_extra_cpu(self):
         """Create a flavor that consumes all available pCPUs for the guest.
@@ -782,6 +868,10 @@ class NUMALiveMigrationTest(NUMALiveMigrationBase):
                 'Emulator threads for server %s is not the same as CPU set '
                 '%s' % (emulator_threads, cpu_shared_set))
 
+            # And that the same is true for the single iothread
+            self._assert_iothread_pins(
+                server['id'], expected_pins=cpu_shared_set)
+
             # Gather the cpu pin set for the guest and confirm it is a subset
             # of its respective compute host
             guest_pin_set = self.get_pinning_as_set(server['id'])
@@ -829,6 +919,26 @@ class NUMALiveMigrationTest(NUMALiveMigrationBase):
                         '%s, %s' % (threads_a, threads_b))
         self.assertEqual(threads_a, threads_b, 'After live migration emulator '
                          'threads for both servers should be the same')
+
+        if CONF.compute_feature_enabled.iothreads:
+            # And the same is true for the single iothread of both instances
+            nr_a, iopins_a = self.get_server_iothreads(server_a['id'])
+            self.assertEqual(
+                1, nr_a, "Instance %s should have 1 iothread but it has %d"
+                % (server_a['id'], nr_a))
+            iopins_a = iopins_a[1]  # We know that we have only one iothread
+
+            nr_b, iopins_b = self.get_server_iothreads(server_b['id'])
+            self.assertEqual(
+                1, nr_b, "Instance %s should have 1 iothread but it has %d"
+                % (server_b['id'], nr_b))
+            iopins_b = iopins_b[1]  # We know that we have only one iothread
+
+            self.assertTrue(iopins_a and iopins_b,
+                            'IO threads should be pinned, are unpinned: '
+                            '%s, %s' % (iopins_a, iopins_b))
+            self.assertEqual(iopins_a, iopins_b, 'After live migration IO '
+                             'threads for both servers should be the same')
 
     @decorators.skip_because(bug='2009853', bug_type='storyboard')
     def test_hugepages(self):

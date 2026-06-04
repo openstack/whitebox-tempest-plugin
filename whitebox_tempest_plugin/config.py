@@ -396,4 +396,7 @@ compute_features_group_opts = [
     cfg.BoolOpt('vencrypt',
                 default=True,
                 help="verify vnc console tls."),
+    cfg.BoolOpt('iothreads',
+                default=True,
+                help="Verify that iothreads are added to instances."),
 ]

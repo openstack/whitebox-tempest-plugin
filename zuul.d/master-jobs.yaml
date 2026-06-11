@@ -33,7 +33,7 @@
           - compute-host
 
 - job:
-    name: whitebox-devstack-multinode
+    name: whitebox-devstack-multinode-base
     parent: tempest-multinode-full-py3
     nodeset: nested-virt-multinode
     description: |
@@ -53,7 +53,6 @@
       # open source implementation of UEFI for VMs via the OVMF package. In
       # addition to test vTPM hosts need swtpm as well
       extra_packages: ovmf,swtpm-tools
-      tempest_exclude_regex: ^whitebox_tempest_plugin\.api\.compute\.test_hugepages
       compute_node_template_name: whitebox-devstack-multinode.yaml.j2
       devstack_services:
         br-ex-tcpdump: false
@@ -141,6 +140,14 @@
           whitebox-tempest-plugin: https://opendev.org/openstack/whitebox-tempest-plugin.git
 
 - job:
+    name: whitebox-devstack-multinode
+    parent: whitebox-devstack-multinode-base
+    branches:
+      - master
+    vars:
+      tempest_exclude_regex: ^whitebox_tempest_plugin\.api\.compute\.test_hugepages
+
+- job:
     name: whitebox-devstack-multinode-hugepages
     parent: whitebox-devstack-multinode
     description: |
@@ -205,20 +212,3 @@
                 rbd_pool: images
               libvirt:
                 images_type: default
-
-- project:
-    templates:
-      - publish-to-pypi
-    check:
-      jobs:
-        - whitebox-devstack-multinode
-        - whitebox-devstack-ceph-multinode
-        - openstack-tox-pep8
-    gate:
-      jobs:
-        - whitebox-devstack-multinode
-        - whitebox-devstack-ceph-multinode
-        - openstack-tox-pep8
-    experimental:
-      jobs:
-        - whitebox-devstack-multinode-hugepages

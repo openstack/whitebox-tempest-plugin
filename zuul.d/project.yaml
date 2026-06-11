@@ -1,0 +1,24 @@
+- project:
+    templates:
+      - publish-to-pypi
+    check:
+      jobs:
+        - whitebox-devstack-multinode
+        - whitebox-devstack-ceph-multinode
+        - openstack-tox-pep8
+        # NOTE(gmaan): Running whitebox tests on latest and oldest supported
+        # stable branches. We are running these on check pipeline only which
+        # is enough and what Tempest and many other tempest plguin does.
+        - whitebox-devstack-multinode-2026-1
+        - whitebox-devstack-multinode-2025-2
+        # NOTE (gmaan): 2025.1 job is broken for flavor metadata and trait tests
+        # commenting it until that is fixed.
+        # - whitebox-devstack-multinode-2025-1
+    gate:
+      jobs:
+        - whitebox-devstack-multinode
+        - whitebox-devstack-ceph-multinode
+        - openstack-tox-pep8
+    experimental:
+      jobs:
+        - whitebox-devstack-multinode-hugepages

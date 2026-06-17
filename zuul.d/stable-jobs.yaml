@@ -1,0 +1,93 @@
+- nodeset:
+    name: nested-virt-multinode-noble
+    nodes:
+      - name: controller
+        label: nested-virt-ubuntu-noble
+        # NOTE(artom) We can't name the node 'compute' because that seems to
+        # take precedence over the 'compute' group in playbooks, so things we
+        # want to run on all hosts in the 'compute' group would only run on the
+        # subnode.
+      - name: compute-host
+        label: nested-virt-ubuntu-noble
+    groups:
+      # Node where tests are executed and test results collected
+      - name: tempest
+        nodes:
+          - controller
+      # Nodes running the compute service
+      - name: compute
+        nodes:
+          - controller
+          - compute-host
+      # Nodes that are not the controller
+      - name: subnode
+        nodes:
+          - compute-host
+      # Switch node for multinode networking setup
+      - name: switch
+        nodes:
+          - controller
+      # Peer nodes for multinode networking setup
+      - name: peers
+        nodes:
+          - compute-host
+
+- job:
+    name: whitebox-devstack-multinode
+    parent: whitebox-devstack-multinode-base
+    nodeset: nested-virt-multinode-noble
+    description: |
+      This job is for 2026.1 branches to runs the entire test suite on single-NUMA, non-SMT, nested virt VMs.
+    branches:
+      - ^.*/2026.1
+    vars:
+      tempest_exclude_regex: ^whitebox_tempest_plugin\.api\.compute\.test_hugepages
+
+- job:
+    name: whitebox-devstack-multinode
+    parent: whitebox-devstack-multinode-base
+    nodeset: nested-virt-multinode-noble
+    description: |
+      This job is for 2025.2 and 2025.1 branches to runs the entire test suite on single-NUMA, non-SMT, nested virt VMs.
+    branches:
+      - ^.*/2025.2
+      - ^.*/2025.1
+    vars:
+      tempest_exclude_regex: (^whitebox_tempest_plugin\.api\.compute\.test_hugepages)|(test_vtpm_live_migration_secret_security_host)
+      devstack_local_conf:
+        test-config:
+          $TEMPEST_CONFIG:
+            compute-feature-enabled:
+              iothreads: false
+
+- job:
+    name: whitebox-devstack-multinode-2026-1
+    parent: whitebox-devstack-multinode
+    nodeset: nested-virt-multinode-noble
+    override-checkout: stable/2026.1
+
+- job:
+    name: whitebox-devstack-multinode-2025-2
+    parent: whitebox-devstack-multinode
+    nodeset: nested-virt-multinode-noble
+    override-checkout: stable/2025.2
+    vars:
+      tempest_exclude_regex: (^whitebox_tempest_plugin\.api\.compute\.test_hugepages)|(test_vtpm_live_migration_secret_security_host)
+      devstack_local_conf:
+        test-config:
+          $TEMPEST_CONFIG:
+            compute-feature-enabled:
+              iothreads: false
+
+- job:
+    name: whitebox-devstack-multinode-2025-1
+    parent: whitebox-devstack-multinode
+    nodeset: nested-virt-multinode-noble
+    override-checkout: stable/2025.1
+    vars:
+      tempest_exclude_regex: (^whitebox_tempest_plugin\.api\.compute\.test_hugepages)|(test_vtpm_live_migration_secret_security_host)
+      devstack_local_conf:
+        test-config:
+          $TEMPEST_CONFIG:
+            compute-feature-enabled:
+              iothreads: false

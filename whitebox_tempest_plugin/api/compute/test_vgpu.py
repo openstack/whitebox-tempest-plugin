@@ -33,6 +33,11 @@ class VGPUTest(base.BaseWhiteboxComputeTest):
     # a single vGPU per instance, so this value is not exposed as a whitebox
     # hardware configurable at this time.
     vgpu_amount_per_instance = 1
+    # NOTE(jgilaber) Requires at least placement microversion 1.14 in order
+    # to call the list_resource_providers API with the 'in_tree=<UUID>'
+    # parameter
+    placement_min_microversion = '1.14'
+    placement_max_microversion = 'latest'
 
     @classmethod
     def skip_checks(cls):
@@ -311,11 +316,6 @@ class VGPUSmoke(VGPUTest):
 
 class VGPUColdMigration(VGPUTest):
 
-    # Requires at least placement microversion 1.14 in order search through
-    # nested resources providers via the 'in_tree=<UUID>' parameter
-    placement_min_microversion = '1.14'
-    placement_max_microversion = 'latest'
-
     @classmethod
     def skip_checks(cls):
         super(VGPUColdMigration, cls).skip_checks()
@@ -456,11 +456,6 @@ class VGPUColdMigration(VGPUTest):
 
 
 class VGPUResizeInstance(VGPUTest):
-
-    # Requires at least placement microversion 1.14 in order search through
-    # nested resources providers via the 'in_tree=<UUID>' parameter
-    placement_min_microversion = '1.14'
-    placement_max_microversion = 'latest'
 
     @classmethod
     def skip_checks(cls):
